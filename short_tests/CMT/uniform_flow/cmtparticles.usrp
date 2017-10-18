@@ -1,0 +1,251 @@
+c----------------------------------------------------------------------
+      subroutine place_particles
+c
+c     Place particles in this routine, also called for injection
+c
+      include 'SIZE'
+      include 'TOTAL'
+      include 'CMTDATA'
+      include 'CMTPART'
+
+      real    dum
+
+      integer icalld
+      save    icalld
+      data    icalld  /-1/
+
+      real   xdrange(2,3)
+      common /domainrange/ xdrange
+      real   xerange(2,3,lelt)
+      common /elementrange/ xerange
+
+      ! begin timer
+      ptdum(3) = dnekclock()
+
+      icalld = icalld + 1
+
+      rpi    = 4.0*atan(1.) ! pi
+      mu_0   = abs(param(2))
+
+c     bounds to distribute particle between
+      rxbo(1,1) = xdrange(1,1) + dp(2)/2.
+      rxbo(2,1) = xdrange(2,1) - dp(2)/2.
+      rxbo(1,2) = xdrange(1,2) + dp(2)/2.
+      rxbo(2,2) = xdrange(2,2) - dp(2)/2.
+      rxbo(1,3) = xdrange(1,3) + dp(2)/2.
+      rxbo(2,3) = xdrange(2,3) - dp(2)/2.
+
+      vol_distrib = (rxbo(2,1)-rxbo(1,1))*(rxbo(2,2)-rxbo(1,2))*
+     >              (rxbo(2,3)-rxbo(1,3))
+
+c     correct nwe if discrepancy
+      nwe         = int(nw/np)                ! num. part per proc
+      nw_tmp      = iglsum(nwe,1)
+      if ((nw_tmp .ne. nw) .and. (nid.eq.0)) nwe = nwe + (nw - nw_tmp)
+
+c     main loop to distribute particles
+      do i = 1,nwe
+         n = n + 1
+         if (n.gt.llpart)then 
+            write(6,*)'Not enough space to store more particles'
+            call exitt
+         endif
+
+         ! distribute x,y,z coordinates
+         do j=0,2
+            rval = unif_random(rxbo(1,j+1),rxbo(2,j+1))
+            rpart(jx+j,n)  = rval
+            rpart(jx1+j,n) = rval
+            rpart(jx2+j,n) = rval
+            rpart(jx3+j,n) = rval
+         enddo
+
+c        set some rpart values for later use
+         rpart(jdp,n)   = unif_random(dp(1),dp(2)) ! particle diameter
+         tau_p          = rpart(jdp,n)**2*rho_p/18.0d+0/mu_0  ! part. time scale stokes
+
+         ! fake here, so that particles move fast
+         tau_p = 100.*dt
+         rpart(jdp,n) = sqrt(tau_p*18.*mu_0/rho_p)
+         ! end fake here
+
+         rpart(jtaup,n) = tau_p     ! particle time scale
+         rpart(jrhop,n) = rho_p     ! material density of particle
+         rpart(jvol,n)  = rpi*rpart(jdp,n)**3/6.! particle volume
+         rpart(jspl,n)  = 1.        ! super particle loading
+         rpart(jgam,n)  = 1.        ! initial integration correction
+
+         rpart(jtemp,n)  = tp_0     ! intial temp as fluid air
+         rpart(jtempf,n) = tp_0     ! intial temp as fluid air
+         rpart(jrho,n)   = param(1) ! later overwritten by interpolation
+
+c        set global particle id (3 part tag)
+         ipart(jpid1,n) = nid 
+         ipart(jpid2,n) = i
+         ipart(jpid3,n) = icalld
+      enddo
+
+      ! super particle loading for polydisperse particles
+      if (nitspl.gt.0) then
+      if (istep.eq. 0 .or.istep .eq.1) then ! be careful if injecting
+      rdumv = 0.
+      do i=1,n
+         rdumv = rdumv + rpart(jvol,i)
+      enddo
+      rdumt = glsum(rdumv,1)
+      if (two_way.gt.1) then
+      do i=1,n
+            rpart(jspl,i) =  phi_desire*vol_distrib/(rdumt)
+      enddo
+      endif
+      endif
+      endif
+
+c     check if zstart and zlen is alright for a 2d case
+      if (.not. if3d) then
+          if (abs(zstart-1.0) .gt. 1E-16) then
+             write(6,*)'***particle zstart is not right for 2d case'
+             call exitt
+          elseif(abs(zlen) .gt. 1E-16) then
+             write(6,*)'***particle zlen is not right for 2d case'
+             call exitt
+         endif
+      endif
+
+      ! end timer
+      pttime(3) = pttime(3) + dnekclock() - ptdum(3)
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine usr_particles_f_user(ii,jj)
+c
+c     extra body forces (total force, must have mass here)
+c
+      include 'SIZE'
+      include 'TOTAL'
+      include 'CMTDATA'
+      include 'CMTPART'
+
+      real pmass,pmassf
+
+      pmass = rpart(jvol,ii)*rpart(jrhop,ii)
+      pmassf= rpart(jvol,ii)*rpart(jrho,ii)
+
+      if (jj.eq.0) rpart(jfusr+jj,ii) = 0.0 
+      if (jj.eq.1) rpart(jfusr+jj,ii) = 0.0
+      if (jj.eq.2) rpart(jfusr+jj,ii) = 0.0
+
+      return
+      end
+c----------------------------------------------------------------------
+      subroutine pre_sim_collisions
+c
+c     time stepping routine for pre-simulation collisions/settling
+c
+      include 'SIZE'
+      include 'TOTAL'
+      include 'CTIMER'
+      include 'CMTDATA'
+      include 'CMTPART'
+
+      ! nothing to do in this case
+
+      return
+      end
+c----------------------------------------------------------------------
+      FUNCTION ran2(idum)
+      INTEGER idum,IM1,IM2,IMM1,IA1,IA2,IQ1,IQ2,IR1,IR2,NTAB,NDIV 
+      REAL ran2,AM,EPS,RNMX
+      PARAMETER (IM1=2147483563,IM2=2147483399,AM=1./IM1,IMM1=IM1-1,
+     $        IA1=40014,IA2=40692,IQ1=53668,IQ2=52774,IR1=12211,
+     $        IR2=3791,NTAB=32,NDIV=1+IMM1/NTAB,EPS=1.2e-7,RNMX=1.-EPS)
+c Long period (> 2 ! 1018 ) random number generator of L’Ecuyer with 
+c Bays-Durham shuffle and added safeguards. Returns a uniform random deviate 
+c between 0.0 and 1.0 (exclusive of the endpoint values). 
+c Call with idum a negative integer to initialize; thereafter, do not alter 
+c idum between successive deviates in a sequence. RNMX should approximate the 
+c largest floating value that is less than 1.
+      INTEGER idum2,j,k,iv(NTAB),iy
+      SAVE iv,iy,idum2
+      DATA idum2/123456789/, iv/NTAB*0/, iy/0/
+      if (idum.le.0) then 
+         idum1=max(-idum,1) 
+         idum2=idum1
+         do j=NTAB+8,1,-1
+            k=idum1/IQ1
+            idum1=IA1*(idum1-k*IQ1)-k*IR1 
+            if (idum1.lt.0) idum1=idum1+IM1 
+            if (j.le.NTAB) iv(j)=idum1
+         enddo
+         iy=iv(1) 
+      endif
+      k=idum1/IQ1 
+      idum1=IA1*(idum1-k*IQ1)-k*IR1
+      if (idum1.lt.0) idum1=idum1+IM1 
+      k=idum2/IQ2 
+      idum2=IA2*(idum2-k*IQ2)-k*IR2 
+      if (idum2.lt.0) idum2=idum2+IM2 
+      j=1+iy/NDIV
+      iy=iv(j)-idum2
+      iv(j)=idum1 
+      if(iy.lt.1)iy=iy+IMM1 
+      ran2=min(AM*iy,RNMX)
+      return
+      END
+c----------------------------------------------------------------------
+      function unif_random(rxl,rxr)
+c
+c     must initialize ran2 first
+c
+      real xl,xr,unif_random
+
+      rdum       = ran2(2)
+      rlen       = rxr - rxl
+      unif_random= rxl + rdum*rlen
+
+      return
+      end
+c-----------------------------------------------------------------------
+      function unif_random_norm(rxl,rxr,rstd)
+c
+c     must initialize ran2 first
+c
+      real xl,xr,unif_random_norm,rstd,rxfne(1000),rcdf(1000)
+
+      rmu = (rxr + rxl)/2.
+      nxfn  = 1000
+      rxlf  = rmu - 5.*rstd
+      rxrf  = rmu + 5.*rstd
+      rdxf  = (rxrf-rxlf)/(nxfn-1.)
+
+      do i=1,nxfn
+         rxfne(i) = rxlf + (i-1.)*rdxf
+         rcdf(i)  = 0.5*(1. + erf((rxfne(i)-rmu)/(rstd*sqrt(2.))))
+      enddo
+
+      rdum = unif_random(0.,1.)
+
+!     find lower min value for inverse sampling
+      idum = 0
+      rmin = 100.
+      do i=1,nxfn
+         if (abs(rdum - rcdf(i)) .lt. rmin) then
+            rmin = abs(rdum -rcdf(i))
+            idum = i
+         endif
+      enddo
+      ml = idum
+      if (rdum .lt. rcdf(idum)) ml = ml + 1
+
+      if (rdum .gt. rcdf(nxfn)) then
+         unif_random_norm = rxrf 
+      elseif (rdum .lt. rcdf(1)) then
+         unif_random_norm = rxlf
+      else
+         rm = (rxfne(ml+1) - rxfne(ml))/(rcdf(ml+1) - rcdf(ml))
+         unif_random_norm = rxfne(ml) + rm*(rdum - rcdf(ml))
+      endif
+
+      return
+      end
+c-----------------------------------------------------------------------
