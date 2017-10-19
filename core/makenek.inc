@@ -358,6 +358,17 @@ if ! cat SIZE | grep -q 'SIZE.inc' ; then
   fi
   fi
 fi
+  if [ $CMT -ne 0 ]; then
+      if [ -e "cmtparticles.usrp" ]; then
+         echo 'Particles found CMT'
+      else
+         if ! cat SIZE | grep -q 'llpart' ; then
+            echo >>SIZE
+            echo 'c automatically added by makenek' >>SIZE
+            echo '      parameter(llpart = 1  ) ! Allocation for particles '  >>SIZE
+         fi
+      fi
+  fi
 
 # tweak .usr (actually, .f ) file
 rm -f $CASENAME.f
@@ -459,21 +470,19 @@ else
 cat >> $CASENAME.f << _ACEOF
 c
 c automatically added by makenek
-      subroutine usr_particles_init ! used for particles
+      subroutine usr_particles_f_user ! used for particles
       return
       end
 c
 c automatically added by makenek
-      subroutine usr_particles_solver ! used for particles
+      subroutine place_particles ! used for particles
       return
       end
 c
 c automatically added by makenek
-      subroutine usr_particles_io(istep) ! used for particles
-      integer istep
+      subroutine pre_sim_collisions ! used for particles
       return
       end
-
 _ACEOF
 fi
 fi

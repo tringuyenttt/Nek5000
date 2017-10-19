@@ -35,11 +35,15 @@ c----------------------------------------------------------------------
       nigp = ligp
       nrf  = lrf
       nif  = lif
+      n    = 0      ! for initializing first
+      nw   = 0
 
       ! begin timer
       ptdum(1) = dnekclock()
-
-      call read_particle_input(ifreadpart)
+      ifreadpart = .false.
+      
+      ! when llpart == 1 then assume no particle case
+      if (llpart .ne. 1) call read_particle_input(ifreadpart)
       call set_bounds_box
       call set_part_pointers
       call set_part_params ! n initialized here
