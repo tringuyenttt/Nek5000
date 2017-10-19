@@ -29,13 +29,6 @@ c----------------------------------------------------------------------
 
       logical ifreadpart
 
-c     zero before anything happens
-      call rzero(ptdum,iptlen)
-      call rzero(pttime,iptlen)
-
-      ! begin timer
-      ptdum(1) = dnekclock()
-
       nr   = lr     ! Mandatory for proper striding
       ni   = li     ! Mandatory
       nrgp = lrgp
@@ -43,8 +36,8 @@ c     zero before anything happens
       nrf  = lrf
       nif  = lif
 
-      call rzero(rpart,lr*llpart)
-      call izero(ipart,li*llpart)
+      ! begin timer
+      ptdum(1) = dnekclock()
 
       call read_particle_input(ifreadpart)
       call set_bounds_box
@@ -148,6 +141,8 @@ c----------------------------------------------------------------------
       save    icalld
       data    icalld  /-1/
 
+      character*132 deathmessage
+
       ! begin timer
       ptdum(3) = dnekclock()
 
@@ -159,12 +154,81 @@ c----------------------------------------------------------------------
 
 c     setup items
       nlxyze = nx1*ny1*nz1*nelt
+      call rzero(rpart,lr*llpart)
+      call izero(ipart,li*llpart)
       call rzero(ptw,nlxyze*8)
+      call rzero(ptdum,iptlen)
+      call rzero(pttime,iptlen)
 
-c     some computed parameters
-      deltax      = rleng/nx1
-      deltaf      = df_dx*deltax                 ! gaussian filter half
-      rsig        = deltaf/(2.*sqrt(2.*log(2.))) ! gaussian filter std.
+c     filter width setup (note deltax is implicit in expressions b4 def)
+      rtmp_rle = 1000. ! large dummy number
+
+      ! do nothing, no spreading
+      if (npro_method .eq. 0) then
+
+      ! box filter in this element, still no spreading
+      elseif (npro_method .eq. 1) then
+
+      ! gaussian set by user input parameters
+      elseif (npro_method .eq. 2) then
+
+         rtmp_rle = df_dx/(2.*nx1)*sqrt(-log(ralphdecay)/log(2.))
+
+         if (rtmp_rle .gt. 0.5) then
+            write(deathmessage,*) 'WARNING filter width is too large'
+            call exittr(deathmessage,rtmp_rle,icalld)
+         endif
+
+      ! gaussian forced to be smooth if user inputs non-smooth params
+      elseif (npro_method .eq. -2) then
+         ! idea is this: if user specifies wrong parameters then the
+         ! filter will be clipped at 1%. If for a user input filter 
+         ! width everything is fine, this will be kept. If the ghost
+         ! particle algorithm can't handle these parameters, the 
+         ! filter width will change accordingly. If the filter
+         ! width is less than 1.5 * dx, the simulation will die since
+         ! this can't be represented well on this grid.
+
+         ralpha_min = 0.01
+         df_dx_min  = 1.5
+
+         rtmp_rle   = df_dx/(2.*nx1)*sqrt(-log(ralpha_min)/log(2.))
+
+         if (rtmp_rle .gt. 0.5) then
+            rtmp_rle = 0.5
+            df_dx = rtmp_rle * 2.*nx1*sqrt(-log(2.)/log(ralphdecay))
+
+            if (df_dx .lt. df_dx_min) then
+               write(deathmessage,*) 
+     >           'WARNING auto-filter width is too small, increase nx1'
+               call exittr(deathmessage,df_dx,icalld)
+            endif
+         endif
+      endif
+
+      ! now, check this filter width against collision width
+      if (two_way .gt. 2) then
+         rtmp_rle_col = (dp(2)*(0.5+0.075))/rleng
+
+         if ( rtmp_rle_col .gt. rtmp_rle) then
+            write(deathmessage,*) 
+     >        'WARNING collision > filter width, element size too small'
+            call exittr(deathmessage,rtmp_rle_col/rtmp_rle,icalld)
+         else
+            ! no filter dependent spreading, so use collision width
+            if (abs(npro_method) .le. 1) then
+               rtmp_rle = rtmp_rle_col
+            endif
+         endif
+      endif
+
+      d2chk(1) = rtmp_rle*rleng
+      d2chk(2) = d2chk(1)
+      d2chk(3) = d2chk(1)
+
+      deltax   = rleng/nx1
+      deltaf   = df_dx*deltax                 ! gaussian filter half
+      rsig     = deltaf/(2.*sqrt(2.*log(2.))) ! gaussian filter std.
 
       ! end timer
       pttime(3) = pttime(3) + dnekclock() - ptdum(3)
@@ -625,10 +689,10 @@ c
       call rzero(ptw,nlxyze*8)
 
       ! do nothing
-      if (npro_method .eq. 0) then
+      if (abs(npro_method) .eq. 0) then
 
       ! finite volume-like spreading
-      elseif (npro_method .eq. 1) then
+      elseif (abs(npro_method) .eq. 1) then
       call rzero(rcountv,8*nelt)
 
 c     ! for grid spreading line in finite volume.. no ghost particles
@@ -670,7 +734,7 @@ c     local mpi rank effects
 
 
       ! gaussian spreading
-      elseif (npro_method.eq.2) then
+      elseif (abs(npro_method).eq.2) then
 
       pi       = 4.0d+0*atan(1.0d+0)
       rbexpi   = 1./(-2.*rsig**2)
@@ -1624,7 +1688,7 @@ c           write(6,*) 'test?', i,j,n
      >                              rpart(jv0,i),rpart(jv0,j),
      >                              rpart(jdp,i),rpart(jdp,j),rdeff,
      >                              pmass1      ,pmass2      ,
-     >                              rpart(jfcol,i),rlamb,e_rest)
+     >                              rpart(jfcol,i),rlamb)
             endif
          enddo
 
@@ -1646,7 +1710,7 @@ c        search list of ghost particles
      >                              rpart(jv0,i),rptsgp(jgpv0,j),
      >                              rpart(jdp,i),rpdp2          ,rdeff,
      >                              pmass1      ,pmass2         ,
-     >                              rpart(jfcol,i),rlamb,e_rest)
+     >                              rpart(jfcol,i),rlamb)
             endif
  1234 continue
          enddo
@@ -1678,7 +1742,7 @@ c              write(6,*) 'wall check', rxwall(1),rxwall(2),rxwall(3)
      >                           rpart(jv0,i),rvwall ,
      >                           rpart(jdp,i),rpdp2        ,rdeff,
      >                           pmass1      ,pmass2       ,
-     >                           rpart(jfcol,i),rlamb,e_rest)
+     >                           rpart(jfcol,i),rlamb)
             endif
          enddo
       endif
@@ -1690,7 +1754,7 @@ c     write(6,*) 'After',rpart(jfcol,i),jfcol
       end
 c-----------------------------------------------------------------------
       subroutine compute_collide(rx1,rx2,rv1,rv2,rd1,rd2,deff,
-     >                           rm1,rm2,fcf,rlamb,ere)
+     >                           rm1,rm2,fcf,rlamb)
 c
 c     extra body forces
 c
@@ -1723,9 +1787,8 @@ c     write(6,*) 'yooo4', rdiff,rthresh
          goto 1511
       endif
 
-
       rm12     = 1./(1./rm1 + 1./rm2)
-      ralpha   = -log(ere)/pi
+      ralpha   = -log(e_rest)/pi
       eta      = 2.*ralpha*sqrt(rm12*ksp/(1+ralpha**2))
 
       ! first, handle normal collision part
@@ -1736,12 +1799,9 @@ c     write(6,*) 'yooo4', rdiff,rthresh
       rdelta12 = rthresh - rdiff
 c     if (rdelta12 .lt. 0) rdelta12 = 0. ! no overlap
       
-c     rdelta12 = rthresh - rlamb - rdiff
-
       rv12_mag = (rv1(1) - rv2(1))*rn_12x +
      >           (rv1(2) - rv2(2))*rn_12y +
      >           (rv1(3) - rv2(3))*rn_12z
-
 
       rv12x = rv12_mag*rn_12x
       rv12y = rv12_mag*rn_12y
@@ -1751,142 +1811,16 @@ c     rdelta12 = rthresh - rlamb - rdiff
       rfn2 = ksp*rdelta12**(1.5)*rn_12y - eta*rv12y
       rfn3 = ksp*rdelta12**(1.5)*rn_12z - eta*rv12z
 
-c     rfn1 = ksp*rdelta12*rn_12x
-c     rfn2 = ksp*rdelta12*rn_12y
-c     rfn3 = ksp*rdelta12*rn_12z
-
       rfn_mag = sqrt(rfn1**2 + rfn2**2 + rfn3**2)
 
       fcf(1) = fcf(1) + rfn1
       fcf(2) = fcf(2) + rfn2
       fcf(3) = fcf(3) + rfn3
 
-c     write(6,*) 'colliding', fcf(1),rv1(1)
-
-      ! now handle the tangential collision part
-
-c     rvab_t1 = (rv1(1) - rv2(1)) - rv12x
-c     rvab_t2 = (rv1(2) - rv2(2)) - rv12y
-c     rvab_t3 = (rv1(3) - rv2(3)) - rv12z
-
-c     rvab_tmag = sqrt(rvab_t1*rvab_t1 +
-c    >                 rvab_t2*rvab_t2 + 
-c    >                 rvab_t3*rvab_t3 )
-
-c     tab_x = rvab_t1/rvab_tmag
-c     tab_y = rvab_t2/rvab_tmag
-c     tab_z = rvab_t3/rvab_tmag
-
-c     fcf(1) = fcf(1) + rmu_f*rfn_mag*tab_x
-c     fcf(2) = fcf(2) + rmu_f*rfn_mag*tab_y
-c     fcf(3) = fcf(3) + rmu_f*rfn_mag*tab_z
-
-c     write(6,*) tau_c, dt, ksp, rv12_mag,rdelta12,eta,rv12x
-
-
  1511 continue
 
       return
       end
-c-----------------------------------------------------------------------
-c     subroutine compute_collide(rx1,rx2,rv1,rv2,rd1,rd2,deff,
-c    >                           rm1,rm2,fcf,rlamb)
-c
-c     extra body forces
-c
-c     include 'SIZE'
-c     include 'TOTAL'
-c     include 'CMTDATA'
-c     include 'CMTPART'
-
-c     real pmass,rxdum,rydum
-c     real rx1(3),rx2(3),rv1(3),rv2(3),fcf(3),er,eta
-c     logical ifcol
-
-c     rlamb = 0.
-c     rthresh = 0.5*(rd1 + rd2) + rlamb
-
-c     write(6,*) 'hi', deff, rd1,rd2,rlamb
-
-c     rxdiff = rx2(1) - rx1(1)
-c     write(6,*) 'yooo1', rxdiff,rthresh
-c     if (abs(rxdiff) .gt. rthresh) goto 1511
-c     rydiff = rx2(2) - rx1(2)
-c     write(6,*) 'yooo2', rydiff,rthresh
-c     if (abs(rydiff) .gt. rthresh) goto 1511
-c     rzdiff = rx2(3) - rx1(3)
-c     write(6,*) 'yooo3', rzdiff,rthresh
-c     if (abs(rzdiff) .gt. rthresh) goto 1511
-c     rdiff = sqrt(rxdiff*rxdiff + rydiff*rydiff + rzdiff*rzdiff)
-c     write(6,*) 'yooo4', rdiff,rthresh
-c     if (rdiff .gt. rthresh) then
-c        goto 1511
-c     endif
-
-
-c     rm12     = 1./(1./rm1 + 1./rm2)
-c     eta      = -2.*log(e_rest)*sqrt(rm12*ksp)/(pi**2 + log(e_rest)**2)
-
-c     ! first, handle normal collision part
-c     rn_12x   = rxdiff/rdiff
-c     rn_12y   = rydiff/rdiff
-c     rn_12z   = rzdiff/rdiff
-
-c     rdelta12 = rthresh - rdiff
-c     if (rdelta12 .lt. 0) rdelta12 = 0. ! no overlap
-c     
-c     rdelta12 = rthresh - rlamb - rdiff
-
-c     rv12_mag = (rv1(1) - rv2(1))*rn_12x +
-c    >           (rv1(2) - rv2(2))*rn_12y +
-c    >           (rv1(3) - rv2(3))*rn_12z
-
-
-c     rv12x = rv12_mag*rn_12x
-c     rv12y = rv12_mag*rn_12y
-c     rv12z = rv12_mag*rn_12z
-
-c     rfn1 = -ksp*rdelta12*rn_12x - eta*rv12x
-c     rfn2 = -ksp*rdelta12*rn_12y - eta*rv12y
-c     rfn3 = -ksp*rdelta12*rn_12z - eta*rv12z
-
-c     rfn1 = ksp*rdelta12*rn_12x
-c     rfn2 = ksp*rdelta12*rn_12y
-c     rfn3 = ksp*rdelta12*rn_12z
-
-c     rfn_mag = sqrt(rfn1**2 + rfn2**2 + rfn3**2)
-
-c     fcf(1) = fcf(1) + rfn1
-c     fcf(2) = fcf(2) + rfn2
-c     fcf(3) = fcf(3) + rfn3
-
-c     write(6,*) 'colliding', fcf(1),rv1(1)
-
-c     ! now handle the tangential collision part
-
-c     rvab_t1 = (rv1(1) - rv2(1)) - rv12x
-c     rvab_t2 = (rv1(2) - rv2(2)) - rv12y
-c     rvab_t3 = (rv1(3) - rv2(3)) - rv12z
-
-c     rvab_tmag = sqrt(rvab_t1*rvab_t1 +
-c    >                 rvab_t2*rvab_t2 + 
-c    >                 rvab_t3*rvab_t3 )
-
-c     tab_x = rvab_t1/rvab_tmag
-c     tab_y = rvab_t2/rvab_tmag
-c     tab_z = rvab_t3/rvab_tmag
-
-c     fcf(1) = fcf(1) + rmu_f*rfn_mag*tab_x
-c     fcf(2) = fcf(2) + rmu_f*rfn_mag*tab_y
-c     fcf(3) = fcf(3) + rmu_f*rfn_mag*tab_z
-
-c     write(6,*) tau_c, dt, ksp, rv12_mag,rdelta12,eta,rv12x
-
-
-c1511 continue
-
-c     return
-c     end
 c-----------------------------------------------------------------------
       subroutine compute_collide_back(rx1,rx2,rv1,rv2,rd1,rd2,deff,
      >                           rm1,rm2,fcf)
@@ -2016,47 +1950,9 @@ c
       ! begin timer
       ptdum(14) = dnekclock()
 
-c     distance to check in x,y,z space
-      if (istep.eq.0.or.istep.eq.1) then
-         if (npro_method .eq. 2) then
-            rtmp = df_dx/(2.*nx1)*sqrt(-log(ralphdecay)/log(2.))*rleng
-            if (rtmp/rleng .gt. 0.5) then
-            if (nid .eq. 0)
-     >         write (6,*)'WARNING1 r/L_e is too large,change part.',
-     >                                                        rtmp/rleng
-               rtmp = 0.5*rleng
-               if (two_way .gt. 2) then
-               if (rtmp .lt. dp(2)) then 
-               if (nid .eq. 0) then
-                  write(6,*) 'WARNING Ghost part threshold too small!',
-     >                rtmp,dp(2)
-               endif
-               endif
-               endif
-            endif
-         else
-            rtmp = 0.
-            ! minimum allowed for collisions
-            if (two_way .gt. 2) then
-               rtmp = dp(2)/2. + 0.075*dp(2)
-            endif
-
-            if (rtmp/rleng .gt. 0.5) then
-            if (nid .eq. 0)
-     >         write (6,*)'WARNING2 r/L_e is too large,change part.',
-     >                                                        rtmp/rleng
-               rtmp = 0.5*rleng
-            endif
-         endif
-
-         d2chk(1) = rtmp
-         d2chk(2) = rtmp
-         d2chk(3) = rtmp
-      endif
-
       if (istep.eq.0.or.istep.eq.1) then
          ntmp = iglsum(nfptsgp,1)
-         if (nid.eq.0) write(6,*) 'Passed init ghost parts', rtmp/rleng
+         if (nid.eq.0) write(6,*) 'Passed ini ghost part',d2chk(1)/rleng
       endif
 
 c     create ghost particles
@@ -4610,3 +4506,99 @@ c     msum_total = glsum(msum,1)
       return
       end
 c----------------------------------------------------------------------
+      FUNCTION ran2(idum)
+      INTEGER idum,IM1,IM2,IMM1,IA1,IA2,IQ1,IQ2,IR1,IR2,NTAB,NDIV 
+      REAL ran2,AM,EPS,RNMX
+      PARAMETER (IM1=2147483563,IM2=2147483399,AM=1./IM1,IMM1=IM1-1,
+     $        IA1=40014,IA2=40692,IQ1=53668,IQ2=52774,IR1=12211,
+     $        IR2=3791,NTAB=32,NDIV=1+IMM1/NTAB,EPS=1.2e-7,RNMX=1.-EPS)
+c Long period (> 2 ! 1018 ) random number generator of L’Ecuyer with 
+c Bays-Durham shuffle and added safeguards. Returns a uniform random deviate 
+c between 0.0 and 1.0 (exclusive of the endpoint values). 
+c Call with idum a negative integer to initialize; thereafter, do not alter 
+c idum between successive deviates in a sequence. RNMX should approximate the 
+c largest floating value that is less than 1.
+      INTEGER idum2,j,k,iv(NTAB),iy
+      SAVE iv,iy,idum2
+      DATA idum2/123456789/, iv/NTAB*0/, iy/0/
+      if (idum.le.0) then 
+         idum1=max(-idum,1) 
+         idum2=idum1
+         do j=NTAB+8,1,-1
+            k=idum1/IQ1
+            idum1=IA1*(idum1-k*IQ1)-k*IR1 
+            if (idum1.lt.0) idum1=idum1+IM1 
+            if (j.le.NTAB) iv(j)=idum1
+         enddo
+         iy=iv(1) 
+      endif
+      k=idum1/IQ1 
+      idum1=IA1*(idum1-k*IQ1)-k*IR1
+      if (idum1.lt.0) idum1=idum1+IM1 
+      k=idum2/IQ2 
+      idum2=IA2*(idum2-k*IQ2)-k*IR2 
+      if (idum2.lt.0) idum2=idum2+IM2 
+      j=1+iy/NDIV
+      iy=iv(j)-idum2
+      iv(j)=idum1 
+      if(iy.lt.1)iy=iy+IMM1 
+      ran2=min(AM*iy,RNMX)
+      return
+      END
+c----------------------------------------------------------------------
+      function unif_random(rxl,rxr)
+c
+c     must initialize ran2 first
+c
+      real xl,xr,unif_random
+
+      rdum       = ran2(2)
+      rlen       = rxr - rxl
+      unif_random= rxl + rdum*rlen
+
+      return
+      end
+c-----------------------------------------------------------------------
+      function unif_random_norm(rxl,rxr,rstd)
+c
+c     must initialize ran2 first
+c
+      real xl,xr,unif_random_norm,rstd,rxfne(1000),rcdf(1000)
+
+      rmu = (rxr + rxl)/2.
+      nxfn  = 1000
+      rxlf  = rmu - 5.*rstd
+      rxrf  = rmu + 5.*rstd
+      rdxf  = (rxrf-rxlf)/(nxfn-1.)
+
+      do i=1,nxfn
+         rxfne(i) = rxlf + (i-1.)*rdxf
+         rcdf(i)  = 0.5*(1. + erf((rxfne(i)-rmu)/(rstd*sqrt(2.))))
+      enddo
+
+      rdum = unif_random(0.,1.)
+
+!     find lower min value for inverse sampling
+      idum = 0
+      rmin = 100.
+      do i=1,nxfn
+         if (abs(rdum - rcdf(i)) .lt. rmin) then
+            rmin = abs(rdum -rcdf(i))
+            idum = i
+         endif
+      enddo
+      ml = idum
+      if (rdum .lt. rcdf(idum)) ml = ml + 1
+
+      if (rdum .gt. rcdf(nxfn)) then
+         unif_random_norm = rxrf 
+      elseif (rdum .lt. rcdf(1)) then
+         unif_random_norm = rxlf
+      else
+         rm = (rxfne(ml+1) - rxfne(ml))/(rcdf(ml+1) - rcdf(ml))
+         unif_random_norm = rxfne(ml) + rm*(rdum - rcdf(ml))
+      endif
+
+      return
+      end
+c-----------------------------------------------------------------------
