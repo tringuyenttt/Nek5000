@@ -70,7 +70,7 @@
       maxdiff =     glamax(scrent,ntot)
       if (maxdiff.le.0.0) then
          write(deathmessage,*) 'zero maxdiff usually means NAN$'
-c        call exittr(deathmessage,maxdiff,istep)
+         call exittr(deathmessage,maxdiff,istep)
 !     else
 !        if (nio .eq. 0) write (6,*) 'max(s-<s>)=',maxdiff, meshh(1)
       endif
