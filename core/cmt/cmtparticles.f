@@ -27,8 +27,6 @@ c----------------------------------------------------------------------
       include 'CMTDATA'
       include 'CMTPART'
 
-      logical ifreadpart
-
       nr   = lr     ! Mandatory for proper striding
       ni   = li     ! Mandatory
       nrgp = lrgp
@@ -38,20 +36,25 @@ c----------------------------------------------------------------------
       n    = 0      ! for initializing first
       nw   = 0
 
+c     setup items
+      nlxyze = nx1*ny1*nz1*nelt
+      call rzero(rpart,lr*llpart)
+      call izero(ipart,li*llpart)
+      call rzero(ptw,nlxyze*8)
+      call rzero(ptdum,iptlen)
+      call rzero(pttime,iptlen)
+
+      rdum   = ran2(-nrandseed*np-nid-1) ! initialize random number generator
+
       ! begin timer
       ptdum(1) = dnekclock()
-      ifreadpart = .false.
       
       ! when llpart == 1 then assume no particle case
-      if (llpart .ne. 1) call read_particle_input(ifreadpart)
+      if (llpart .ne. 1) call read_particle_input
       call set_bounds_box
       call set_part_pointers
       call set_part_params ! n initialized here
-      if (ifreadpart) then
-         call read_parallel_restart_part
-      else 
-         call place_particles
-      endif
+      call place_particles
       call move_particles_inproc          ! initialize fp & cr comm handles
       if (red_part .le. 2) call init_interpolation ! barycentric weights for interpolation
       if (two_way.gt.1) then
@@ -60,7 +63,6 @@ c----------------------------------------------------------------------
          call point_to_grid_corr_init    ! for gamma correction integrat
          call spread_props_grid           ! put particle props on grid
 
-         if (.not.ifreadpart) then
          do i = 2,nitspl
             call interp_props_part_location ! interpolate
             call correct_spl
@@ -68,7 +70,8 @@ c----------------------------------------------------------------------
             call spread_props_grid           ! put particle props on grid
             if (nid.eq.0) write(6,*) i,'Pre-SPL iteration'
          enddo
-         endif
+         
+         call set_part_params ! recheck if ok after spl
       endif
 
       call pre_sim_collisions
@@ -141,28 +144,10 @@ c----------------------------------------------------------------------
       include 'CMTDATA'
       include 'CMTPART'
 
-      integer icalld
-      save    icalld
-      data    icalld  /-1/
-
       character*132 deathmessage
 
       ! begin timer
       ptdum(3) = dnekclock()
-
-      if (icalld .lt. 0) then
-         rdum   = ran2(-nrandseed*np-nid-1) ! initialize random number generator
-         n      = 0
-         icalld = icalld + 1
-      endif
-
-c     setup items
-      nlxyze = nx1*ny1*nz1*nelt
-      call rzero(rpart,lr*llpart)
-      call izero(ipart,li*llpart)
-      call rzero(ptw,nlxyze*8)
-      call rzero(ptdum,iptlen)
-      call rzero(pttime,iptlen)
 
 c     filter width setup (note deltax is implicit in expressions b4 def)
       rtmp_rle = 1000. ! large dummy number
@@ -179,45 +164,56 @@ c     filter width setup (note deltax is implicit in expressions b4 def)
          rtmp_rle = df_dx/(2.*nx1)*sqrt(-log(ralphdecay)/log(2.))
 
          if (rtmp_rle .gt. 0.5) then
-            write(deathmessage,*) 'WARNING filter width is too large'
+            deathmessage = 'WARNING filter width is too large'
+            if (nid.eq. 0)write(6,*) deathmessage,rtmp_rle,icalld
             call exittr(deathmessage,rtmp_rle,icalld)
          endif
 
       ! gaussian forced to be smooth if user inputs non-smooth params
       elseif (npro_method .eq. -2) then
-         ! idea is this: if user specifies wrong parameters then the
-         ! filter will be clipped at 1%. If for a user input filter 
-         ! width everything is fine, this will be kept. If the ghost
-         ! particle algorithm can't handle these parameters, the 
-         ! filter width will change accordingly. If the filter
-         ! width is less than 1.5 * dx, the simulation will die since
-         ! this can't be represented well on this grid.
 
          ralpha_min = 0.01
          df_dx_min  = 1.5
 
-         rtmp_rle   = df_dx/(2.*nx1)*sqrt(-log(ralpha_min)/log(2.))
+         rtmp_rle = 0.5
+         df_dx = rtmp_rle * 2.*nx1*sqrt(-log(2.)/log(ralpha_min))
 
-         if (rtmp_rle .gt. 0.5) then
-            rtmp_rle = 0.5
-            df_dx = rtmp_rle * 2.*nx1*sqrt(-log(2.)/log(ralphdecay))
-
-            if (df_dx .lt. df_dx_min) then
-               write(deathmessage,*) 
-     >           'WARNING auto-filter width is too small, increase nx1'
-               call exittr(deathmessage,df_dx,icalld)
-            endif
+         if (df_dx .lt. df_dx_min) then
+            deathmessage =  
+     >        'WARNING auto-filter width is too small, increase nx1'
+            if (nid.eq. 0)write(6,*) deathmessage,df_dx,icalld
+            call exittr(deathmessage,df_dx,icalld)
          endif
       endif
 
+
       ! now, check this filter width against collision width
       if (two_way .gt. 2) then
-         rtmp_rle_col = (dp(2)*(0.5+0.075))/rleng
+
+         ! now check if using super particles (i.e. this is called twice)
+         rsp = 0.
+         do i = 1,n
+            rsp = rsp + rpart(jspl,i)
+         enddo
+         rspt = glsum(rsp,1)
+
+         rspv = dp(2)
+         if (rspt .gt. 0) then
+         rsp = 0.
+         do i = 1,n
+            rsp2 = (rpart(jspl,i)*rpart(jvol,i)*6./pi)**(1./3.)
+            if (rsp2 .gt. rsp) rsp = rsp2
+         enddo
+         rspv = glmax(rsp,1)
+         endif
+
+         rtmp_rle_col = (rspv*(0.5+0.075))/rleng
 
          if ( rtmp_rle_col .gt. rtmp_rle) then
-            write(deathmessage,*) 
+            deathmessage =  
      >        'WARNING collision > filter width, element size too small'
-            call exittr(deathmessage,rtmp_rle_col/rtmp_rle,icalld)
+            if (nid.eq. 0)write(6,*) deathmessage,rspv,icalld
+            call exittr(deathmessage,rspv,icalld)
          else
             ! no filter dependent spreading, so use collision width
             if (abs(npro_method) .le. 1) then
@@ -238,6 +234,7 @@ c     filter width setup (note deltax is implicit in expressions b4 def)
       pttime(3) = pttime(3) + dnekclock() - ptdum(3)
       return
       end
+c----------------------------------------------------------------------
 c----------------------------------------------------------------------
       subroutine set_dt_particles(rdt_part)
       include 'SIZE'
@@ -572,7 +569,18 @@ c        else
 c           phi_val = phi_desire
 c        endif
 
-         phi_val = phi_desire ! comment out if bed and uncomment above
+c        exponential roll off
+         ryyl = 0.26
+         ryyr = 0.28
+         ry = rpart(jy,ip)
+         if (ry .le. ryyl) then
+            phi_val = phi_desire
+         else
+            rssig = sqrt(-(ryyr - ryyl)**2/2./log(0.01))
+            phi_val = phi_desire*exp(-(ry-ryyl)**2/2./rssig**2)
+         endif
+
+c        phi_val = phi_desire ! comment out if bed and uncomment above
          rtmp = 0.30*rpart(jspl,ip)
          rxi = rtmp*(1. - rpart(jvol1,ip)/phi_val)
          rpart(jspl,ip)=rpart(jspl,ip) + rxi
@@ -816,17 +824,17 @@ c     ntmp = iglsum(n,1)
 c     if (nid.eq.0) write(6,*) 'Passed remote spreading to grid'
 
 c     volume fraction cant be more tahn rvfmax ... 
-      rvfmax = 0.7
-      do ie=1,nelt
-      do k=1,nz1
-      do j=1,ny1
-      do i=1,nx1
-         if (ptw(i,j,k,ie,4) .gt. rvfmax) ptw(i,j,k,ie,4) = rvfmax
-         phig(i,j,k,ie) = 1. - ptw(i,j,k,ie,4)
-      enddo
-      enddo
-      enddo
-      enddo
+c     rvfmax = 0.7
+c     do ie=1,nelt
+c     do k=1,nz1
+c     do j=1,ny1
+c     do i=1,nx1
+c        if (ptw(i,j,k,ie,4) .gt. rvfmax) ptw(i,j,k,ie,4) = rvfmax
+c        phig(i,j,k,ie) = 1. - ptw(i,j,k,ie,4)
+c     enddo
+c     enddo
+c     enddo
+c     enddo
 
       ! end timer
       pttime(6) = pttime(6) + dnekclock() - ptdum(6)
@@ -882,8 +890,6 @@ c
          enddo
          enddo
          enddo
-            
-
 
       ! end timer
       pttime(7) = pttime(7) + dnekclock() - ptdum(7)
@@ -1070,19 +1076,19 @@ c     if (rxl.gt.ralph .and. rxr.gt.ralph) goto 1514
          rtmp = 0.
          distz = zz - zgd(1,1,k) ! even element spacing only!
          distz2 = distz**2
-         if (distz2 .gt. ralph2) goto 1513
+c        if (distz2 .gt. ralph2) goto 1513
       do j=1,ny1
          disty = yy - ygd(1,j,1) ! even element spacing only!
          disty2 = disty**2
 c        if (disty2 .gt. ralph2) goto 1512
          rtmp1   =  distz2 + disty2
-         if (rtmp1 .gt. ralph2) goto 1512
+c        if (rtmp1 .gt. ralph2) goto 1512
       do i=1,nx1
          distx = xx - xgd(i,1,1) ! even element spacing only!
          distx2 = distx**2
 c        if (distx2 .gt. ralph2) goto 1511
          rtmp2 = rtmp1 + distx2
-         if (rtmp2 .gt. ralph2) goto 1511
+c        if (rtmp2 .gt. ralph2) goto 1511
 
          rdum = rtmp2*rbexpi
          rexp = exp(rdum)
@@ -1664,7 +1670,7 @@ c
       real   xdrange(2,3)
       common /domainrange/ xdrange
 
-      real pmass1,pmass2,rxwall(3),rvwall(3)
+      real pmass1,pmass2,rxwall(3),rvwall(3),rdp1,rdp2,one_t
       logical ifcol
 
       ! begin timer
@@ -1674,24 +1680,25 @@ c
       rpart(jfcol+1,i) = 0.
       rpart(jfcol+2,i) = 0.
 
-c     write(6,*) 'Before',rpart(jfcol,i),jfcol
-
       if (two_way .gt. 2) then
 
+      one_t = 1./3.
+
       pmass1 = rpart(jvol,i)*rpart(jrhop,i)
+      rdp1   = (6.*rpart(jspl,i)*rpart(jvol,i)/pi)**one_t
 
 c     let every particle search for itself
 c        particles in local elements
          do j = 1,n
-c           write(6,*) 'test?', i,j,n
             if (i .ne. j) then
                pmass2 = rpart(jvol,j)*rho_p ! assuming same density!
-               rdeff  = 0.5*(rpart(jdp,i) + rpart(jdp,j))
+               rdp2   = (6.*rpart(jspl,j)*rpart(jvol,j)/pi)**one_t
+               rdeff  = 0.5*(rdp1 + rdp2)
                rlamb  = 0.075*deff
                call compute_collide(rpart(jx,i) ,rpart(jx,j) ,
      >                              rpart(jv0,i),rpart(jv0,j),
-     >                              rpart(jdp,i),rpart(jdp,j),rdeff,
-     >                              pmass1      ,pmass2      ,
+     >                              rdp1          ,rdp2      ,rdeff,
+     >                              pmass1        ,pmass2    ,
      >                              rpart(jfcol,i),rlamb)
             endif
          enddo
@@ -1707,12 +1714,12 @@ c        search list of ghost particles
             endif
             if (iptsgp(jgpes,j)   .eq. ipart(je0,i)) then 
                pmass2 = rptsgp(jgpvol,j)*rho_p ! assuming same density!
-               rpdp2 = (rptsgp(jgpvol,j)*6./pi)**(1./3.) ! should prob.not
-               rdeff  = 0.5*(rpart(jdp,i) + rpdp2)
+               rdp2 = (6.*rptsgp(jgpspl,j)*rptsgp(jgpvol,j)/pi)**one_t 
+               rdeff  = 0.5*(rdp1 + rdp2)
                rlamb  = 0.075*deff
                call compute_collide(rpart(jx,i) ,rptsgp(jgpx,j) ,
      >                              rpart(jv0,i),rptsgp(jgpv0,j),
-     >                              rpart(jdp,i),rpdp2          ,rdeff,
+     >                              rdp1        ,rdp2           ,rdeff,
      >                              pmass1      ,pmass2         ,
      >                              rpart(jfcol,i),rlamb)
             endif
@@ -1727,32 +1734,27 @@ c        collision with 6 walls, but only when specified by .inp file
                if (nj1.eq.0) nj1 = 2
                nj2 = int((j-1)/2) + 1
 
-               rxwall(1) = rpart(jx  ,i)
-               rxwall(2) = rpart(jx+1,i)
-               rxwall(3) = rpart(jx+2,i)
+               rxwall(1)   = rpart(jx  ,i)
+               rxwall(2)   = rpart(jx+1,i)
+               rxwall(3)   = rpart(jx+2,i)
+               rxwall(nj2) = xdrange(nj1,nj2) ! wall loc
 
-               rxwall(nj2)      = xdrange(nj1,nj2) ! wall loc
-
-c              write(6,*) 'wall check', rxwall(1),rxwall(2),rxwall(3)
-               
-               pmass2 = 1E8 ! assume infinite mass
-               rpdp2 =  0.  ! zero radius
-               rdeff  = rpart(jdp,i)
-               rlamb  = 0.150*deff
                rvwall(1) = 0.
                rvwall(2) = 0.
                rvwall(3) = 0.
+
+               pmass2 = 1E8 ! assume infinite mass
+               rdp2   =  0.  ! zero radius
+               rdeff  = rdp1
+               rlamb  = 0.150*deff
                call compute_collide(rpart(jx,i) ,rxwall ,
-     >                           rpart(jv0,i),rvwall ,
-     >                           rpart(jdp,i),rpdp2        ,rdeff,
-     >                           pmass1      ,pmass2       ,
+     >                           rpart(jv0,i),rvwall    ,
+     >                           rdp1        ,rdp2      ,rdeff,
+     >                           pmass1      ,pmass2    ,
      >                           rpart(jfcol,i),rlamb)
             endif
          enddo
       endif
-
-
-c     write(6,*) 'After',rpart(jfcol,i),jfcol
 
       return
       end
@@ -2463,6 +2465,12 @@ c
                ipdum  = el_tmp_proc_map(ie,ic)
                iedum  = el_tmp_el_map(ie,ic)
 
+               if (ipdum .lt. 0 .or. iedum .lt.0) then
+                  nfptsgp=nfptsgp-1
+                  goto 1511
+               endif
+
+
             iptsgp(jgpps,nfptsgp)   = ipdum  ! overwritten mpi
             iptsgp(jgppt,nfptsgp)   = ipdum  ! dest. mpi rank
             iptsgp(jgpes,nfptsgp)   = iedum    ! dest. elment
@@ -2644,8 +2652,11 @@ c     face, edge, and corner number, x,y,z are all inline, so stride=3
             xloc = xmid + (xlen*rtmult)*isignxx/2.0
             yloc = ymid + (ylen*rtmult)*isignyy/2.0
             zloc = zmid + (zlen*rtmult)*isignzz/2.0
+            idum = 1
             call bounds_p_check(xloc,xdrange(1,1),xdrange(2,1),idum)
+            idum = 2
             call bounds_p_check(yloc,xdrange(1,2),xdrange(2,2),idum)
+            idum = 3
             call bounds_p_check(zloc,xdrange(1,3),xdrange(2,3),idum)
 
             rimp(1,icount) = xloc
@@ -2674,8 +2685,11 @@ c     face, edge, and corner number, x,y,z are all inline, so stride=3
             xloc = xmid + (xlen*rtmult)*isignxx/2.0
             yloc = ymid + (ylen*rtmult)*isignyy/2.0
             zloc = zmid + (zlen*rtmult)*isignzz/2.0
+            idum = 1
             call bounds_p_check(xloc,xdrange(1,1),xdrange(2,1),idum)
+            idum = 2
             call bounds_p_check(yloc,xdrange(1,2),xdrange(2,2),idum)
+            idum = 3
             call bounds_p_check(zloc,xdrange(1,3),xdrange(2,3),idum)
 
             rimp(1,icount) = xloc
@@ -2704,8 +2718,11 @@ c     face, edge, and corner number, x,y,z are all inline, so stride=3
             xloc = xmid + (xlen*rtmult)*isignxx/2.0
             yloc = ymid + (ylen*rtmult)*isignyy/2.0
             zloc = zmid + (zlen*rtmult)*isignzz/2.0
+            idum = 1
             call bounds_p_check(xloc,xdrange(1,1),xdrange(2,1),idum)
+            idum = 2
             call bounds_p_check(yloc,xdrange(1,2),xdrange(2,2),idum)
+            idum = 3
             call bounds_p_check(zloc,xdrange(1,3),xdrange(2,3),idum)
 
             rimp(1,icount) = xloc
@@ -2749,8 +2766,8 @@ c     set common block values to be used later
             el_edge_proc_map(i,j) = iimp(1,ijloc)
             el_edge_el_map(i,j) = iimp(3,ijloc)
             else
-            el_face_proc_map(i,j) = -1
-            el_face_el_map(i,j) = -1
+            el_edge_proc_map(i,j) = -1
+            el_edge_el_map(i,j) = -1
             endif
          enddo
          nstride = nstride + nedgegp 
@@ -2760,8 +2777,8 @@ c     set common block values to be used later
             el_corner_proc_map(i,j) = iimp(1,ijloc)
             el_corner_el_map(i,j) = iimp(3,ijloc)
             else
-            el_face_proc_map(i,j) = -1
-            el_face_el_map(i,j) = -1
+            el_corner_proc_map(i,j) = -1
+            el_corner_el_map(i,j) = -1
             endif
          enddo
       enddo
@@ -2779,6 +2796,25 @@ c     if it is outside of bounds, move periodically to other domain side
 c     and set ifmove to 1 so we know if xx has been changed
 c
 
+      ! use fact that both sides have to be set as periodic...
+      rdum_val = 2.*xr         ! dummy value definitley not in domain
+      if (ifmove .eq. 1) then
+         if (bc_part(1) .ne. 0) then
+            ifmove = -1
+            goto 1511
+         endif
+      elseif (ifmove .eq. 2) then
+         if (bc_part(3) .ne. 0) then
+            ifmove = -1
+            goto 1511
+         endif
+      elseif (ifmove .eq. 3) then
+         if (bc_part(5) .ne. 0) then
+            ifmove = -1
+            goto 1511
+         endif
+      endif
+
       ifmove = 0
       if (xx .gt. xr) then
          xx = abs(xx - xr) + xl
@@ -2788,6 +2824,8 @@ c
          xx = xr - abs(xx - xl) 
          ifmove = 1
       endif
+
+ 1511 continue
 
       return
       end
@@ -3535,7 +3573,10 @@ c----------------------------------------------------------------------
       integer*8    disp, stride_len 
       integer      status_mpi(MPI_STATUS_SIZE)
       integer      prevs(0:np-1),npt_total,e,oldfile
-      real         realtmp(4,llpart)
+      real         realtmp(4,llpart),one_t
+
+      rpi    = 4.0*atan(1.) ! pi
+      one_t  = 1./3.
 
 c     setup files to write to mpi 
       icalld = icalld+1
@@ -3547,7 +3588,8 @@ c     setup files to write to mpi
          realtmp(1,i) = rpart(jx,i)
          realtmp(2,i) = rpart(jy,i)
          realtmp(3,i) = rpart(jz,i)
-         realtmp(4,i) = real(ipart(jpid2,i))
+         rdp1         = (6.*rpart(jspl,i)*rpart(jvol,i)/rpi)**one_t
+         realtmp(4,i) = rdp1 
       enddo
      
       call MPI_Send(n, 1, MPI_INTEGER, 0, 0, nekcomm, ierr)
@@ -3824,14 +3866,13 @@ c           rec_vals(2,icm) = rec_vals(2,icm)/isum
       return
       end
 c----------------------------------------------------------------------
-      subroutine read_particle_input(ifreadpart)
+      subroutine read_particle_input
       include 'SIZE'
       include 'CMTTIMERS'
       include 'TSTEP'
       include 'PARALLEL'
       include 'CMTPART'
 
-      logical ifreadpart
       character*72 dum_str
 
       open(unit=81,file="particles.inp",form="formatted")
@@ -3884,11 +3925,6 @@ c - - - - DEM - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       read(81,*) e_rest
 
       close(81)
-
-      ifreadpart = .false.
-      if (ipart_restartr.gt.0) then
-         ifreadpart = .true.
-      endif
 
       return
       end
