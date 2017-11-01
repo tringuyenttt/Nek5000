@@ -1268,7 +1268,7 @@ c        setup values ------------------------------------------------
          vel_diff = sqrt((rpart(ju0  ,i)-rpart(jv0  ,i))**2+
      >                   (rpart(ju0+1,i)-rpart(jv0+1,i))**2+
      >                   (rpart(ju0+2,i)-rpart(jv0+2,i))**2)
-         rpart(ja,i)  = MixtPerf_C_GRT(gmaref,rgasref,rpart(jtempf,i))
+c        rpart(ja,i)  = MixtPerf_C_GRT(gmaref,rgasref,rpart(jtempf,i)) !Nek5000
          rpart(ja,i)  = vel_diff/rpart(ja,i) ! relative mach number
          rpart(jre,i) = rpart(jrho,i)*rpart(jdp,i)*vel_diff/mu_0 ! Re
             
@@ -1929,7 +1929,7 @@ c     write(6,*) 'yooo4', rdiff,rthresh
          goto 1511
       endif
 
-      rm12     = 1./(1./rm1 + 1./rm2)
+      rm12     = 2./(1./rm1 + 1./rm2)
       ralpha   = -log(e_rest)/pi
       eta      = 2.*ralpha*sqrt(rm12*ksp/(1+ralpha**2))
 
