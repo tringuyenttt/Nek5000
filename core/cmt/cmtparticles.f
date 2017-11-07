@@ -5,11 +5,15 @@ c  bdf/ext time integration. Otherwise, cmt-nek will not call this fxn.
       subroutine stokes_particles
       include 'SIZE'
       include 'TOTAL'
+      include 'CMTDATA'
 
       if (istep.eq.0) then
          call usr_particles_init
       else
+         call set_tstep_coef_part(dt) ! in nek5000 with rk3
+         do stage=1,3
          call usr_particles_solver
+         enddo
       endif
 
       if(mod(istep,iostep).eq.0.or. istep.eq.1) then
@@ -856,17 +860,17 @@ c     ntmp = iglsum(n,1)
 c     if (nid.eq.0) write(6,*) 'Passed remote spreading to grid'
 
 c     volume fraction cant be more tahn rvfmax ... 
-c     rvfmax = 0.7
-c     do ie=1,nelt
-c     do k=1,nz1
-c     do j=1,ny1
-c     do i=1,nx1
-c        if (ptw(i,j,k,ie,4) .gt. rvfmax) ptw(i,j,k,ie,4) = rvfmax
-c        phig(i,j,k,ie) = 1. - ptw(i,j,k,ie,4)
-c     enddo
-c     enddo
-c     enddo
-c     enddo
+      rvfmax = 0.7
+      do ie=1,nelt
+      do k=1,nz1
+      do j=1,ny1
+      do i=1,nx1
+         if (ptw(i,j,k,ie,4) .gt. rvfmax) ptw(i,j,k,ie,4) = rvfmax
+         phig(i,j,k,ie) = 1. - ptw(i,j,k,ie,4)
+      enddo
+      enddo
+      enddo
+      enddo
 
       ! end timer
       pttime(6) = pttime(6) + dnekclock() - ptdum(6)
@@ -1222,6 +1226,22 @@ c     all rk3 stages items --------------------------------------------
      >                    tcoef(2,stage)*rpart(jtemp,i)  +
      >                    tcoef(3,stage)*rpart(jq0  ,i)
 
+c     if (i .eq. 1) then
+c     if (nid.eq.700) then
+c        write(6,'(A,10F15.10)')'uu',rpart(jy,i)
+c    >                             ,rpart(jf0+1,i)
+c    >                             ,rpart(ju0+1,i)
+c    >                             ,rpart(jv0+1,i)
+c    >                             ,rpart(jfqs+1,i)
+c    >                             ,rpart(jfcol+1,i)
+c    >                             ,rpart(jfusr+1,i)
+c    >                             ,rpart(jtaup,i)
+c    >                             ,rpart(jvol,i)
+c    >                             ,rpart(jdp,i)
+
+c     endif
+c     endif
+
 c     write(6,*) 'forcing',rpart(jx,i),rpart(jv0,i),rpart(jf0,i)
       enddo
 
@@ -1271,7 +1291,7 @@ c        setup values ------------------------------------------------
 c        rpart(ja,i)  = MixtPerf_C_GRT(gmaref,rgasref,rpart(jtempf,i)) !Nek5000
          rpart(ja,i)  = vel_diff/rpart(ja,i) ! relative mach number
          rpart(jre,i) = rpart(jrho,i)*rpart(jdp,i)*vel_diff/mu_0 ! Re
-            
+
 c        momentum rhs ------------------------------------------------
 
          call usr_particles_f_col(i) ! colision force all at once
@@ -1584,11 +1604,12 @@ c
 
       if (part_force(4) .gt. 0) then
          S_qs    = S_qs*(1. + 0.3*sqrt(rpart(jre,ii))*rpra**(2./3.)) !re < 500
+         rpart(jqqs,ii) = S_qs*(rpart(jtempf,ii) - rpart(jtemp,ii))
       elseif (part_force(4) .eq. 0) then
          S_qs    = 0.
+         rpart(jqqs,ii) = S_qs
       endif
 
-      rpart(jqqs,ii) = S_qs*(rpart(jtempf,ii) - rpart(jtemp,ii))
 
       ! end timer
 
@@ -1630,15 +1651,22 @@ c
          rphip = rpart(jvol1,ii)
          if (rphip .gt. 0.3) rphip = 0.3
          S_qs = S_qs*(1.+2.*rphip)/(1.-rphip)
+
+         rpart(jcmiu,ii) = S_qs
+         
+c        need to fix, fake, no D(rho_f u)/Dt contribution
+         rpart(jfiu+jj,ii) = -1.*0.*S_qs*rpart(jvol,ii)*
+     >                       rpart(jDuDt+jj,ii)
+
       elseif (part_force(3) .eq. 0) then
          S_qs = 0.
+
+         rpart(jcmiu,ii) = S_qs
+
+         rpart(jfiu+jj,ii) = S_qs
       endif
 
-      rpart(jcmiu,ii) = S_qs
 
-c     need to fix, fake, no D(rho_f u)/Dt contribution
-      rpart(jfiu+jj,ii) = -1.*0.*S_qs*rpart(jvol,ii)*
-     >                    rpart(jDuDt+jj,ii)
 
       return
       end
@@ -1674,18 +1702,27 @@ c     cd_std = 24/re_p already taken into account below
 
          S_qs = S_qs*rcd2
 
+         rpart(jfqs+j,i) = S_qs*(rpart(ju0+j,i) - rpart(jv0+j,i))
       elseif (part_force(1).eq.2) then
          rrep = rpart(jre,i)
          rcd_std = 1.+0.15*rrep**(0.687) + 
      >               0.42*(1.+42500./rrep**(1.16))**(-1)
          S_qs = S_qs*rcd_std
 
+         rphip = rpart(jvol1,i)
+         if (rphip .gt. 0.3) rphip = 0.3
+         rcd2 = (1. - 2.*rphip)/(1. - rphip)**3
+
+         S_qs = S_qs*rcd2
+
+         rpart(jfqs+j,i) = S_qs*(rpart(ju0+j,i) - rpart(jv0+j,i))
       elseif (part_force(1).eq.0) then
          S_qs = 0.
+
+         rpart(jfqs+j,i) = S_qs
       endif
 
       rpart(jcd+j,i)  = 0.
-      rpart(jfqs+j,i) = S_qs*(rpart(ju0+j,i) - rpart(jv0+j,i))
 
       return
       end
@@ -4780,3 +4817,26 @@ c
       return
       end
 c-----------------------------------------------------------------------
+C> Compute coefficients for Runge-Kutta stages \cite{TVDRK}
+      subroutine set_tstep_coef_part(dt_in)
+
+      real tcoef(3,3),dt_cmt,time_cmt
+      COMMON /TIMESTEPCOEF/ tcoef,dt_cmt,time_cmt
+
+      real dt_in
+
+      dt_cmt = dt_in
+
+      tcoef(1,1) = 0.0
+      tcoef(2,1) = 1.0 
+      tcoef(3,1) = dt_cmt
+      tcoef(1,2) = 3.0/4.0
+      tcoef(2,2) = 1.0/4.0 
+      tcoef(3,2) = dt_cmt/4.0 
+      tcoef(1,3) = 1.0/3.0
+      tcoef(2,3) = 2.0/3.0 
+      tcoef(3,3) = dt_cmt*2.0/3.0 
+
+      return
+      end
+c----------------------------------------------------------------------
