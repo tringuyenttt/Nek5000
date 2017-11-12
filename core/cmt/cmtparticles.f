@@ -10,6 +10,7 @@ c  bdf/ext time integration. Otherwise, cmt-nek will not call this fxn.
       if (istep.eq.0) then
          call usr_particles_init
       else
+
          call set_tstep_coef_part(dt) ! in nek5000 with rk3
          do stage=1,3
             call usr_particles_solver
