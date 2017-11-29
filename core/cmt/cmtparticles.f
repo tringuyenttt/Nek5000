@@ -2051,7 +2051,7 @@ c     create ghost particles
       endif
 
 c     send ghost particles
-      call crystal_tuple_transfer(i_cr_hndl,nfptsgp,llpart
+      call fgslib_crystal_tuple_transfer(i_cr_hndl,nfptsgp,llpart
      $           , iptsgp,nigp,partl,0,rptsgp,nrgp,jgpps) ! jgpps is overwri
 
       if (istep.eq.0.or.istep.eq.1) then
@@ -2278,7 +2278,7 @@ c        enddo
       nigpl = 3
       nr1  = 4
       nr2  = 3
-            call findpts(i_fp_hndl !  stride     !   call findpts( ihndl,
+            call fgslib_findpts(i_fp_hndl !  stride     !   call fgslib_findpts( ihndl,
      $           , idums(1,1),nigpl       !   $             rcode,1,
      $           , idums(2,1),nigpl       !   &             proc,1,
      $           , idums(3,1),nigpl       !   &             elid,1,
@@ -2919,7 +2919,7 @@ c     face, edge, and corner number, x,y,z are all inline, so stride=3
       enddo
 
 c     get processor and local element number of neighboring elemetns
-      call findpts(i_fp_hndl !  stride     !   call findpts( ihndl,
+      call fgslib_findpts(i_fp_hndl !  stride     !   call fgslib_findpts( ihndl,
      $           , iimp(2,1),4        !   $             rcode,1,
      $           , iimp(1,1),4        !   &             proc,1,
      $           , iimp(3,1),4        !   &             elid,1,
@@ -4189,13 +4189,13 @@ c     is insufficient room.
          tolin = 1.e-12
          if (wdsize.eq.4) tolin = 1.e-6
          call intpts_setup  (tolin,i_fp_hndl)
-         call crystal_setup (i_cr_hndl,nekcomm,np)
+         call fgslib_crystal_setup (i_cr_hndl,nekcomm,np)
          icalld1 = icalld1 + 1
       endif
 
       call particles_in_nid
 
-      call findpts(i_fp_hndl !  stride     !   call findpts( ihndl,
+      call fgslib_findpts(i_fp_hndl !  stride     !   call fgslib_findpts( ihndl,
      $           , ifpts(jrc,1),lif        !   $             rcode,1,
      $           , ifpts(jpt,1),lif        !   &             proc,1,
      $           , ifpts(je0,1),lif        !   &             elid,1,
@@ -4220,10 +4220,10 @@ c        using crystal router in log P time:
          do i=1,n        ! Can't use jpt because it messes up particle info
             ipart(jps,i) = ipart(jpt,i)
          enddo
-         call crystal_tuple_transfer(i_cr_hndl,n,llpart
+         call fgslib_crystal_tuple_transfer(i_cr_hndl,n,llpart
      $              , ipart,ni,partl,nl,rpart,nr,jps)
 c        Sort by element number - for improved local-eval performance
-         call crystal_tuple_sort    (i_cr_hndl,n 
+         call fgslib_crystal_tuple_sort    (i_cr_hndl,n 
      $              , ipart,ni,partl,nl,rpart,nr,je0,1)
       endif
 
@@ -4341,7 +4341,7 @@ c
       bb_t    = 0.1 ! relative size to expand bounding boxes by
 c
       if(nidd.eq.0) write(6,*) 'initializing intpts(), tol=', tol
-      call findpts_setup(ih,nekcomm,npp,ndim,
+      call fgslib_findpts_setup(ih,nekcomm,npp,ndim,
      &                     xm1,ym1,zm1,nx1,ny1,nz1,
      &                     nelt,nxf,nyf,nzf,bb_t,n,n,
      &                     npt_max,tol)
