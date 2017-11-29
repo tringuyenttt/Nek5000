@@ -42,7 +42,11 @@ vprops.o makeq_aux.o \
 papi.o nek_in_situ.o \
 readat_new.o reader_re2.o \
 finiparser.o iniparser.o dictionary.o \
+<<<<<<< HEAD
 #cmtparticles.o
+=======
+hpf.o
+>>>>>>> origin/master
 ################################################################################
 # MXM 
 MXM =  
@@ -207,7 +211,11 @@ $(OBJDIR)/singlmesh.o	:$S/singlmesh.f;		$(FC) -c $(FL2) $< -o $@
 $(OBJDIR)/lb_setqvol.o	:$S/lb_setqvol.f;		$(FC) -c $(FL2) $< -o $@
 $(OBJDIR)/readat_new.o	:$S/readat_new.f $S/PARDICT;	$(FC) -c $(FL2) $< -o $@
 $(OBJDIR)/reader_re2.o	:$S/reader_re2.f;		$(FC) -c $(FL2) $< -o $@
+<<<<<<< HEAD
 #$(OBJDIR)/cmtparticles.o	:$(SCMT)/cmtparticles.f $(SCMT)/CMTPART;		$(FC) -c $(FL2) $< -o $@
+=======
+$(OBJDIR)/hpf.o	      :$S/hpf.f;         	$(F77) -c $(FL2) $< -o $@
+>>>>>>> origin/master
 
 # CMT CORE     ##################################################################
 $(OBJDIR)/step.o	:$(SCMT)/step.f;        	$(FC) -c $(FL2) $< -o $@
