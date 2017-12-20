@@ -37,10 +37,6 @@
 #define byte_rewind   FORTRAN_NAME(byte_rewind,   BYTE_REWIND )
 #define byte_read     FORTRAN_NAME(byte_read,     BYTE_READ   )
 #define byte_write    FORTRAN_NAME(byte_write,    BYTE_WRITE  )
-#define set_bytesw_write FORTRAN_NAME(set_bytesw_write,SET_BYTESW_WRITE)
-#define set_bytesw_read  FORTRAN_NAME(set_bytesw_read ,SET_BYTESW_READ )
-#define get_bytesw_write FORTRAN_NAME(get_bytesw_write,GET_BYTESW_WRITE)
-#define get_bytesw_read  FORTRAN_NAME(get_bytesw_read ,GET_BYTESW_READ )
 
 #define READ     1
 #define WRITE    2
@@ -124,22 +120,17 @@ void byte_open(char *n,int *ierr,int nlen)
     *ierr=1;
     return;
   }
+  strncpy(name,n,nlen);
+  for (i=nlen-1; i>0; i--) if (name[i] != ' ') break;
+  name[i+1] = '\0';
 
-  for (i=nlen-1; i>=0; i--) if (n[i] != ' ') break;
-  n[i+1] = '\0';
-
-  strcpy(name   ,n);
-  strcpy(dirname,n);
-
-  for (i=1;dirname[i]!='\0';i++)
-  {
-     if (i>0 && dirname[i]=='/')
-     {
-       slash = name[i];
-       dirname[i] = '\0';
-       istat = mkdir(dirname,0755);
-     }
+  for (i=nlen-1; i>0; i--) if (name[i] == '/') break;
+  if (i>0) {
+    strncpy(dirname,name,i);
+    dirname[i] = '\0';
+    istat = mkdir(dirname,0755);
   }
+
   *ierr=0;
 }
 
