@@ -237,25 +237,32 @@ c-----------------------------------------------------------------------
 ! ensure continuity at faces. doing this before |abs| causes some cancellation that,
 ! so far, appears to beneficially reduce spikiness at faces.
 
-      do e=1,nelt
-         do i=1,nxyz
-            residual(i,e)=residual(i,e)*meshh(e)**2
+! default to wave viscosity (and smooth it instead) at first RK Stage
+      if (istep.le.1) then
+         call copy(residual,t(1,1,1,1,3),nxyz*nelt)
+      else
+         do e=1,nelt
+            do i=1,nxyz
+               residual(i,e)=residual(i,e)*meshh(e)**2
+            enddo
          enddo
-      enddo
+      endif
 
       call dsavg(residual) ! signed, can cancel at faces. Hope it does
 
-      do e=1,nelt
-         do i=1,nxyz
-            residual(i,e)=abs(residual(i,e))
+      if (istep.gt.1) then
+         do e=1,nelt
+            do i=1,nxyz
+               residual(i,e)=abs(residual(i,e))
+            enddo
          enddo
-      enddo
 
-      call cmult(residual,c_sub_e,nxyz*nelt)
+         call cmult(residual,c_sub_e,nxyz*nelt)
 
-      if (maxdiff .ne. 0) then
-         const=1.0/maxdiff
-         call cmult(residual,const,nxyz*nelt)
+         if (maxdiff .ne. 0) then
+            const=1.0/maxdiff
+            call cmult(residual,const,nxyz*nelt)
+         endif
       endif
 
       return
@@ -392,7 +399,7 @@ c-----------------------------------------------------------------------
          enddo
       enddo
 
-      call max_to_trilin(numax)
+!     call max_to_trilin(numax) ! doesn't work in 3D
 
       return
       end
