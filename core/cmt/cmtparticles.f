@@ -228,16 +228,32 @@ c----------------------------------------------------------------------
 
          if ( abs(npro_method) .gt. 1) then
          if ( rtmp_rle_col .gt. rtmp_rle2) then
-            deathmessage =  
-     >        'WARNING collision > filter width, element size too small'
-            if (nid.eq. 0)write(6,*) deathmessage,rdeff_max,icalld
-            call exittr(deathmessage,rdeff_max,icalld)
+            if (rtmp_rle_col .gt. 0.5) then
+               if (nrect_assume .eq. 2) then
+                  if (rtmp_rle_col .gt. 1) goto 1234
+               elseif (nrect_assume .eq. 1) then
+                  goto 1234
+               endif
+             endif
          endif
+            rtmp_rle2 = rtmp_rle_col
          else
             ! no filter dependent spreading, so use collision width
             rtmp_rle2 = rtmp_rle_col ! note r/Le > 0.5 is already caught
          endif
       endif
+      goto 1235
+
+ 1234 continue
+            deathmessage =  
+     >        'WARNING collision > filter width, element size too small'
+            if (nid.eq. 0)write(6,*) deathmessage,rdeff_max,icalld
+            call exittr(deathmessage,rdeff_max,icalld)
+ 1235 continue
+
+      d2chk(1) = rtmp_rle2*rleng
+      d2chk(2) = d2chk(1)
+      d2chk(3) = d2chk(1)
 
       ! end timer
       pttime(4) = pttime(4) + dnekclock() - ptdum(4)
@@ -261,7 +277,8 @@ c----------------------------------------------------------------------
       do i=1,n
          rvmag  = sqrt(rpart(jv0,i)**2 + rpart(jv0+1,i)**2 
      >                 + rpart(jv0+2,i)**2)
-         dt_part = cflp*rpart(jdp,i)/rvmag
+         dt_part = cflp*dp(1)/rvmag ! make sure smallest small overlap
+c        dt_part = cflp*rpart(jdp,i)/rvmag
 c        write(6,*) 'dp_part_cfl',dt_part
          if (dt_part .lt. dt_dum) dt_dum = dt_part
       enddo
@@ -269,10 +286,11 @@ c        write(6,*) 'dp_part_cfl',dt_part
 
       ! resolving collisions
 c     nresolve_col = 10
-      rm1      = rho_p*pi/6.*dp(2)**3 ! max
+      rm1      = rho_p*pi/6.*dp(1)**3 ! max
       rm2      = rho_p*pi/6.*dp(2)**3 ! max
       rm12     = 1./(1./rm1 + 1./rm2)
-      dt_col  = sqrt(rm12/ksp)
+      n_resolve= 10
+      dt_col   = sqrt(rm12/ksp*(log(e_rest)**2+pi**2))/n_resolve
 
       if (two_way .gt. 2) then
          rdt_part = min(dt_part,dt_col)
@@ -1769,7 +1787,8 @@ c        particles in local elements
                   pmass2 = rpart(jvol,j)*rho_p ! assuming same density!
                   rdp2   = rpart(jdpe,j)
                   rdeff  = 0.5*(rdp1 + rdp2)
-                  rlamb  = 0.075*deff
+c                 rlamb  = 0.075*deff
+                  rlamb  = 0.
                   call compute_collide(rpart(jx,i) ,rpart(jx,j) ,
      >                                 rpart(jv0,i),rpart(jv0,j),
      >                                 rdp1          ,rdp2      ,rdeff,
@@ -1794,7 +1813,8 @@ c        search list of ghost particles
                pmass2 = rptsgp(jgpvol,j)*rho_p ! assuming same density!
                rdp2 = rptsgp(jgpdpe,j)
                rdeff  = 0.5*(rdp1 + rdp2)
-               rlamb  = 0.075*deff
+c              rlamb  = 0.075*deff
+               rlamb  = 0.
                call compute_collide(rpart(jx,i),rptsgp(jgpx,j),
      >                            rpart(jv0,i),rptsgp(jgpv0,j),
      >                            rdp1        ,rdp2           ,rdeff,
@@ -1824,7 +1844,8 @@ c        collision with 6 walls, but only when specified by .inp file
                pmass2 = 1E8 ! assume infinite mass
                rdp2   =  0.  ! zero radius
                rdeff  = rdp1
-               rlamb  = 0.150*deff
+c              rlamb  = 0.150*deff
+               rlamb  = 0.
                call compute_collide(rpart(jx,i) ,rxwall ,
      >                           rpart(jv0,i),rvwall    ,
      >                           rdp1        ,rdp2      ,rdeff,
@@ -1959,13 +1980,13 @@ c     rlamb = 0.
 
 c     write(6,*) 'hi', deff, rd1,rd2,rlamb
 
-      rxdiff = rx1(1) - rx2(1)
+      rxdiff = rx2(1) - rx1(1)
 c     write(6,*) 'yooo1', rxdiff,rthresh
       if (abs(rxdiff) .gt. rthresh) goto 1511
-      rydiff = rx1(2) - rx2(2)
+      rydiff = rx2(2) - rx1(2)
 c     write(6,*) 'yooo2', rydiff,rthresh
       if (abs(rydiff) .gt. rthresh) goto 1511
-      rzdiff = rx1(3) - rx2(3)
+      rzdiff = rx2(3) - rx1(3)
 c     write(6,*) 'yooo3', rzdiff,rthresh
       if (abs(rzdiff) .gt. rthresh) goto 1511
       rdiff = sqrt(rxdiff*rxdiff + rydiff*rydiff + rzdiff*rzdiff)
@@ -1974,9 +1995,8 @@ c     write(6,*) 'yooo4', rdiff,rthresh
          goto 1511
       endif
 
-      rm12     = 2./(1./rm1 + 1./rm2)
-      ralpha   = -log(e_rest)/pi
-      eta      = 2.*ralpha*sqrt(rm12*ksp/(1+ralpha**2))
+      rm12   = 1./(1./rm1 + 1./rm2)
+      eta    = 2.*sqrt(rm12*ksp)*log(e_rest)/sqrt(log(e_rest)**2+pi**2)
 
       ! first, handle normal collision part
       rn_12x   = rxdiff/rdiff
@@ -1986,17 +2006,28 @@ c     write(6,*) 'yooo4', rdiff,rthresh
       rdelta12 = rthresh - rdiff
 c     if (rdelta12 .lt. 0) rdelta12 = 0. ! no overlap
       
-      rv12_mag = (rv1(1) - rv2(1))*rn_12x +
-     >           (rv1(2) - rv2(2))*rn_12y +
-     >           (rv1(3) - rv2(3))*rn_12z
+      rv12_mag = (rv2(1) - rv1(1))*rn_12x +
+     >           (rv2(2) - rv1(2))*rn_12y +
+     >           (rv2(3) - rv1(3))*rn_12z
 
       rv12x = rv12_mag*rn_12x
       rv12y = rv12_mag*rn_12y
       rv12z = rv12_mag*rn_12z
 
-      rfn1 = ksp*rdelta12**(1.5)*rn_12x - eta*rv12x
-      rfn2 = ksp*rdelta12**(1.5)*rn_12y - eta*rv12y
-      rfn3 = ksp*rdelta12**(1.5)*rn_12z - eta*rv12z
+      ! additonal check
+      if (rd2 .gt. 1E-9) then ! don't do for walls
+      if (rdelta12 .gt. 0.05*0.5/(1./rd1 + 1./rd2)) then
+         rdelta12 = 0.05*0.5/(1./rd1 + 1./rd2)
+      endif
+      endif
+
+      rfn1 = -ksp*rdelta12*rn_12x - eta*rv12x
+      rfn2 = -ksp*rdelta12*rn_12y - eta*rv12y
+      rfn3 = -ksp*rdelta12*rn_12z - eta*rv12z
+
+c     rfn1 = -ksp*rdelta12*rn_12x
+c     rfn2 = -ksp*rdelta12*rn_12y
+c     rfn3 = -ksp*rdelta12*rn_12z
 
       rfn_mag = sqrt(rfn1**2 + rfn2**2 + rfn3**2)
 
