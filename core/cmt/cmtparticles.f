@@ -1787,8 +1787,8 @@ c        particles in local elements
                   pmass2 = rpart(jvol,j)*rho_p ! assuming same density!
                   rdp2   = rpart(jdpe,j)
                   rdeff  = 0.5*(rdp1 + rdp2)
-c                 rlamb  = 0.075*deff
-                  rlamb  = 0.
+                  rlamb  = 0.075*deff
+c                 rlamb  = 0.
                   call compute_collide(rpart(jx,i) ,rpart(jx,j) ,
      >                                 rpart(jv0,i),rpart(jv0,j),
      >                                 rdp1          ,rdp2      ,rdeff,
@@ -1813,8 +1813,8 @@ c        search list of ghost particles
                pmass2 = rptsgp(jgpvol,j)*rho_p ! assuming same density!
                rdp2 = rptsgp(jgpdpe,j)
                rdeff  = 0.5*(rdp1 + rdp2)
-c              rlamb  = 0.075*deff
-               rlamb  = 0.
+               rlamb  = 0.075*deff
+c              rlamb  = 0.
                call compute_collide(rpart(jx,i),rptsgp(jgpx,j),
      >                            rpart(jv0,i),rptsgp(jgpv0,j),
      >                            rdp1        ,rdp2           ,rdeff,
@@ -1844,8 +1844,8 @@ c        collision with 6 walls, but only when specified by .inp file
                pmass2 = 1E8 ! assume infinite mass
                rdp2   =  0.  ! zero radius
                rdeff  = rdp1
-c              rlamb  = 0.150*deff
-               rlamb  = 0.
+               rlamb  = 0.150*deff
+c              rlamb  = 0.
                call compute_collide(rpart(jx,i) ,rxwall ,
      >                           rpart(jv0,i),rvwall    ,
      >                           rdp1        ,rdp2      ,rdeff,
