@@ -68,8 +68,8 @@
       savg    = -savg/volvm1
       call cadd2(scrent,tlag,savg,ntot)
       maxdiff =     glamax(scrent,ntot)
-      if (maxdiff.le.0.0) then
-         write(deathmessage,*) 'zero maxdiff usually means NAN$'
+      if (maxdiff.lt.0.0) then
+         write(deathmessage,*) 'negative maxdiff usually means NAN$'
          call exittr(deathmessage,maxdiff,istep)
 !     else
 !        if (nio .eq. 0) write (6,*) 'max(s-<s>)=',maxdiff, meshh(1)
