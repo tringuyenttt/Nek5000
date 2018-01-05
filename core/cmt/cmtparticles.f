@@ -1311,7 +1311,7 @@ c        setup values ------------------------------------------------
          vel_diff = sqrt((rpart(ju0  ,i)-rpart(jv0  ,i))**2+
      >                   (rpart(ju0+1,i)-rpart(jv0+1,i))**2+
      >                   (rpart(ju0+2,i)-rpart(jv0+2,i))**2)
-c        rpart(ja,i)  = MixtPerf_C_GRT(gmaref,rgasref,rpart(jtempf,i)) !Nek5000
+         rpart(ja,i)  = MixtPerf_C_GRT(gmaref,rgasref,rpart(jtempf,i)) !Nek5000 comment
          rpart(ja,i)  = vel_diff/rpart(ja,i) ! relative mach number
          rpart(jre,i) = rpart(jrho,i)*rpart(jdp,i)*vel_diff/mu_0 ! Re
 
