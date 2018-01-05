@@ -1,4 +1,20 @@
 c-----------------------------------------------------------------------
+c
+c     Routines for multidomain (neknek) simulations.
+c
+c     References:
+c
+c     "A spectrally accurate method for overlapping grid solution of 
+c     incompressible Navier–Stokes equations" Brandon E. Merrill, 
+c     Yulia T. Peet, Paul F. Fischer, and James W. Lottes, J. Comp. Phys.
+c     307 (2016) 60-93.
+c
+c     "Stability analysis of interface temporal discretization in grid 
+c      overlapping methods," Y. Peet, P.F. Fischer, SIAM J. Numer. Anal. 
+c      50 (6) (2012) 3375–3401.
+c
+c
+c-----------------------------------------------------------------------
       subroutine get_session_info(intracomm)
       include 'mpif.h'
       include 'SIZE'
@@ -96,6 +112,9 @@ C     Intercommunications set up only for 2 sessions
 
       if (nsessions.gt.1) then
 
+         ifneknek   = .true.
+         ifneknekm  = .false.
+
          if (idsess.eq.0) idsess_neighbor=1
          if (idsess.eq.1) idsess_neighbor=0
  
@@ -109,14 +128,7 @@ C     Intercommunications set up only for 2 sessions
          ifhigh=.true.
          call mpi_intercomm_merge(intercomm, ifhigh, iglobalcomm, ierr)
 
-c         call iniproc(intracomm)
-c         iglobalcomm = mpi_comm_world
-
-         ifneknek   = .true.
-         ifneknekm  = .false.
-
          ninter = 1 ! Initialize NEKNEK interface extrapolation order to 1.
-
          icall = 0  ! Emergency exit call flag
 
       endif 
@@ -176,7 +188,7 @@ C     Boundary conditions are changed back to 'v' or 't'.
       if (ifheat) ifield = 2
 
 
-      nfaces = 2*ndim
+      nfaces = 2*ldim
       nel    = nelfld(ifield)
       
       nflag=nel*nfaces
@@ -203,30 +215,47 @@ c            if (cb.eq.'inp') cbc(f,e,ifield)='o  ' ! Pressure
       end
 c------------------------------------------------------------------------
       subroutine userchk_set_xfer
+      include 'mpif.h'
       include 'SIZE'
       include 'TOTAL'
+      include 'CTIMER'
       include 'NEKNEK'
-      real l2,linf
+
+      common /nekmpi/ nid_,np_,nekcomm,nekgroup,nekreal
+
+      real tsync
       character*3 which_field(nfldmax_nn)
 
 c     nfld_neknek is the number of fields to interpolate.
-c     nfld_neknek = ndim+1 for velocities+pressure 
-c     nfld_neknek = ndim+2 for velocities+pressure+temperature
+c     nfld_neknek = ldim+1 for velocities+pressure 
+c     nfld_neknek = ldim+2 for velocities+pressure+temperature
 
       which_field(1)='vx'
       which_field(2)='vy'
       which_field(3)='vz'
-      which_field(ndim+1)='pr'
-      if (nfld_neknek.gt.ndim+1) which_field(ndim+2)='t'
+      which_field(ldim+1)='pr'
+      if (nfld_neknek.gt.ldim+1) which_field(ldim+2)='t'
 c
 c     Special conditions set for flow-poro coupling
-      if(nfld_neknek.eq.1) then
+      if (nfld_neknek.eq.1) then
          if(session.eq.'flow') which_field(1)='pr'
          if(session.eq.'poro') which_field(1)='vy'
       endif
 
-      call neknekgsync()
-      if (nsessions.gt.1) call get_values2(which_field)
+      if (nsessions.gt.1) then
+         etime0 = dnekclock_sync()
+         call neknekgsync()
+         etime1 = dnekclock()
+         call get_values2(which_field)
+         call nekgsync()
+         etime = dnekclock() - etime1
+         tsync = etime1 - etime0 
+
+         if (nio.eq.0) write(6,99) istep, 
+     $                 '  Multidomain data exchange done', 
+     $                 etime, etime+tsync
+ 99      format(i11,a,1p2e13.4)
+      endif
 
       return
       end
@@ -237,7 +266,7 @@ c------------------------------------------------------------------------
       include 'NEKNEK'
       integer k,i,n
 
-      n    = nx1*ny1*nz1*nelt
+      n    = lx1*ly1*lz1*nelt
 
       do k=1,nfld_neknek
          call copy(bdrylg(1,k,2),bdrylg(1,k,1),n)
@@ -380,10 +409,10 @@ c
       include 'NEKNEK'
       integer e,eg,f
 
-      n = nx1*ny1*nz1*nelt
-      ipfld=ndim
-c     if (ifsplit) ipfld=ndim+1
-      ipfld=ndim+1                ! Now for both split and nonsplit (12/14/15)
+      n = lx1*ly1*lz1*nelt
+      ipfld=ldim
+c     if (ifsplit) ipfld=ldim+1
+      ipfld=ldim+1                ! Now for both split and nonsplit (12/14/15)
       itfld=ipfld+1
 
       do i=1,n ! The below has not been checked for ifheat=.true., pff 6/27/15
@@ -408,12 +437,12 @@ c-----------------------------------------------------------------------
       include 'NEKNEK'
       integer e,eg,f
 
-      nface = 2*ndim
+      nface = 2*ldim
       do e=1,nelv
       do f=1,nface
          if (cbc(f,e,1).eq.'o  ') then
            eg = lglel(e)
-           call facind (i0,i1,j0,j1,k0,k1,nx1,ny1,nz1,f)
+           call facind (i0,i1,j0,j1,k0,k1,lx1,ly1,lz1,f)
            l=0
            do k=k0,k1
            do j=j0,j1
@@ -504,14 +533,14 @@ ccccc
 c     Setup findpts    
       tol     = 5e-13
       npt_max = 256
-      nxf     = 2*nx1 ! fine mesh for bb-test
-      nyf     = 2*ny1
-      nzf     = 2*nz1
+      nxf     = 2*lx1 ! fine mesh for bb-test
+      nyf     = 2*ly1
+      nzf     = 2*lz1
       bb_t    = 0.01 ! relative size to expand bounding boxes by
 
       if (istep.gt.1) call fgslib_findpts_free(inth_multi2)
-      call fgslib_findpts_setup(inth_multi2,mpi_comm_world,npall,ndim,
-     &                          xm1,ym1,zm1,nx1,ny1,nz1,
+      call fgslib_findpts_setup(inth_multi2,mpi_comm_world,npall,ldim,
+     &                          xm1,ym1,zm1,lx1,ly1,lz1,
      &                          nelt,nxf,nyf,nzf,bb_t,ntot,ntot,
      &                          npt_max,tol)
 
@@ -544,10 +573,10 @@ c     interpolation)
       ifield = 1
       if (ifheat)  ifield   = 2
 
-      nfaces = 2*ndim
+      nfaces = 2*ldim
       nel    = nelfld(ifield)
 
-      nxyz  = nx1*ny1*nz1
+      nxyz  = lx1*ly1*lz1
       ntot  = nxyz*nel
       nxy = lx1*ly1
       call izero(imask,ntot)
@@ -562,7 +591,7 @@ c     points in jsend
       do e=1,nel
       do iface=1,nfaces
          if (intflag(iface,e).eq.1) then
-            call facind (kx1,kx2,ky1,ky2,kz1,kz2,nx1,ny1,nz1,iface)
+            call facind (kx1,kx2,ky1,ky2,kz1,kz2,lx1,ly1,lz1,iface)
             do iz=kz1,kz2
             do iy=ky1,ky2
             do ix=kx1,kx2
@@ -601,11 +630,11 @@ c     JL's routine to find which points these procs are on
       call fgslib_findpts(inth_multi2,rcode_all,1,
      &                    proc_all,1,
      &                    elid_all,1,
-     &                    rst_all,ndim,
+     &                    rst_all,ldim,
      &                    dist_all,1,
-     &                    rsend(1),ndim,
-     &                    rsend(2),ndim,
-     &                    rsend(3),ndim,nbp)
+     &                    rsend(1),ldim,
+     &                    rsend(2),ldim,
+     &                    rsend(3),ldim,nbp)
 
       call neknekgsync()
 
@@ -624,9 +653,9 @@ c     Make sure rcode_all is fine
       if (rcode_all(i).lt.2) then
 
         if (rcode_all(i).eq.1.and.dist_all(i).gt.1e-02) then
-           if (ndim.eq.2) write(6,*)
+           if (ldim.eq.2) write(6,*)
      &     'WARNING: point on boundary or outside the mesh xy[z]d^2: '
-           if (ndim.eq.3) write(6,*)
+           if (ldim.eq.3) write(6,*)
      &     'WARNING: point on boundary or outside the mesh xy[z]d^2: '
            goto 200
          endif
@@ -634,8 +663,8 @@ c     Make sure rcode_all is fine
          rcode(ip) = rcode_all(i)
          elid(ip)  = elid_all(i)
          proc(ip)  = proc_all(i)
-         do j=1,ndim
-           rst(ndim*(ip-1)+j)   = rst_all(ndim*(i-1)+j)
+         do j=1,ldim
+           rst(ldim*(ip-1)+j)   = rst_all(ldim*(i-1)+j)
          enddo
          iList(1,ip) = jsend(i)
 
@@ -672,11 +701,9 @@ c-----------------------------------------------------------------------
       integer nv,nt,i,j,k,n,ie,ix,iy,iz,idx,ifld
 
       call mappr(pm1,pr,wk1,wk2)  ! Map pressure to pm1 
-      nv = nx1*ny1*nz1*nelv
-      nt = nx1*ny1*nz1*nelt
+      nv = lx1*ly1*lz1*nelv
+      nt = lx1*ly1*lz1*nelt
 
-
-cccc
 c     Interpolate using findpts_eval
       do ifld=1,nfld_neknek
         if (which_field(ifld).eq.'vx') call copy(field,vx ,nt)
@@ -687,9 +714,7 @@ c     Interpolate using findpts_eval
 
         call field_eval(fieldout(1,ifld),1,field)
       enddo
-      call neknekgsync()
          
-cccc
 c     Now we can transfer this information to valint array from which
 c     the information will go to the boundary points
        do i=1,npoints_nn
@@ -699,7 +724,6 @@ c     the information will go to the boundary points
         enddo
        enddo
 
-      call neknekgsync()
       return
       end
 C--------------------------------------------------------------------------
@@ -716,7 +740,7 @@ c     Used for findpts_eval of various fields
      &                         rcode,1,
      &                         proc,1,
      &                         elid,1,
-     &                         rst,ndim,npoints_nn,
+     &                         rst,ldim,npoints_nn,
      &                         fieldin)
 
       return
@@ -739,13 +763,13 @@ c     Some sanity checks for neknek
       if (nfld_neknek.eq.0)
      $ call exitti('Error: set nfld_neknek in usrdat. Session:$',idsess)
 
-      if (nfld_neknek.lt.ndim) then
+      if (nfld_neknek.lt.ldim) then
         if (nid.eq.0) write(6,*) 'Warning: Not all velocities are 
      $      being interpolated between sessions'
       endif       
 
       if (ifsplit) then
-       if (nfld_neknek.lt.ndim+1) then
+       if (nfld_neknek.lt.ldim+1) then
         if (nid.eq.0) write(6,*) 'Warning: Pressure is not being 
      $ interpolated.'
        endif       
@@ -757,7 +781,7 @@ c     Some sanity checks for neknek
 
       do i=1,ifield
       do e=1,nelt
-      do f=1,2*ndim
+      do f=1,2*ldim
          cb=cbc(f,e,i)
          if (cb2.eq.'in') then
            nintvh(i) = nintvh(i)+1
@@ -770,11 +794,11 @@ c     Some sanity checks for neknek
       ninth = iglsum(nintvh(2),1)
 
       if (ifield.eq.2) then
-      if (nfld_neknek.lt.ndim+2) then
+      if (nfld_neknek.lt.ldim+2) then
       if (nid.eq.0) then
       write(6,*) 'Warning: Temperature might not be
      $ interpolated during the run. Check nfld_neknek in usrdat'
-      if (nintv.eq.ninth) write(6,*) 'set nfld_neknek to atleast ndim+2'
+      if (nintv.eq.ninth) write(6,*) 'set nfld_neknek to atleast ldim+2'
       if (nintv.eq.ninth) call exitt
       endif
       endif
