@@ -129,8 +129,7 @@ c automatically added by makenek
       end
 c
 c automatically added by makenek
-      subroutine usr_particles_io(istep) ! used for particles
-      integer istep
+      subroutine usr_particles_io ! used for particles
       return
       end
 

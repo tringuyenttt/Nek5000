@@ -212,12 +212,7 @@ $(OBJDIR)/lb_setqvol.o	:$S/lb_setqvol.f;		$(FC) -c $(FL2) $< -o $@
 $(OBJDIR)/reader_rea.o	:$S/reader_rea.f;	 	$(FC) -c $(FL2) $< -o $@
 $(OBJDIR)/reader_par.o	:$S/reader_par.f $S/PARDICT;	$(FC) -c $(FL2) $< -o $@
 $(OBJDIR)/reader_re2.o	:$S/reader_re2.f;		$(FC) -c $(FL2) $< -o $@
-<<<<<<< HEAD
-$(OBJDIR)/hpf.o	      :$S/hpf.f;         	$(F77) -c $(FL2) $< -o $@
-#$(OBJDIR)/cmtparticles.o	:$(SCMT)/cmtparticles.f $(SCMT)/CMTPART;		$(FC) -c $(FL2) $< -o $@
-=======
 $(OBJDIR)/hpf.o	       	:$S/hpf.f;         		$(F77) -c $(FL2) $< -o $@
->>>>>>> master
 
 # CMT CORE     ##################################################################
 $(OBJDIR)/step.o	:$(SCMT)/step.f;        	$(FC) -c $(FL2) $< -o $@

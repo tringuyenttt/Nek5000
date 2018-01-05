@@ -18,7 +18,7 @@ c  bdf/ext time integration. Otherwise, cmt-nek will not call this fxn.
       endif
 
       if(mod(istep,iostep).eq.0.or. istep.eq.1) then
-         call usr_particles_io(istep)
+         call usr_particles_io
       endif
 
       return
@@ -51,14 +51,11 @@ c----------------------------------------------------------------------
          call point_to_grid_corr_init    ! for gamma correction integrat
          call spread_props_grid           ! put particle props on grid
 
-         call usr_particles_io(1)
-
          do i = 2,nitspl
             call interp_props_part_location ! interpolate
             call correct_spl
             call particles_solver_nearest_neighbor ! nearest neigh
             call spread_props_grid           ! put particle props on grid
-         call usr_particles_io(1)
             if (nid.eq.0) write(6,*) i,'Pre-SPL iteration'
          enddo
          
@@ -525,7 +522,7 @@ c
          rdumvol(i,3) = rpart(jspl,i)  ! super part. loading
       enddo
 
-c     call usr_particles_io(istep)
+c     call usr_particles_io
 
 c     begin diagnostics ----
 c
@@ -3484,7 +3481,7 @@ c-----------------------------------------------------------------------
 c----------------------------------------------------------------------
 c     particle input/output/ restart routines
 c----------------------------------------------------------------------
-      subroutine usr_particles_io(nistep) ! nistep not used, remove
+      subroutine usr_particles_io
       include 'SIZE'
       include 'SOLN'
       include 'INPUT'
@@ -3880,7 +3877,7 @@ c----------------------------------------------------------------------
      >              ptw(1,1,1,1,2),         ! fhyd_y
      >              ptw(1,1,1,1,3),         ! fhyd_z
      >              ptw(1,1,1,1,4),         ! phi_p
-     >              ptw(1,1,1,1,5),         ! hydro energy coupling
+     >              ptw(1,1,1,1,4),         ! hydro energy coupling
      >              itmp          ,        
      >              'ptw')
 
