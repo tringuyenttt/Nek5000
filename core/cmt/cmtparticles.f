@@ -42,6 +42,7 @@ c----------------------------------------------------------------------
       call set_bounds_box
       call set_part_params ! n initialized here
       call place_particles
+      call update_particle_location   ! move outlier particles
       call set_check_spl_params ! in case spl/collisions are set
       call move_particles_inproc          ! initialize fp & cr comm handles
       if (red_part .le. 2) call init_interpolation ! barycentric weights for interpolation
@@ -63,6 +64,7 @@ c----------------------------------------------------------------------
          call particles_solver_nearest_neighbor ! nearest neigh 
          call spread_props_grid           ! put particle props on grid
       endif
+      call interp_props_part_location ! interpolate again for two-way
 
       call pre_sim_collisions
 
@@ -793,6 +795,7 @@ c     local mpi rank effects
       ! gaussian spreading
       elseif (abs(npro_method).eq.2) then
 
+
       pi       = 4.0d+0*atan(1.0d+0)
       rbexpi   = 1./(-2.*rsig**2)
 
@@ -1454,7 +1457,7 @@ c
 
       integer e
       real ur(lx1,ly1,lz1),us(lx1,ly1,lz1),ut(lx1,ly1,lz1),
-     >         prsm(lx1,ly1,lz1,lelt)
+     >         pm1(lx1,ly1,lz1,lelt,3)
 
       ! begin timer
       ptdum(17) = dnekclock()
@@ -1464,10 +1467,17 @@ c
 
       call rzero(rhs_fluidp,nlxyze*7)
 
+      ! if pressure solved on different mesh, map to vel mesh
+      if (lx2 .ne. lx1) then
+         call mappr(pm1(1,1,1,1,1),pr,pm1(1,1,1,1,2),pm1(1,1,1,1,3))
+      else
+         call copy(pm1(1,1,1,1,1),pr(1,1,1,1),nlxyze)
+      endif
+
 c     compute grad pr
       do e=1,nelt
         call gradl_rst(ur(1,1,1),us(1,1,1),ut(1,1,1),
-     >                                        pr(1,1,1,e),lx1,if3d)
+     >                                        pm1(1,1,1,e,1),lx1,if3d)
         if(if3d) then ! 3d
             do i=1,nxyz
               rhs_fluidp(i,1,1,e,1) = 1.0d+0/JACM1(i,1,1,e)* !d/dx
@@ -1534,7 +1544,7 @@ c     compute grad pr
       do k=1,nz1
       do j=1,ny1
       do i=1,nx1
-         rhs_fluidp(i,j,k,e,4) = -pr(i,j,k,e)*rhs_fluidp(i,j,k,e,4)
+         rhs_fluidp(i,j,k,e,4) = -pm1(i,j,k,e,1)*rhs_fluidp(i,j,k,e,4)
       enddo
       enddo
       enddo
@@ -1572,9 +1582,9 @@ c     compute grad phi_g
       do k=1,nz1
       do j=1,ny1
       do i=1,nx1
-         rhs_fluidp(i,j,k,e,5) = pr(i,j,k,e)*rhs_fluidp(i,j,k,e,5)
-         rhs_fluidp(i,j,k,e,6) = pr(i,j,k,e)*rhs_fluidp(i,j,k,e,6)
-         rhs_fluidp(i,j,k,e,7) = pr(i,j,k,e)*rhs_fluidp(i,j,k,e,7)
+         rhs_fluidp(i,j,k,e,5) = pm1(i,j,k,e,1)*rhs_fluidp(i,j,k,e,5)
+         rhs_fluidp(i,j,k,e,6) = pm1(i,j,k,e,1)*rhs_fluidp(i,j,k,e,6)
+         rhs_fluidp(i,j,k,e,7) = pm1(i,j,k,e,1)*rhs_fluidp(i,j,k,e,7)
       enddo
       enddo
       enddo
@@ -1736,6 +1746,34 @@ c     cd_std = 24/re_p already taken into account below
          S_qs = S_qs*rcd2
 
          rpart(jfqs+j,i) = S_qs*(rpart(ju0+j,i) - rpart(jv0+j,i))
+      elseif (part_force(1).eq.3) then
+         vel_diff = sqrt((rpart(ju0  ,i)-rpart(jv0  ,i))**2+
+     >                   (rpart(ju0+1,i)-rpart(jv0+1,i))**2+
+     >                   (rpart(ju0+2,i)-rpart(jv0+2,i))**2)
+         
+         rphip = rpart(jvol1,i)
+         rphig = 1. - rpart(jvol1,i)
+         rrep = rphig*rpart(jre,i)
+
+         if (rphip .gt. 0.2) then
+            rbeta = 150.*rphip*rphip*mu_0/rphig/rpart(jdp,i)**2 +
+     >               1.75*rphip*rpart(jrho,i)*vel_diff/rpart(jdp,i)
+
+         elseif (rphip .le. 0.2) then
+            if (rrep .lt. 1000) then
+               rcd = 24./rrep*(1. + 0.15*rrep**(0.687))
+            else
+               rcd = 0.44
+            endif
+
+            rbeta = 0.75*rcd*rphig**(-2.65)*
+     >                rphip*rphig*rpart(jrho,i)*vel_diff/rpart(jdp,i)
+         endif
+
+         rpart(jfqs+j,i) = rpart(jvol,i)*rbeta/rphip    
+     >              *(rpart(ju0+j,i) - rpart(jv0+j,i))
+
+
       elseif (part_force(1).eq.0) then
          S_qs = 0.
 
@@ -2071,7 +2109,8 @@ c
 c     create ghost particles
       if (nrect_assume .eq. 2) call create_ghost_particles_rect_full
       if (nrect_assume .eq. 1) call create_ghost_particles_rect
-      if (nrect_assume .eq. 0) call create_ghost_particles_gen
+
+      if (nrect_assume .gt. 0) call create_wall_particles_image
 
       if (istep.eq.0.or.istep.eq.1) then
          ntmp = iglsum(nfptsgp,1)
@@ -2094,6 +2133,215 @@ c     call search_nearest_neighbor
 
       ! end timer
       pttime(19) = pttime(19) + dnekclock() - ptdum(19)
+
+      return
+      end
+c----------------------------------------------------------------------
+      subroutine create_wall_particles_image
+c
+c     spread a local particle property to local fluid grid points
+c
+      include 'SIZE'
+      include 'INPUT'
+      include 'GEOM'
+      include 'SOLN'
+      include 'CMTDATA'
+      include 'CMTPART'
+
+      real   xdrange(2,3)
+      common /domainrange/ xdrange
+      real   xerange(2,3,lelt)
+      common /elementrange/ xerange
+
+      real bl_list(3),rthresh,rxdum(3)
+      integer idummap(2,3)
+
+      common /gpfix/ ilgp_f(lelt,6),ilgp_e(lelt,12),ilgp_c(lelt,8)
+
+      idummap(1,1) = 1
+      idummap(2,1) = 2
+      idummap(1,2) = 3
+      idummap(2,2) = 4
+      idummap(1,3) = 5
+      idummap(2,3) = 6
+
+
+      rthresh = 1E-9
+
+      do i=1,n
+
+         ic = 0
+         ie = ipart(je0,i) + 1
+
+         do i2=1,3
+         do i1=1,2
+            if (abs(xerange(i1,i2,ie)-xdrange(i1,i2)).lt. rthresh) then
+               ic = ic + 1
+               bl_list(ic) = idummap(i1,i2)
+            endif
+         enddo
+         enddo
+
+         do ii=1,ic
+            j = bl_list(ii)
+
+            if (bc_part(j) .eq. -1) then
+               nj1 = mod(j,2)
+               if (nj1.ne.0) nj1 = 1
+               if (nj1.eq.0) nj1 = 2
+               nj2 = int((j-1)/2) + 1
+
+               rxdum(1)   = rpart(jx  ,i)
+               rxdum(2)   = rpart(jx+1,i)
+               rxdum(3)   = rpart(jx+2,i)
+
+               rsdist = xdrange(nj1,nj2) - rxdum(nj2)
+               rsdist = 2.*rsdist
+
+               rxdum(nj2) = rxdum(nj2) + rsdist
+
+               nfptsgp = nfptsgp + 1
+               
+               rptsgp(jgpx,nfptsgp)    = rxdum(1)           ! x loc
+               rptsgp(jgpy,nfptsgp)    = rxdum(2)           ! y log
+               rptsgp(jgpz,nfptsgp)    = rxdum(3)           ! z log
+               rptsgp(jgpfh,nfptsgp)   = rpart(jf0,i)   ! hyd. force x
+               rptsgp(jgpfh+1,nfptsgp) = rpart(jf0+1,i) ! hyd. force y
+               rptsgp(jgpfh+2,nfptsgp) = rpart(jf0+2,i) ! hyd. force z
+               rptsgp(jgpvol,nfptsgp)  = rpart(jvol,i)  ! particle volum
+               rptsgp(jgpdpe,nfptsgp)  = rpart(jdpe,i)  ! particle dp eff
+               rptsgp(jgpgam,nfptsgp)  = rpart(jgam,i)  ! spread correct
+               rptsgp(jgpspl,nfptsgp)  = rpart(jspl,i)  ! super particle
+               rptsgp(jgpg0,nfptsgp)   = rpart(jg0,i)   ! work done by forc
+               rptsgp(jgpq0,nfptsgp)   = rpart(jq0,i)   ! heating from part 
+               rptsgp(jgpv0,nfptsgp)   = rpart(jv0,i)   ! particle velocity
+               rptsgp(jgpv0+1,nfptsgp) = rpart(jv0+1,i) ! particle velocity
+               rptsgp(jgpv0+2,nfptsgp) = rpart(jv0+2,i) ! particle velocity
+               
+               iptsgp(jgppid1,nfptsgp) = -1
+               iptsgp(jgppid2,nfptsgp) = -1
+               iptsgp(jgppid3,nfptsgp) = -1
+               
+                  ipdum  = nid
+                  iedum  = ipart(je0,i)
+               
+               iptsgp(jgpps,nfptsgp)   = ipdum  ! overwritten mpi
+               iptsgp(jgppt,nfptsgp)   = ipdum  ! dest. mpi rank
+               iptsgp(jgpes,nfptsgp)   = iedum    ! dest. elment
+
+               do ifc=1,nfacegp
+
+                  if (ilgp_f(ie,ifc) .eq. 0) then
+
+                     nfptsgp = nfptsgp + 1
+                   
+                     rptsgp(jgpx,nfptsgp)    = rxdum(1)           ! x loc
+                     rptsgp(jgpy,nfptsgp)    = rxdum(2)           ! y log
+                     rptsgp(jgpz,nfptsgp)    = rxdum(3)           ! z log
+                     rptsgp(jgpfh,nfptsgp)   = rpart(jf0,i)   ! hyd. force x
+                     rptsgp(jgpfh+1,nfptsgp) = rpart(jf0+1,i) ! hyd. force y
+                     rptsgp(jgpfh+2,nfptsgp) = rpart(jf0+2,i) ! hyd. force z
+                     rptsgp(jgpvol,nfptsgp)  = rpart(jvol,i)  ! particle volum
+                     rptsgp(jgpdpe,nfptsgp)  = rpart(jdpe,i)  ! particle dp eff
+                     rptsgp(jgpgam,nfptsgp)  = rpart(jgam,i)  ! spread correct
+                     rptsgp(jgpspl,nfptsgp)  = rpart(jspl,i)  ! super particle
+                     rptsgp(jgpg0,nfptsgp)   = rpart(jg0,i)   ! work done by forc
+                     rptsgp(jgpq0,nfptsgp)   = rpart(jq0,i)   ! heating from part 
+                     rptsgp(jgpv0,nfptsgp)   = rpart(jv0,i)   ! particle velocity
+                     rptsgp(jgpv0+1,nfptsgp) = rpart(jv0+1,i) ! particle velocity
+                     rptsgp(jgpv0+2,nfptsgp) = rpart(jv0+2,i) ! particle velocity
+                   
+                     iptsgp(jgppid1,nfptsgp) = -1
+                     iptsgp(jgppid2,nfptsgp) = -1
+                     iptsgp(jgppid3,nfptsgp) = -1
+                   
+                        ipdum  = el_face_proc_map(ie,ifc)
+                        iedum  = el_face_el_map(ie,ifc)
+
+                     iptsgp(jgpps,nfptsgp)   = ipdum  ! overwritten mpi
+                     iptsgp(jgppt,nfptsgp)   = ipdum  ! dest. mpi rank
+                     iptsgp(jgpes,nfptsgp)   = iedum    ! dest. elment
+                   
+                  endif
+               enddo
+
+               do ifc=1,nedgegp
+
+                  if (ilgp_e(ie,ifc) .eq. 0) then
+
+                     nfptsgp = nfptsgp + 1
+                   
+                     rptsgp(jgpx,nfptsgp)    = rxdum(1)           ! x loc
+                     rptsgp(jgpy,nfptsgp)    = rxdum(2)           ! y log
+                     rptsgp(jgpz,nfptsgp)    = rxdum(3)           ! z log
+                     rptsgp(jgpfh,nfptsgp)   = rpart(jf0,i)   ! hyd. force x
+                     rptsgp(jgpfh+1,nfptsgp) = rpart(jf0+1,i) ! hyd. force y
+                     rptsgp(jgpfh+2,nfptsgp) = rpart(jf0+2,i) ! hyd. force z
+                     rptsgp(jgpvol,nfptsgp)  = rpart(jvol,i)  ! particle volum
+                     rptsgp(jgpdpe,nfptsgp)  = rpart(jdpe,i)  ! particle dp eff
+                     rptsgp(jgpgam,nfptsgp)  = rpart(jgam,i)  ! spread correct
+                     rptsgp(jgpspl,nfptsgp)  = rpart(jspl,i)  ! super particle
+                     rptsgp(jgpg0,nfptsgp)   = rpart(jg0,i)   ! work done by forc
+                     rptsgp(jgpq0,nfptsgp)   = rpart(jq0,i)   ! heating from part 
+                     rptsgp(jgpv0,nfptsgp)   = rpart(jv0,i)   ! particle velocity
+                     rptsgp(jgpv0+1,nfptsgp) = rpart(jv0+1,i) ! particle velocity
+                     rptsgp(jgpv0+2,nfptsgp) = rpart(jv0+2,i) ! particle velocity
+                   
+                     iptsgp(jgppid1,nfptsgp) = -1
+                     iptsgp(jgppid2,nfptsgp) = -1
+                     iptsgp(jgppid3,nfptsgp) = -1
+                   
+                        ipdum  = el_edge_proc_map(ie,ifc)
+                        iedum  = el_edge_el_map(ie,ifc)
+                   
+                     iptsgp(jgpps,nfptsgp)   = ipdum  ! overwritten mpi
+                     iptsgp(jgppt,nfptsgp)   = ipdum  ! dest. mpi rank
+                     iptsgp(jgpes,nfptsgp)   = iedum    ! dest. elment
+                  endif
+               enddo
+
+               do ifc=1,ncornergp
+
+                  if (ilgp_c(ie,ifc) .eq. 0) then
+
+                     nfptsgp = nfptsgp + 1
+                   
+                     rptsgp(jgpx,nfptsgp)    = rxdum(1)           ! x loc
+                     rptsgp(jgpy,nfptsgp)    = rxdum(2)           ! y log
+                     rptsgp(jgpz,nfptsgp)    = rxdum(3)           ! z log
+                     rptsgp(jgpfh,nfptsgp)   = rpart(jf0,i)   ! hyd. force x
+                     rptsgp(jgpfh+1,nfptsgp) = rpart(jf0+1,i) ! hyd. force y
+                     rptsgp(jgpfh+2,nfptsgp) = rpart(jf0+2,i) ! hyd. force z
+                     rptsgp(jgpvol,nfptsgp)  = rpart(jvol,i)  ! particle volum
+                     rptsgp(jgpdpe,nfptsgp)  = rpart(jdpe,i)  ! particle dp eff
+                     rptsgp(jgpgam,nfptsgp)  = rpart(jgam,i)  ! spread correct
+                     rptsgp(jgpspl,nfptsgp)  = rpart(jspl,i)  ! super particle
+                     rptsgp(jgpg0,nfptsgp)   = rpart(jg0,i)   ! work done by forc
+                     rptsgp(jgpq0,nfptsgp)   = rpart(jq0,i)   ! heating from part 
+                     rptsgp(jgpv0,nfptsgp)   = rpart(jv0,i)   ! particle velocity
+                     rptsgp(jgpv0+1,nfptsgp) = rpart(jv0+1,i) ! particle velocity
+                     rptsgp(jgpv0+2,nfptsgp) = rpart(jv0+2,i) ! particle velocity
+                   
+                     iptsgp(jgppid1,nfptsgp) = -1
+                     iptsgp(jgppid2,nfptsgp) = -1
+                     iptsgp(jgppid3,nfptsgp) = -1
+                   
+                        ipdum  = el_corner_proc_map(ie,ifc)
+                        iedum  = el_corner_el_map(ie,ifc)
+                   
+                     iptsgp(jgpps,nfptsgp)   = ipdum  ! overwritten mpi
+                     iptsgp(jgppt,nfptsgp)   = ipdum  ! dest. mpi rank
+                     iptsgp(jgpes,nfptsgp)   = iedum    ! dest. elment
+                  endif
+               enddo
+
+
+
+            endif
+         enddo
+
+      enddo
+
 
       return
       end
@@ -2158,236 +2406,6 @@ c        search list of ghost particles
 
       ! end timer
       pttime(20) = pttime(20) + dnekclock() - ptdum(20)
-
-      return
-      end
-c-----------------------------------------------------------------------
-      subroutine create_ghost_particles_gen
-c
-c     this routine will create ghost particles by checking if particle
-c     is within d2chk of element faces
-c
-c     ghost particle x,y,z list will be in rptsgp(jgpx,j),rptsgp(jgpy,j),
-c     rptsgp(jgpz,j), while processor and local element id are in
-c     iptsgp(jgppt,j) and iptsgp(jgpes,j)
-c
-      include 'SIZE'
-      include 'TOTAL'
-      include 'CMTDATA'
-      include 'CMTPART'
-
-      common /myparth/ i_fp_hndl, i_cr_hndl
-
-      real rcoords_gp(3,7*n) ! possible seven gp
-      real rdums(4,7*n),rdist
-      integer idums(3,7*n),ieremove(nelt)
-
-      ! begin timer
-      ptdum(21) = dnekclock()
-
-      ic = 0
-      do i = 1,n
-
-         ie = ipart(je0,i) + 1
-
-         isgnx = 1
-         isgny = 1
-         isgnz = 1
-         if (rpart(jr+0,i) .lt. 0.) isgnx = -1
-         if (rpart(jr+1,i) .lt. 0.) isgny = -1
-         if (rpart(jr+2,i) .lt. 0.) isgnz = -1
-
-         ! difference in d2chk?
-         ic = ic + 1
-         rcoords_gp(1,ic) = rpart(jx,i) + isgnx*d2chk(1)
-         rcoords_gp(2,ic) = rpart(jy,i)
-         rcoords_gp(3,ic) = rpart(jz,i)
-
-         ic = ic + 1
-         rcoords_gp(1,ic) = rpart(jx,i)
-         rcoords_gp(2,ic) = rpart(jy,i) + isgny*d2chk(1)
-         rcoords_gp(3,ic) = rpart(jz,i)
-
-         ic = ic + 1
-         rcoords_gp(1,ic) = rpart(jx,i)
-         rcoords_gp(2,ic) = rpart(jy,i)
-         rcoords_gp(3,ic) = rpart(jz,i) + isgnz*d2chk(1)
-
-         ic = ic + 1
-         rcoords_gp(1,ic) = rpart(jx,i) + isgnx*d2chk(1)
-         rcoords_gp(2,ic) = rpart(jy,i) + isgny*d2chk(1)
-         rcoords_gp(3,ic) = rpart(jz,i)
-
-         ic = ic + 1
-         rcoords_gp(1,ic) = rpart(jx,i)
-         rcoords_gp(2,ic) = rpart(jy,i) + isgny*d2chk(1)
-         rcoords_gp(3,ic) = rpart(jz,i) + isgnz*d2chk(1)
-
-         ic = ic + 1
-         rcoords_gp(1,ic) = rpart(jx,i) + isgnx*d2chk(1)
-         rcoords_gp(2,ic) = rpart(jy,i)
-         rcoords_gp(3,ic) = rpart(jz,i) + isgnz*d2chk(1)
-
-         ic = ic + 1
-         rcoords_gp(1,ic) = rpart(jx,i) + isgnx*d2chk(1)
-         rcoords_gp(2,ic) = rpart(jy,i) + isgny*d2chk(1)
-         rcoords_gp(3,ic) = rpart(jz,i) + isgnz*d2chk(1)
-
-c        ic = ic + 1
-c        rcoords_gp(1,ic) = rpart(jx,i)
-c        rcoords_gp(2,ic) = rpart(jy,i)
-c        rcoords_gp(3,ic) = rpart(jz,i)
-
-c        ic = ic + 1
-c        rcoords_gp(1,ic) = rpart(jx,i)
-c        rcoords_gp(2,ic) = rpart(jy,i)
-c        rcoords_gp(3,ic) = rpart(jz,i)
-
-c        ic = ic + 1
-c        rcoords_gp(1,ic) = rpart(jx,i)
-c        rcoords_gp(2,ic) = rpart(jy,i)
-c        rcoords_gp(3,ic) = rpart(jz,i)
-
-c        ic = ic + 1
-c        rcoords_gp(1,ic) = rpart(jx,i)
-c        rcoords_gp(2,ic) = rpart(jy,i)
-c        rcoords_gp(3,ic) = rpart(jz,i)
-
-c        ic = ic + 1
-c        rcoords_gp(1,ic) = rpart(jx,i)
-c        rcoords_gp(2,ic) = rpart(jy,i)
-c        rcoords_gp(3,ic) = rpart(jz,i)
-
-c        ic = ic + 1
-c        rcoords_gp(1,ic) = rpart(jx,i)
-c        rcoords_gp(2,ic) = rpart(jy,i)
-c        rcoords_gp(3,ic) = rpart(jz,i)
-
-c        ic = ic + 1
-c        rcoords_gp(1,ic) = rpart(jx,i)
-c        rcoords_gp(2,ic) = rpart(jy,i)
-c        rcoords_gp(3,ic) = rpart(jz,i)
-
-
-c        do j=1,7
-c           if (idums(2,j) .ne. ipart(jps,i)) then
-c           if (idums(1,j) .eq. 0) then
-c              nfptsgp = nfptsgp + 1
-
-c              ! make sure if future changes here to change in rect only
-c              ! function, or else we may have bug later on
-c              rptsgp(jgpx,nfptsgp)    = rpart(jx,i)    ! x loc
-c              rptsgp(jgpy,nfptsgp)    = rpart(jy,i)    ! y log
-c              rptsgp(jgpz,nfptsgp)    = rpart(jz,i)    ! z log
-c              rptsgp(jgpfh,nfptsgp)   = rpart(jf0,i)   ! hyd. force x
-c              rptsgp(jgpfh+1,nfptsgp) = rpart(jf0+1,i) ! hyd. force y
-c              rptsgp(jgpfh+2,nfptsgp) = rpart(jf0+2,i) ! hyd. force z
-c              rptsgp(jgpvol,nfptsgp)  = rpart(jvol,i)  ! particle volum
-c              rptsgp(jgpgam,nfptsgp)  = rpart(jgam,i)  ! spread correct
-c              rptsgp(jgpspl,nfptsgp)  = rpart(jspl,i)  ! super particle
-c              rptsgp(jgpg0,nfptsgp)   = rpart(jg0,i)   ! work done by forc
-c              rptsgp(jgpq0,nfptsgp)   = rpart(jq0,i)   ! heating from part 
-c              rptsgp(jgpv0,nfptsgp)   = rpart(jv0,i)   ! particle velocity
-c              rptsgp(jgpv0+1,nfptsgp) = rpart(jv0+1,i) ! particle velocity
-c              rptsgp(jgpv0+2,nfptsgp) = rpart(jv0+2,i) ! particle velocity
-c
-c              iptsgp(jgppid1,nfptsgp) = ipart(jpid1,i)          ! part id 1 tag
-c              iptsgp(jgppid2,nfptsgp) = ipart(jpid2,i)          ! part id 2 tag
-c              iptsgp(jgppid3,nfptsgp) = ipart(jpid3,i)          ! part id 3 tag
-c              iptsgp(jgpps,nfptsgp)   = iprocmap  ! overwritten mpi
-c              iptsgp(jgppt,nfptsgp)   = iprocmap  ! dest. mpi rank
-c              iptsgp(jgpes,nfptsgp)   = ielmap    ! dest. elment
-c           endif
-c           endif
-c        enddo
-      enddo
-
-
-      nigpl = 3
-      nr1  = 4
-      nr2  = 3
-            call fgslib_findpts(i_fp_hndl !  stride     !   call fgslib_findpts( ihndl,
-     $           , idums(1,1),nigpl       !   $             rcode,1,
-     $           , idums(2,1),nigpl       !   &             proc,1,
-     $           , idums(3,1),nigpl       !   &             elid,1,
-     $           , rdums(1,1),nr1        !   &             rst,ndim,
-     $           , rdums(4,1),nr1        !   &             dist,1,
-     $           , rcoords_gp(1,1),nr2        !   &             pts(    1),1,
-     $           , rcoords_gp(2,1),nr2        !   &             pts(  n+1),1,
-     $           , rcoords_gp(3,1),nr2 ,ic)    !   &             pts(2*n+1),1,n)
-
-
-      
-      nelmax = 0
-      npmax  = 0
-      nfptsgp = 0
-      icdum = ic
-      ic = 0
-      do i=1,n
-         do j=1,7
-            ic = ic + 1
-            if (idums(1,ic) .ne. 2) then
-            if (idums(2,ic) .ne. nid) then
-
-               iprocmap = idums(2,ic)
-               ielmap   = idums(3,ic)
-
-               nfptsgp = nfptsgp + 1
-c              ! make sure if future changes here to change in rect only
-c              ! function, or else we may have bug later on
-               rptsgp(jgpx,nfptsgp)    = rpart(jx,i)    ! x loc
-               rptsgp(jgpy,nfptsgp)    = rpart(jy,i)    ! y log
-               rptsgp(jgpz,nfptsgp)    = rpart(jz,i)    ! z log
-               rptsgp(jgpfh,nfptsgp)   = rpart(jf0,i)   ! hyd. force x
-               rptsgp(jgpfh+1,nfptsgp) = rpart(jf0+1,i) ! hyd. force y
-               rptsgp(jgpfh+2,nfptsgp) = rpart(jf0+2,i) ! hyd. force z
-               rptsgp(jgpvol,nfptsgp)  = rpart(jvol,i)  ! particle volum
-
-               ! needs update if want to use with effective spl
-               ! diameter!!
-
-               rptsgp(jgpgam,nfptsgp)  = rpart(jgam,i)  ! spread correct
-               rptsgp(jgpspl,nfptsgp)  = rpart(jspl,i)  ! super particle
-               rptsgp(jgpg0,nfptsgp)   = rpart(jg0,i)   ! work done by forc
-               rptsgp(jgpq0,nfptsgp)   = rpart(jq0,i)   ! heating from part 
-               rptsgp(jgpv0,nfptsgp)   = rpart(jv0,i)   ! particle velocity
-               rptsgp(jgpv0+1,nfptsgp) = rpart(jv0+1,i) ! particle velocity
-               rptsgp(jgpv0+2,nfptsgp) = rpart(jv0+2,i) ! particle velocity
- 
-               iptsgp(jgppid1,nfptsgp) = ipart(jpid1,i)          ! part id 1 tag
-               iptsgp(jgppid2,nfptsgp) = ipart(jpid2,i)          ! part id 2 tag
-               iptsgp(jgppid3,nfptsgp) = ipart(jpid3,i)          ! part id 3 tag
-               iptsgp(jgpps,nfptsgp)   = iprocmap  ! overwritten mpi
-               iptsgp(jgppt,nfptsgp)   = iprocmap  ! dest. mpi rank
-               iptsgp(jgpes,nfptsgp)   = ielmap    ! dest. elment
-
-c              double particles possibly created, filter out
-               do ii = 1,j ! look back at most 7 ghost particles
-                  if (iptsgp(jgpps,nfptsgp-ii) .eq. 
-     >                               iptsgp(jgpps,nfptsgp)) then
-                  if (iptsgp(jgpes,nfptsgp-ii) .eq. 
-     >                               iptsgp(jgpes,nfptsgp)) then
-                  if (iptsgp(jgppid1,nfptsgp-ii) .eq.
-     >                               iptsgp(jgppid1,nfptsgp)) then
-                  if (iptsgp(jgppid2,nfptsgp-ii) .eq.
-     >                               iptsgp(jgppid2,nfptsgp)) then
-                  if (iptsgp(jgppid3,nfptsgp-ii) .eq.
-     >                               iptsgp(jgppid3,nfptsgp)) then
-                     nfptsgp = nfptsgp - 1
-                  endif
-                  endif
-                  endif
-                  endif
-                  endif
-               enddo
-
-            endif
-            endif
-         enddo
-      enddo
-
-      ! end timer
-      pttime(21) = pttime(21) + dnekclock() - ptdum(21)
 
       return
       end
@@ -3421,6 +3439,8 @@ c-----------------------------------------------------------------------
            call baryinterp(rhs_fluidp(1,1,1,ie,3),rpart(jDuDt+2,i),nxyz)!dp/dz
            call baryinterp(ptw(1,1,1,ie,4),rpart(jvol1,i),nxyz)   !phi_p
 
+c          call baryinterp(p2gc(1,1,1,ie,4),rpart(jgam,i),nxyz)   !gam
+
            ! trilinear interpolation between grid points
            else
               call triinterp(xm1(1,1,1,ie),ym1(1,1,1,ie),
@@ -3469,6 +3489,12 @@ c-----------------------------------------------------------------------
      >                       rpart(jx,i),rpart(jy,i),rpart(jz,i),
      >                       rpart(jr,i),rpart(jr+1,i),rrdum,
      >                       ie,rpart(jvol1,i))
+
+c             call triinterp(xm1(1,1,1,ie),ym1(1,1,1,ie),
+c    >                       zm1(1,1,1,ie),p2gc(1,1,1,ie,4),
+c    >                       rpart(jx,i),rpart(jy,i),rpart(jz,i),
+c    >                       rpart(jr,i),rpart(jr+1,i),rrdum,
+c    >                       ie,rpart(jgam,i))
            endif
 
         enddo
@@ -3669,7 +3695,7 @@ c----------------------------------------------------------------------
       integer      prevs(0:np-1),npt_total,e,oldfile
       real         realtmp(42,llpart)
 
-      rpi    = 4.0*atan(1.) ! pi
+      rpi    = 4.0d+0*atan(1.d+0) ! pi
 
 c     setup files to write to mpi 
       write(locstring,'(A8,I5.5,A3)') 'rpartxyz', ipart_restartr, '.3D' 
@@ -3769,7 +3795,7 @@ c     assign values to rpart and ipart
          ! extra stuff
          rpart(jtaup,i) = rpart(jdp,i)**2*rho_p/18.0d+0/mu_0
          rpart(jrhop,i) = rho_p      ! material density of particle
-         rpart(jvol,i)  = rpi*rpart(jdp,i)**3/6.! particle volume
+         rpart(jvol,i)  = rpi*rpart(jdp,i)**3/6.d+0! particle volume
          rpart(jgam,i)  = 1.          ! initial integration correction
 
       enddo
@@ -3876,8 +3902,8 @@ c----------------------------------------------------------------------
       call outpost2(ptw(1,1,1,1,1),         ! fhyd_x
      >              ptw(1,1,1,1,2),         ! fhyd_y
      >              ptw(1,1,1,1,3),         ! fhyd_z
+     >              ptw(1,1,1,1,4),         ! phi_p (but not if lx1!=lx2
      >              ptw(1,1,1,1,4),         ! phi_p
-     >              ptw(1,1,1,1,4),         ! hydro energy coupling
      >              itmp          ,        
      >              'ptw')
 
@@ -3992,7 +4018,7 @@ c----------------------------------------------------------------------
          uf(i,j,k,ie,16)= vx(i,j,k,ie)
          uf(i,j,k,ie,17)= vy(i,j,k,ie)
          uf(i,j,k,ie,18)= vz(i,j,k,ie)
-         uf(i,j,k,ie,19)= pr(i,j,k,ie)
+         uf(i,j,k,ie,19)= pr(i,j,k,ie) ! not set up for lx2 mesh!!
          uf(i,j,k,ie,20)= vtrans(i,j,k,ie,1)
          uf(i,j,k,ie,21)= t(i,j,k,ie,1)
       enddo
