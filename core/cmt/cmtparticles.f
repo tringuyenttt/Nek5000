@@ -4670,8 +4670,8 @@ c
 
       rmu = (rxr + rxl)/2.
       nxfn  = 1000
-      rxlf  = rmu - 5.*rstd
-      rxrf  = rmu + 5.*rstd
+      rxlf  = rxl
+      rxrf  = rxr
       rdxf  = (rxrf-rxlf)/(nxfn-1.)
 
       do i=1,nxfn
