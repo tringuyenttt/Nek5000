@@ -1835,9 +1835,18 @@ c                 rlamb  = 0.
 
 c        search list of ghost particles
          do j = 1,nfptsgp
+            ! exclude if same particle
             if (iptsgp(jgppid1,j) .eq. ipart(jpid1,i)) then
             if (iptsgp(jgppid2,j) .eq. ipart(jpid2,i)) then
             if (iptsgp(jgppid3,j) .eq. ipart(jpid3,i)) then
+               goto 1234
+            endif
+            endif
+            endif
+            ! exclude if wall particle mirror
+            if (iptsgp(jgppid1,j) .eq. -1)
+            if (iptsgp(jgppid2,j) .eq. -1)
+            if (iptsgp(jgppid3,j) .eq. -1)
                goto 1234
             endif
             endif
