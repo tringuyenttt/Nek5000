@@ -70,7 +70,7 @@
       maxdiff =     glamax(scrent,ntot)
       if (maxdiff.le.0.0) then
          write(deathmessage,*) 'zero maxdiff usually means NAN$'
-         call exittr(deathmessage,maxdiff,istep)
+c        call exittr(deathmessage,maxdiff,istep)
 !     else
 !        if (nio .eq. 0) write (6,*) 'max(s-<s>)=',maxdiff, meshh(1)
       endif
@@ -302,8 +302,8 @@ c-----------------------------------------------------------------------
 ! yes I know this loop sucks and I need to write a matrix or something
       do e=1,nelt
          do i=1,nxyz
-            if (wavevisc(i,1,1,e).le. resvisc(i,1,1,e))
-     >          resvisc(i,1,1,e)= wavevisc(i,1,1,e)
+c           if (wavevisc(i,1,1,e).le. resvisc(i,1,1,e))
+                resvisc(i,1,1,e)= wavevisc(i,1,1,e)
          enddo
          call copy(rtmp,resvisc(1,1,1,e),nxyz) ! really only for .false.
          do iz=kstart,kend
