@@ -4,8 +4,8 @@ C> @file outflow_bc.f Dirichlet states for outflow boundary conditions
       INCLUDE 'INPUT'
 
       integer  nvar,f,e
-      real facew(nx1,nz1,2*ldim,nelt,nvar)
-      real wbc(nx1,nz1,2*ldim,nelt,nvar)
+      real facew(lx1,lz1,2*ldim,nelt,nvar)
+      real wbc(lx1,lz1,2*ldim,nelt,nvar)
 
       call outflow_rflu(nvar,f,e,facew,wbc)
 
@@ -26,16 +26,16 @@ C> @file outflow_bc.f Dirichlet states for outflow boundary conditions
 
       integer i,bcOpt
       integer  f,e,fdim
-      real facew(nx1*nz1,2*ldim,nelt,nvar)
-      real wbc(nx1*nz1,2*ldim,nelt,nvar)
+      real facew(lx1*lz1,2*ldim,nelt,nvar)
+      real wbc(lx1*lz1,2*ldim,nelt,nvar)
       real sxn,syn,szn,rhou,rhov,rhow,pl,rhob,rhoub,rhovb,rhowb,rhoeb
 
-      nxz=nx1*nz1
-      nxzd=nxd*nzd
-      fdim=ndim-1
+      nxz=lx1*lz1
+      nxzd=lxd*lzd
+      fdim=ldim-1
       ieg=lglel(e)
 
-      call facind(i0,i1,j0,j1,k0,k1,nx1,ny1,nz1,f)    
+      call facind(i0,i1,j0,j1,k0,k1,lx1,ly1,lz1,f)    
       l=0
       do iz=k0,k1
       do iy=j0,j1
@@ -60,10 +60,12 @@ C> @file outflow_bc.f Dirichlet states for outflow boundary conditions
 c        fs = 0.0
          if(outflsub)then
             pres= pinfty
+            idbc=1
          else
             pres= facew(l,f,e,ipr)
+            idbc=0
          endif
-         call BcondOutflowPerf(1,pres,sxn,syn,szn,cp,molarmass,
+         call BcondOutflowPerf(idbc,pres,sxn,syn,szn,cp,molarmass,
      >                         rho,rhou,rhov,rhow,rhoe,pl,
      >                         rhob,rhoub,rhovb,rhowb,rhoeb )
          wbc(l,f,e,irho)=rhob
