@@ -1844,9 +1844,9 @@ c        search list of ghost particles
             endif
             endif
             ! exclude if wall particle mirror
-            if (iptsgp(jgppid1,j) .eq. -1)
-            if (iptsgp(jgppid2,j) .eq. -1)
-            if (iptsgp(jgppid3,j) .eq. -1)
+            if (iptsgp(jgppid1,j) .eq. -1) then
+            if (iptsgp(jgppid2,j) .eq. -1) then
+            if (iptsgp(jgppid3,j) .eq. -1) then
                goto 1234
             endif
             endif
