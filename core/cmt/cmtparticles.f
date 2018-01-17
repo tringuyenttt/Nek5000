@@ -159,7 +159,7 @@ c     setup items
       call rzero(pttime,iptlen)
 
 c     filter width setup (note deltax is implicit in expressions b4 def)
-      rtmp_rle = 0.5 ! dummy number, max value it can be
+      rtmp_rle = 0.0 ! dummy number, max value it can be
 
       ! do nothing, no spreading
       if (npro_method .eq. 0) then
@@ -223,7 +223,7 @@ c----------------------------------------------------------------------
          rdeff_max = glmax(rdeff_max,1)
 
          rtmp_rle2 = d2chk(1)/rleng
-         rtmp_rle_col = (rdeff_max*(0.5+0.075))/rleng
+         rtmp_rle_col = rdeff_max/rleng
 
          if ( abs(npro_method) .gt. 1) then
          if ( rtmp_rle_col .gt. rtmp_rle2) then
@@ -2059,11 +2059,11 @@ c     if (rdelta12 .lt. 0) rdelta12 = 0. ! no overlap
       rv12z = rv12_mag*rn_12z
 
       ! additonal check
-      if (rd2 .gt. 1E-9) then ! don't do for walls
-      if (rdelta12 .gt. 0.05*0.5/(1./rd1 + 1./rd2)) then
-         rdelta12 = 0.05*0.5/(1./rd1 + 1./rd2)
-      endif
-      endif
+c     if (rd2 .gt. 1E-9) then ! don't do for walls
+c     if (rdelta12 .gt. 0.05*0.5/(1./rd1 + 1./rd2)) then
+c        rdelta12 = 0.05*0.5/(1./rd1 + 1./rd2)
+c     endif
+c     endif
 
       rfn1 = -ksp*rdelta12*rn_12x - eta*rv12x
       rfn2 = -ksp*rdelta12*rn_12y - eta*rv12y
@@ -2073,7 +2073,7 @@ c     rfn1 = -ksp*rdelta12*rn_12x
 c     rfn2 = -ksp*rdelta12*rn_12y
 c     rfn3 = -ksp*rdelta12*rn_12z
 
-      rfn_mag = sqrt(rfn1**2 + rfn2**2 + rfn3**2)
+c     rfn_mag = sqrt(rfn1**2 + rfn2**2 + rfn3**2)
 
       fcf(1) = fcf(1) + rfn1
       fcf(2) = fcf(2) + rfn2
