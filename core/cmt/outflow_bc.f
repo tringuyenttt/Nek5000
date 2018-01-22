@@ -42,8 +42,11 @@ C> @file outflow_bc.f Dirichlet states for outflow boundary conditions
       do ix=i0,i1
          call nekasgn(ix,iy,iz,e)     ! gives us phi- and rho-
          call cmtasgn(ix,iy,iz,e)
-         call userbc (ix,iy,iz,f,ieg) ! just for molarmass, and
-                                      ! pres
+!        call userbc (ix,iy,iz,f,ieg) ! just for molarmass, and
+!                                     ! pres
+! Wait that gets dumb and difficult. Need some mechanism so userbc
+! knows which NEKUSE and nekuscmt variables it can and can't overwrite
+         molarmass=molmass
          l=l+1
          sxn = unx(l,1,f,e)
          syn = uny(l,1,f,e)
