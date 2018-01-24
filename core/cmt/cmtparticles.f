@@ -52,7 +52,7 @@ c----------------------------------------------------------------------
          call point_to_grid_corr_init    ! for gamma correction integrat
          call spread_props_grid           ! put particle props on grid
 
-         do i = 2,nitspl
+         do i = 1,nitspl
             call interp_props_part_location ! interpolate
             call correct_spl
             call particles_solver_nearest_neighbor ! nearest neigh
@@ -96,7 +96,8 @@ c
       ! begin timer
       ptdum(2) = dnekclock()
 
-      rdum = 100000.
+      rdum  = 1E8
+      rleng = 1E8
 
       if(istep.eq.0.or.istep.eq.1)then
         call domain_size(xdrange(1,1),xdrange(2,1),xdrange(1,2)
@@ -119,9 +120,9 @@ c
 
         rdum1 = glmin(rdum,1)
         if (rdum1 .lt. rleng) then
-           if (nid.eq. 0) write(6,*) 'WARNING rleng is reset to ',rdum1
            rleng = rdum1
         endif
+        if (nid.eq.0) write(6,*) 'yooo',rleng
       endif
 
       ! end timer
@@ -210,7 +211,8 @@ c----------------------------------------------------------------------
 
       ! set spl effective diameter
       do i=1,n 
-         rpart(jdpe,i) = (rpart(jspl,i)*rpart(jvol,i)*6./pi)**(1./3.)
+         rpart(jdpe,i) = rpart(jspl,i)**(1./3.)*rpart(jdp,i)
+         rpart(jvol,i) = rpart(jspl,i)*pi/6.*rpart(jdp,i)**3
       enddo
 
       ! now, check this filter width against collision width
@@ -265,28 +267,48 @@ c----------------------------------------------------------------------
       include 'CMTDATA'
       include 'CMTPART'
 
-      real dt_dum,dt_col,cflp
+      real dt_dum,dt_col,cflp,cflt
+
+      common /save_dt_part/ rdpe_max, rdpe_min
+
+      integer icalld
+      save    icalld
+      data    icalld  /-1/
       
       ! begin timer
       ptdum(5) = dnekclock()
 
-      ! particle cfl, particles cant move due to velocity
-      dt_dum = 10000.
+      if (nw .eq. 0) goto 1234
+
+      icalld = icalld + 1
+      if (icalld .eq. 0) then
+         rdpe_max = 0.
+         rdpe_min = 100.
+         do i=1,n
+            if (rpart(jdpe,i).lt.rdpe_min) rdpe_min = rpart(jdpe,i)
+            if (rpart(jdpe,i).gt.rdpe_max) rdpe_max = rpart(jdpe,i)
+         enddo
+         rdpe_min = glmin(rdpe_min,1)
+         rdpe_max = glmax(rdpe_max,1)
+      endif
+
+c     ! particle cfl, particles cant move due to velocity
+      dt_dum = abs(param(12))
+      dt_part = 1000.
       cflp = 0.10
       do i=1,n
          rvmag  = sqrt(rpart(jv0,i)**2 + rpart(jv0+1,i)**2 
      >                 + rpart(jv0+2,i)**2)
-         dt_part = cflp*dp(1)/rvmag ! make sure smallest small overlap
-c        dt_part = cflp*rpart(jdp,i)/rvmag
-c        write(6,*) 'dp_part_cfl',dt_part
-         if (dt_part .lt. dt_dum) dt_dum = dt_part
+
+         cflt = dt_dum*rvmag/rdpe_min
+         if (cflt .lt. cflp) dt_part = dt_dum
+         if (cflt .ge. cflp) dt_part = cflp*rdpe_min/rvmag ! make sure smallest small overlap
       enddo
-      dt_part  = glmin(dt_dum,1)
+      dt_part  = glmin(dt_part,1)
 
       ! resolving collisions
-c     nresolve_col = 10
-      rm1      = rho_p*pi/6.*dp(1)**3 ! max
-      rm2      = rho_p*pi/6.*dp(2)**3 ! max
+      rm1      = rho_p*pi/6.*rdpe_min**3 ! max
+      rm2      = rho_p*pi/6.*rdpe_max**3 ! max
       rm12     = 1./(1./rm1 + 1./rm2)
       n_resolve= 10
       dt_col   = sqrt(rm12/ksp*(log(e_rest)**2+pi**2))/n_resolve
@@ -294,8 +316,12 @@ c     nresolve_col = 10
       if (two_way .gt. 2) then
          rdt_part = min(dt_part,dt_col)
       else
-         rdt_part = 1000. ! don't set if no collisions!
+         rdt_part = dt_part ! don't set if no collisions!
       endif
+
+      if (nid.eq.0) write(6,*) 'PART DT:', rdt_part,dt_part,dt_col
+
+ 1234 continue
 
       ! end timer
       pttime(5) = pttime(5) + dnekclock() - ptdum(5)
@@ -423,8 +449,7 @@ c     ghost particle real pointers ----------------------------------
       jgpfh   = 4 ! ghost particle hydrodynamic xforce (i+1 > y, i+2 > z)
       jgpvol  = jgpfh+3  ! ghost particle volume
       jgpdpe  = jgpvol+1  ! ghost particle effective diameter
-      jgpgam  = jgpdpe+1 ! spreading correction (if used)
-      jgpspl  = jgpgam+1 ! super particle loading
+      jgpspl  = jgpdpe+1 ! spreading correction (if used)
       jgpg0   = jgpspl+1 ! 
       jgpq0   = jgpg0 +1 ! 
       jgpv0   = jgpq0 +1 ! velocity (3 components)
@@ -517,6 +542,8 @@ c
 
       ! begin timer
       ptdum(8) = dnekclock()
+
+      ! this routine needs updating!
 
       do i=1,n
          rdumvol(i,1) = rpart(jvol,i)  ! particle volume
@@ -736,7 +763,7 @@ c
       real   xerange(2,3,lelt)
       common /elementrange/ xerange
 
-      real    xx,yy,zz,vol,pfx,pfy,pfz,pmass,pmassf,vcell,spl,multfc
+      real    xx,yy,zz,vol,pfx,pfy,pfz,pmass,pmassf,vcell,multfc
      >       ,qgqf,rvx,rvy,rvz,rcountv(8,nelt)
       integer e
 
@@ -761,16 +788,12 @@ c     local mpi rank effects
          xx  = rpart(jx,ip)
          yy  = rpart(jy,ip)
          zz  = rpart(jz,ip)
-         spl = rpart(jspl,ip)
-         rgam= rpart(jgam,ip)
 
-         rdum = spl
-
-         pfx = -rpart(jf0,ip)*rdum
-         pfy = -rpart(jf0+1,ip)*rdum
-         pfz = -rpart(jf0+2,ip)*rdum
-         vol = rpart(jvol,ip)*rdum
-         qgqf= -(rpart(jg0,ip) + rpart(jq0,ip))*rdum
+         pfx = -rpart(jf0,ip)
+         pfy = -rpart(jf0+1,ip)
+         pfz = -rpart(jf0+2,ip)
+         vol = rpart(jvol,ip)
+         qgqf= -(rpart(jg0,ip) + rpart(jq0,ip))
          rvx = rpart(jv0  ,ip)*vol
          rvy = rpart(jv0+1,ip)*vol
          rvz = rpart(jv0+2,ip)*vol
@@ -809,16 +832,12 @@ c     local mpi rank effects
          xx  = rpart(jx,ip)
          yy  = rpart(jy,ip)
          zz  = rpart(jz,ip)
-         spl = rpart(jspl,ip)
-         rgam= rpart(jgam,ip)
 
-         rdum = multfc*spl
-
-         pfx = -rpart(jf0,ip)*rdum
-         pfy = -rpart(jf0+1,ip)*rdum
-         pfz = -rpart(jf0+2,ip)*rdum
-         vol = rpart(jvol,ip)*rdum
-         qgqf= -(rpart(jg0,ip) + rpart(jq0,ip))*rdum
+         pfx = -rpart(jf0,ip)*multfc
+         pfy = -rpart(jf0+1,ip)*multfc
+         pfz = -rpart(jf0+2,ip)*multfc
+         vol = rpart(jvol,ip)*multfc
+         qgqf= -(rpart(jg0,ip) + rpart(jq0,ip))*multfc
          rvx = rpart(jv0  ,ip)*vol
          rvy = rpart(jv0+1,ip)*vol
          rvz = rpart(jv0+2,ip)*vol
@@ -843,16 +862,12 @@ c     remote mpi rank effects
          xx  = rptsgp(jgpx,ip)
          yy  = rptsgp(jgpy,ip)
          zz  = rptsgp(jgpz,ip)
-         spl = rptsgp(jgpspl,ip)
-         rgam= rptsgp(jgpgam,ip)
 
-         rdum = multfc*spl
-
-         pfx = -rptsgp(jgpfh,ip)*rdum
-         pfy = -rptsgp(jgpfh+1,ip)*rdum
-         pfz = -rptsgp(jgpfh+2,ip)*rdum
-         vol = rptsgp(jgpvol,ip)*rdum
-         qgqf= -(rptsgp(jgpg0,ip) + rptsgp(jgpq0,ip))*rdum
+         pfx = -rptsgp(jgpfh,ip)*multfc
+         pfy = -rptsgp(jgpfh+1,ip)*multfc
+         pfz = -rptsgp(jgpfh+2,ip)*multfc
+         vol = rptsgp(jgpvol,ip)*multfc
+         qgqf= -(rptsgp(jgpg0,ip) + rptsgp(jgpq0,ip))*multfc
          rvx = rptsgp(jgpv0  ,ip)*vol
          rvy = rptsgp(jgpv0+1,ip)*vol
          rvz = rptsgp(jgpv0+2,ip)*vol
@@ -1693,7 +1708,7 @@ c        need to fix, fake, no D(rho_f u)/Dt contribution
 
          rpart(jcmiu,ii) = S_qs
 
-         rpart(jfiu+jj,ii) = S_qs
+         rpart(jfiu+jj,ii) = 0.
       endif
 
 
@@ -1713,6 +1728,7 @@ c     calculate quasi steady force with drag corrections
 
 c     cd_std = 24/re_p already taken into account below
       S_qs = rpart(jvol,i)*rpart(jrhop,i)/rpart(jtaup,i)
+      ! note rpart(jvol,i) already has super particle loading!
 
       if (part_force(1).eq.1) then
          rrep = rpart(jre,i)
@@ -1811,6 +1827,7 @@ c
 
       pmass1 = rpart(jvol,i)*rpart(jrhop,i)
       rdp1   = rpart(jdpe,i)
+      rspl1  = rpart(jspl,i)
 
 c     let every particle search for itself
 c        particles in local elements
@@ -1824,11 +1841,12 @@ c        particles in local elements
                   rdeff  = 0.5*(rdp1 + rdp2)
 c                 rlamb  = 0.075*deff
                   rlamb  = 0.
+                  rspl2  = rpart(jspl,j)
                   call compute_collide(rpart(jx,i) ,rpart(jx,j) ,
      >                                 rpart(jv0,i),rpart(jv0,j),
      >                                 rdp1          ,rdp2      ,rdeff,
      >                                 pmass1        ,pmass2    ,
-     >                                 rpart(jfcol,i),rlamb)
+     >                                 rpart(jfcol,i),rlamb,rspl1,rspl2)
                endif
             endif
          enddo
@@ -1859,11 +1877,12 @@ c        search list of ghost particles
                rdeff  = 0.5*(rdp1 + rdp2)
 c              rlamb  = 0.075*deff
                rlamb  = 0.
+               rspl2  = rptsgp(jgpspl,j)
                call compute_collide(rpart(jx,i),rptsgp(jgpx,j),
      >                            rpart(jv0,i),rptsgp(jgpv0,j),
      >                            rdp1        ,rdp2           ,rdeff,
      >                            pmass1      ,pmass2         ,
-     >                            rpart(jfcol,i),rlamb)
+     >                            rpart(jfcol,i),rlamb,rspl1,rspl2)
             endif
  1234 continue
          enddo
@@ -1890,11 +1909,12 @@ c        collision with 6 walls, but only when specified by .inp file
                rdeff  = rdp1
 c              rlamb  = 0.150*deff
                rlamb  = 0.
+               rspl2  = 1.
                call compute_collide(rpart(jx,i) ,rxwall ,
      >                           rpart(jv0,i),rvwall    ,
      >                           rdp1        ,rdp2      ,rdeff,
      >                           pmass1      ,pmass2    ,
-     >                           rpart(jfcol,i),rlamb)
+     >                           rpart(jfcol,i),rlamb,rspl1,rspl2)
             endif
          enddo
       endif
@@ -2006,7 +2026,7 @@ c     meant for this element
       end
 c-----------------------------------------------------------------------
       subroutine compute_collide(rx1,rx2,rv1,rv2,rd1,rd2,deff,
-     >                           rm1,rm2,fcf,rlamb)
+     >                           rm1,rm2,fcf,rlamb,rspl1,rspl2)
 c
 c     extra body forces
 c
@@ -2039,8 +2059,10 @@ c     write(6,*) 'yooo4', rdiff,rthresh
          goto 1511
       endif
 
+
       rm12   = 1./(1./rm1 + 1./rm2)
-      eta    = 2.*sqrt(rm12*ksp)*log(e_rest)/sqrt(log(e_rest)**2+pi**2)
+      eta    = 2.*sqrt(rm12*ksp)*log(e_rest)
+     >                  /sqrt(log(e_rest)**2+pi**2)
 
       ! first, handle normal collision part
       rn_12x   = rxdiff/rdiff
@@ -2219,8 +2241,7 @@ c
                rptsgp(jgpfh+2,nfptsgp) = rpart(jf0+2,i) ! hyd. force z
                rptsgp(jgpvol,nfptsgp)  = rpart(jvol,i)  ! particle volum
                rptsgp(jgpdpe,nfptsgp)  = rpart(jdpe,i)  ! particle dp eff
-               rptsgp(jgpgam,nfptsgp)  = rpart(jgam,i)  ! spread correct
-               rptsgp(jgpspl,nfptsgp)  = rpart(jspl,i)  ! super particle
+               rptsgp(jgpspl,nfptsgp)  = rpart(jspl,i)  ! spl
                rptsgp(jgpg0,nfptsgp)   = rpart(jg0,i)   ! work done by forc
                rptsgp(jgpq0,nfptsgp)   = rpart(jq0,i)   ! heating from part 
                rptsgp(jgpv0,nfptsgp)   = rpart(jv0,i)   ! particle velocity
@@ -2252,8 +2273,7 @@ c
                      rptsgp(jgpfh+2,nfptsgp) = rpart(jf0+2,i) ! hyd. force z
                      rptsgp(jgpvol,nfptsgp)  = rpart(jvol,i)  ! particle volum
                      rptsgp(jgpdpe,nfptsgp)  = rpart(jdpe,i)  ! particle dp eff
-                     rptsgp(jgpgam,nfptsgp)  = rpart(jgam,i)  ! spread correct
-                     rptsgp(jgpspl,nfptsgp)  = rpart(jspl,i)  ! super particle
+                     rptsgp(jgpspl,nfptsgp)  = rpart(jspl,i)  ! spl
                      rptsgp(jgpg0,nfptsgp)   = rpart(jg0,i)   ! work done by forc
                      rptsgp(jgpq0,nfptsgp)   = rpart(jq0,i)   ! heating from part 
                      rptsgp(jgpv0,nfptsgp)   = rpart(jv0,i)   ! particle velocity
@@ -2288,8 +2308,7 @@ c
                      rptsgp(jgpfh+2,nfptsgp) = rpart(jf0+2,i) ! hyd. force z
                      rptsgp(jgpvol,nfptsgp)  = rpart(jvol,i)  ! particle volum
                      rptsgp(jgpdpe,nfptsgp)  = rpart(jdpe,i)  ! particle dp eff
-                     rptsgp(jgpgam,nfptsgp)  = rpart(jgam,i)  ! spread correct
-                     rptsgp(jgpspl,nfptsgp)  = rpart(jspl,i)  ! super particle
+                     rptsgp(jgpspl,nfptsgp)  = rpart(jspl,i)  ! spl
                      rptsgp(jgpg0,nfptsgp)   = rpart(jg0,i)   ! work done by forc
                      rptsgp(jgpq0,nfptsgp)   = rpart(jq0,i)   ! heating from part 
                      rptsgp(jgpv0,nfptsgp)   = rpart(jv0,i)   ! particle velocity
@@ -2323,8 +2342,7 @@ c
                      rptsgp(jgpfh+2,nfptsgp) = rpart(jf0+2,i) ! hyd. force z
                      rptsgp(jgpvol,nfptsgp)  = rpart(jvol,i)  ! particle volum
                      rptsgp(jgpdpe,nfptsgp)  = rpart(jdpe,i)  ! particle dp eff
-                     rptsgp(jgpgam,nfptsgp)  = rpart(jgam,i)  ! spread correct
-                     rptsgp(jgpspl,nfptsgp)  = rpart(jspl,i)  ! super particle
+                     rptsgp(jgpspl,nfptsgp)  = rpart(jspl,i)  ! spl
                      rptsgp(jgpg0,nfptsgp)   = rpart(jg0,i)   ! work done by forc
                      rptsgp(jgpq0,nfptsgp)   = rpart(jq0,i)   ! heating from part 
                      rptsgp(jgpv0,nfptsgp)   = rpart(jv0,i)   ! particle velocity
@@ -2670,8 +2688,7 @@ c           endif
             rptsgp(jgpfh+2,nfptsgp) = rpart(jf0+2,i) ! hyd. force z
             rptsgp(jgpvol,nfptsgp)  = rpart(jvol,i)  ! particle volum
             rptsgp(jgpdpe,nfptsgp)  = rpart(jdpe,i)  ! particle dp eff
-            rptsgp(jgpgam,nfptsgp)  = rpart(jgam,i)  ! spread correct
-            rptsgp(jgpspl,nfptsgp)  = rpart(jspl,i)  ! super particle
+            rptsgp(jgpspl,nfptsgp)  = rpart(jspl,i)  ! spl
             rptsgp(jgpg0,nfptsgp)   = rpart(jg0,i)   ! work done by forc
             rptsgp(jgpq0,nfptsgp)   = rpart(jq0,i)   ! heating from part 
             rptsgp(jgpv0,nfptsgp)   = rpart(jv0,i)   ! particle velocity
@@ -3544,11 +3561,36 @@ c     output particle  information
          call output_parallel_lagrangian_parts
 
       elseif (abs(npio_method) .eq. 2) then
-         call output_along_line_avg
+         call output_parallel_lagrangian_parts
+         call output_along_line_avg_x
+         call output_along_line_avg_y
+         call output_along_line_avg_z
 
       elseif (abs(npio_method) .eq. 3) then
          call output_parallel_lagrangian_parts
-         call output_along_line_avg
+         call output_along_line_avg_x
+
+      elseif (abs(npio_method) .eq. 4) then
+         call output_parallel_lagrangian_parts
+         call output_along_line_avg_y
+
+      elseif (abs(npio_method) .eq. 5) then
+         call output_parallel_lagrangian_parts
+         call output_along_line_avg_z
+
+      elseif (abs(npio_method) .eq. 6) then
+         call output_along_line_avg_x
+         call output_along_line_avg_y
+         call output_along_line_avg_z
+
+      elseif (abs(npio_method) .eq. 7) then
+         call output_along_line_avg_x
+
+      elseif (abs(npio_method) .eq. 8) then
+         call output_along_line_avg_y
+
+      elseif (abs(npio_method) .eq. 9) then
+         call output_along_line_avg_z
 
       endif
 
@@ -3804,7 +3846,7 @@ c     assign values to rpart and ipart
          ! extra stuff
          rpart(jtaup,i) = rpart(jdp,i)**2*rho_p/18.0d+0/mu_0
          rpart(jrhop,i) = rho_p      ! material density of particle
-         rpart(jvol,i)  = rpi*rpart(jdp,i)**3/6.d+0! particle volume
+         rpart(jvol,i)  = rpart(jspl,i)*rpi*rpart(jdp,i)**3/6.d+0! particle volume
          rpart(jgam,i)  = 1.          ! initial integration correction
 
       enddo
@@ -3934,8 +3976,8 @@ c     particle momentum
          rsum = 0.0
          do i=1,n
            msum = msum + 
-     >       rpart(jspl,i)*rpart(jv0+ieq,i)*rpart(jrhop,i)*rpart(jvol,i)
-           rsum = rsum + rpart(jspl,i)*rpart(jf0+ieq,i)
+     >       rpart(jv0+ieq,i)*rpart(jrhop,i)*rpart(jvol,i)
+           rsum = rsum + rpart(jf0+ieq,i)
          enddo
          msum_tot(ieq+1,2) = glsum(msum,1)
          rfpfluidl(1+ieq)  = glsum(rsum,1)
@@ -3943,7 +3985,7 @@ c     particle momentum
 c     particle volume fraction
       msum = 0.0
       do i=1,n
-         msum = msum + rpart(jspl,i)*rpart(jvol,i)
+         msum = msum + rpart(jvol,i)
       enddo
       vf_part_l = glsum(msum,1)
 
@@ -3969,7 +4011,7 @@ c     print properties to logfile
       return
       end
 c----------------------------------------------------------------------
-      subroutine output_along_line_avg
+      subroutine output_along_line_avg_x
       include 'SIZE'
       include 'SOLN'
       include 'INPUT'
@@ -3978,7 +4020,6 @@ c----------------------------------------------------------------------
       include 'TSTEP'
       include 'CMTDATA'
       include 'CMTPART'
-      include 'mpif.h'
 
       common /nekmpi/ mid,np,nekcomm,nekgroup,nekreal
 
@@ -3988,7 +4029,6 @@ c----------------------------------------------------------------------
 
       character*15 outstring
       integer*8 disp, stride_len 
-      integer status_mpi(MPI_STATUS_SIZE)
       real send_vals(1+50)
       real rxgls(lx1),uf(lx1,ly1,lz1,lelt,50),rcount(50),rdum(50),
      >     rtmp(50)
@@ -4000,8 +4040,7 @@ c----------------------------------------------------------------------
       common /elementrange/ xerange
 
       common /running_avgs/ rec_vals
-      real rec_vals(1+50,1000*15) !1000 elements, by nx1=15 max
-
+      real rec_vals(1+50,8000*15) !8000 elements, by nx1=15 max
 
       nlfl = 21 
 
@@ -4036,13 +4075,14 @@ c----------------------------------------------------------------------
       enddo
 
       icalld = icalld+1
-      write(outstring,'(A8,I5.5)') 'avgsdata', icalld
+      write(outstring,'(A9,I5.5)') 'avgsdatax', icalld
 
+      rlengx = xm1(nx1,1,1,1) - xm1(1,1,1,1)
       do i=1,nx1 
-         rxgls(i) = (xgll(i) + 1.)*rleng/2.
+         rxgls(i) = (xgll(i) + 1.)*rlengx/2.
       enddo
       
-      rthresh = 1E-12
+      rthresh = rlengx/100.
       rxs = xdrange(1,1)
       rxt = rxs
       icm = 1
@@ -4078,13 +4118,7 @@ c----------------------------------------------------------------------
                rtmp(j) = glsum(rcount(j),1)
                rec_vals(j+1,icm) = rec_vals(j+1,icm)/rtmp(j)
             enddo
-c           rec_vals(2,icm) = rec_vals(2,icm)
-c           rec_vals(2,icm) = rtmp
-c           call mpi_allreduce(rdum,rec_vals(2,icm),isz,MPI_REAL,MPI_SUM
-c    >                           ,nekcomm,ierr)
-c           call mpi_allreduce(icount,isum,isz,MPI_INTEGER,MPI_SUM
-c    >                           ,nekcomm,ierr)
-c           rec_vals(2,icm) = rec_vals(2,icm)/isum
+
             icm = icm + 1
          enddo
 
@@ -4118,6 +4152,302 @@ c           rec_vals(2,icm) = rec_vals(2,icm)/isum
      >                      rec_vals(22,i) ! add one
           enddo
           close(364)
+      endif
+      
+  600 FORMAT(22ES20.10)
+      return
+      end
+c----------------------------------------------------------------------
+      subroutine output_along_line_avg_y
+      include 'SIZE'
+      include 'SOLN'
+      include 'INPUT'
+      include 'MASS'
+      include 'GEOM'
+      include 'TSTEP'
+      include 'CMTDATA'
+      include 'CMTPART'
+
+      common /nekmpi/ mid,np,nekcomm,nekgroup,nekreal
+
+      integer icalld
+      save    icalld
+      data    icalld  /-1/
+
+      character*15 outstring
+      integer*8 disp, stride_len 
+      real send_vals(1+50)
+      real rygls(ly1),uf(lx1,ly1,lz1,lelt,50),rcount(50),rdum(50),
+     >     rtmp(50)
+      integer nlfl
+
+      real*8 rlengy
+
+      real   xdrange(2,3)
+      common /domainrange/ xdrange
+      real   xerange(2,3,lelt)
+      common /elementrange/ xerange
+
+      common /running_avgs/ rec_vals
+      real rec_vals(1+50,8000*15) !8000 elements, by nx1=15 max
+
+      nlfl = 21 
+
+      do ie=1,nelt
+      do k=1,nz1
+      do j=1,ny1
+      do i=1,nx1
+         uf(i,j,k,ie,1) = ptw(i,j,k,ie,1)
+         uf(i,j,k,ie,2) = ptw(i,j,k,ie,2)
+         uf(i,j,k,ie,3) = ptw(i,j,k,ie,3)
+         uf(i,j,k,ie,4) = ptw(i,j,k,ie,4)
+         uf(i,j,k,ie,5) = ptw(i,j,k,ie,5)
+         uf(i,j,k,ie,6) = ptw(i,j,k,ie,6)
+         uf(i,j,k,ie,7) = ptw(i,j,k,ie,7) 
+         uf(i,j,k,ie,8) = ptw(i,j,k,ie,8) 
+         uf(i,j,k,ie,9) = rhs_fluidp(i,j,k,ie,1)
+         uf(i,j,k,ie,10)= rhs_fluidp(i,j,k,ie,2)
+         uf(i,j,k,ie,11)= rhs_fluidp(i,j,k,ie,3)
+         uf(i,j,k,ie,12)= rhs_fluidp(i,j,k,ie,4)
+         uf(i,j,k,ie,13)= rhs_fluidp(i,j,k,ie,5)
+         uf(i,j,k,ie,14)= rhs_fluidp(i,j,k,ie,6)
+         uf(i,j,k,ie,15)= rhs_fluidp(i,j,k,ie,7)
+         uf(i,j,k,ie,16)= vx(i,j,k,ie)
+         uf(i,j,k,ie,17)= vy(i,j,k,ie)
+         uf(i,j,k,ie,18)= vz(i,j,k,ie)
+         uf(i,j,k,ie,19)= pr(i,j,k,ie) ! not set up for lx2 mesh!!
+         uf(i,j,k,ie,20)= vtrans(i,j,k,ie,1)
+         uf(i,j,k,ie,21)= t(i,j,k,ie,1)
+      enddo
+      enddo
+      enddo
+      enddo
+
+      icalld = icalld+1
+      write(outstring,'(A9,I5.5)') 'avgsdatay', icalld
+
+      rlengy = ym1(1,ny1,1,1) - ym1(1,1,1,1)
+      do i=1,ny1 
+         rygls(i) = (ygll(i) + 1.)*rlengy/2.
+      enddo
+
+      rthresh = rlengy/100.
+      rys = xdrange(1,2)
+      ryt = rys
+      icm = 1
+      do while (abs(rys - xdrange(2,2)) .ge. rthresh)
+
+         do i=1,ny1
+            rys = ryt + rygls(i)
+
+            call rzero(rdum,nlfl)
+            call rzero(rcount,nlfl)
+
+            do ie=1,nelt
+            do ik=1,nz1
+            do ij=1,ny1
+            do ii=1,nx1
+               ryv = ym1(ii,ij,ik,ie)
+               if (abs(ryv - rys) .lt. rthresh) then
+                  do j = 1,nlfl
+                     rdum(j) = rdum(j) + uf(ii,ij,ik,ie,j)
+                     rcount(j) = rcount(j) + 1.
+                  enddo
+               endif
+            enddo
+            enddo
+            enddo
+            enddo
+
+            isz = 1
+            rec_vals(1,icm) = rys
+
+            do j = 1,nlfl
+               rec_vals(j+1,icm) =  glsum(rdum(j),1)
+               rtmp(j) = glsum(rcount(j),1)
+               rec_vals(j+1,icm) = rec_vals(j+1,icm)/rtmp(j)
+            enddo
+
+            icm = icm + 1
+         enddo
+
+         ryt = rys
+      enddo
+
+      if (nid.eq. 0) then
+          open(365, file=outstring, action="write",position="append")
+          do i =1,icm-1 ! last point has issues
+             write(365,600) rec_vals(1,i),
+     >                      rec_vals(2,i),
+     >                      rec_vals(3,i),
+     >                      rec_vals(4,i),
+     >                      rec_vals(5,i),
+     >                      rec_vals(6,i),
+     >                      rec_vals(7,i),
+     >                      rec_vals(8,i),
+     >                      rec_vals(9,i),
+     >                      rec_vals(10,i),
+     >                      rec_vals(11,i),
+     >                      rec_vals(12,i),
+     >                      rec_vals(13,i),
+     >                      rec_vals(14,i),
+     >                      rec_vals(15,i),
+     >                      rec_vals(16,i),
+     >                      rec_vals(17,i),
+     >                      rec_vals(18,i),
+     >                      rec_vals(19,i),
+     >                      rec_vals(20,i),
+     >                      rec_vals(21,i),
+     >                      rec_vals(22,i) ! add one
+          enddo
+          close(365)
+      endif
+      
+  600 FORMAT(22ES20.10)
+      return
+      end
+c----------------------------------------------------------------------
+      subroutine output_along_line_avg_z
+      include 'SIZE'
+      include 'SOLN'
+      include 'INPUT'
+      include 'MASS'
+      include 'GEOM'
+      include 'TSTEP'
+      include 'CMTDATA'
+      include 'CMTPART'
+
+      common /nekmpi/ mid,np,nekcomm,nekgroup,nekreal
+
+      integer icalld
+      save    icalld
+      data    icalld  /-1/
+
+      character*15 outstring
+      integer*8 disp, stride_len 
+      real send_vals(1+50)
+      real rzgls(lz1),uf(lx1,ly1,lz1,lelt,50),rcount(50),rdum(50),
+     >     rtmp(50)
+      integer nlfl
+
+      real   xdrange(2,3)
+      common /domainrange/ xdrange
+      real   xerange(2,3,lelt)
+      common /elementrange/ xerange
+
+      common /running_avgs/ rec_vals
+      real rec_vals(1+50,8000*15) !8000 elements, by nx1=15 max
+
+      nlfl = 21 
+
+      do ie=1,nelt
+      do k=1,nz1
+      do j=1,ny1
+      do i=1,nx1
+         uf(i,j,k,ie,1) = ptw(i,j,k,ie,1)
+         uf(i,j,k,ie,2) = ptw(i,j,k,ie,2)
+         uf(i,j,k,ie,3) = ptw(i,j,k,ie,3)
+         uf(i,j,k,ie,4) = ptw(i,j,k,ie,4)
+         uf(i,j,k,ie,5) = ptw(i,j,k,ie,5)
+         uf(i,j,k,ie,6) = ptw(i,j,k,ie,6)
+         uf(i,j,k,ie,7) = ptw(i,j,k,ie,7) 
+         uf(i,j,k,ie,8) = ptw(i,j,k,ie,8) 
+         uf(i,j,k,ie,9) = rhs_fluidp(i,j,k,ie,1)
+         uf(i,j,k,ie,10)= rhs_fluidp(i,j,k,ie,2)
+         uf(i,j,k,ie,11)= rhs_fluidp(i,j,k,ie,3)
+         uf(i,j,k,ie,12)= rhs_fluidp(i,j,k,ie,4)
+         uf(i,j,k,ie,13)= rhs_fluidp(i,j,k,ie,5)
+         uf(i,j,k,ie,14)= rhs_fluidp(i,j,k,ie,6)
+         uf(i,j,k,ie,15)= rhs_fluidp(i,j,k,ie,7)
+         uf(i,j,k,ie,16)= vx(i,j,k,ie)
+         uf(i,j,k,ie,17)= vy(i,j,k,ie)
+         uf(i,j,k,ie,18)= vz(i,j,k,ie)
+         uf(i,j,k,ie,19)= pr(i,j,k,ie) ! not set up for lx2 mesh!!
+         uf(i,j,k,ie,20)= vtrans(i,j,k,ie,1)
+         uf(i,j,k,ie,21)= t(i,j,k,ie,1)
+      enddo
+      enddo
+      enddo
+      enddo
+
+      icalld = icalld+1
+      write(outstring,'(A9,I5.5)') 'avgsdataz', icalld
+
+      rlengz = zm1(1,1,nz1,1) - zm1(1,1,1,1)
+      do i=1,nz1 
+         rzgls(i) = (zgll(i) + 1.)*rlengz/2.
+      enddo
+
+      rthresh = rlengz/100.
+      rzs = xdrange(1,3)
+      rzt = rzs
+      icm = 1
+      do while (abs(rzs - xdrange(2,3)) .ge. rthresh)
+
+         do i=1,nz1
+            rzs = rzt + rzgls(i)
+
+            call rzero(rdum,nlfl)
+            call rzero(rcount,nlfl)
+
+            do ie=1,nelt
+            do ik=1,nz1
+            do ij=1,ny1
+            do ii=1,nx1
+               rzv = zm1(ii,ij,ik,ie)
+               if (abs(rzv - rzs) .lt. rthresh) then
+                  do j = 1,nlfl
+                     rdum(j) = rdum(j) + uf(ii,ij,ik,ie,j)
+                     rcount(j) = rcount(j) + 1.
+                  enddo
+               endif
+            enddo
+            enddo
+            enddo
+            enddo
+
+            isz = 1
+            rec_vals(1,icm) = rzs
+
+            do j = 1,nlfl
+               rec_vals(j+1,icm) =  glsum(rdum(j),1)
+               rtmp(j) = glsum(rcount(j),1)
+               rec_vals(j+1,icm) = rec_vals(j+1,icm)/rtmp(j)
+            enddo
+
+            icm = icm + 1
+         enddo
+
+         rzt = rzs
+      enddo
+
+      if (nid.eq. 0) then
+          open(366, file=outstring, action="write",position="append")
+          do i =1,icm-1 ! last point has issues
+             write(366,600) rec_vals(1,i),
+     >                      rec_vals(2,i),
+     >                      rec_vals(3,i),
+     >                      rec_vals(4,i),
+     >                      rec_vals(5,i),
+     >                      rec_vals(6,i),
+     >                      rec_vals(7,i),
+     >                      rec_vals(8,i),
+     >                      rec_vals(9,i),
+     >                      rec_vals(10,i),
+     >                      rec_vals(11,i),
+     >                      rec_vals(12,i),
+     >                      rec_vals(13,i),
+     >                      rec_vals(14,i),
+     >                      rec_vals(15,i),
+     >                      rec_vals(16,i),
+     >                      rec_vals(17,i),
+     >                      rec_vals(18,i),
+     >                      rec_vals(19,i),
+     >                      rec_vals(20,i),
+     >                      rec_vals(21,i),
+     >                      rec_vals(22,i) ! add one
+          enddo
+          close(366)
       endif
       
   600 FORMAT(22ES20.10)
@@ -4162,9 +4492,8 @@ c - - - - PROJECTION OPTIONS - - - - - - - - - - - - - - - - - - - - -
       read(81,*) dum_str
       read(81,*) npro_method
       read(81,*) nitspl
-      read(81,*) phi_desire
+      read(81,*) rspl
       read(81,*) dfilt
-      read(81,*) rleng
       read(81,*) ralphdecay
 c - - - - BOUNDARY TREATMENT - - - - - - - - - - - - - - - - - - - - - 
       read(81,*) dum_str
@@ -4178,7 +4507,6 @@ c - - - - RESTARTING - - - - - - - - - - - - - - - - - - - - - - - - -
       read(81,*) ipart_restartr
 c - - - - DEM - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       read(81,*) dum_str
-      read(81,*) dt_part_ini
       read(81,*) ksp
       read(81,*) e_rest
 

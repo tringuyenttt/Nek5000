@@ -52,6 +52,7 @@ C> @file step.f time stepping and mesh spacing routines
       endif
 
       ! particle cfl
+      rdt_part = dt_cmt
       call set_dt_particles(rdt_part)
       dt_cmt = min(dt_cmt,rdt_part)
         
