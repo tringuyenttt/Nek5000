@@ -122,7 +122,6 @@ c
         if (rdum1 .lt. rleng) then
            rleng = rdum1
         endif
-        if (nid.eq.0) write(6,*) 'yooo',rleng
       endif
 
       ! end timer
@@ -2079,13 +2078,6 @@ c     if (rdelta12 .lt. 0) rdelta12 = 0. ! no overlap
       rv12x = rv12_mag*rn_12x
       rv12y = rv12_mag*rn_12y
       rv12z = rv12_mag*rn_12z
-
-      ! additonal check
-c     if (rd2 .gt. 1E-9) then ! don't do for walls
-c     if (rdelta12 .gt. 0.05*0.5/(1./rd1 + 1./rd2)) then
-c        rdelta12 = 0.05*0.5/(1./rd1 + 1./rd2)
-c     endif
-c     endif
 
       rfn1 = -ksp*rdelta12*rn_12x - eta*rv12x
       rfn2 = -ksp*rdelta12*rn_12y - eta*rv12y
