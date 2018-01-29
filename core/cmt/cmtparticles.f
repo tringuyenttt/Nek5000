@@ -6,15 +6,18 @@ c  bdf/ext time integration. Otherwise, cmt-nek will not call this fxn.
       include 'SIZE'
       include 'TOTAL'
       include 'CMTDATA'
+      include 'CMTPART'
 
       if (istep.eq.0) then
          call usr_particles_init
+         icmtp = 0
       else
 
          call set_tstep_coef_part(dt) ! in nek5000 with rk3
          do stage=1,3
             call usr_particles_solver
          enddo
+         call compute_phig_qtl(dt,usrdiv) ! nek5000 (see Zwick 2018)
       endif
 
       if(mod(istep,iostep).eq.0.or. istep.eq.1) then
@@ -33,11 +36,13 @@ c----------------------------------------------------------------------
       include 'CMTDATA'
       include 'CMTPART'
 
+      common /elementload/ gfirst, inoassignd, resetFindpts, pload(lelg)
+      integer gfirst, inoassignd, resetFindpts, pload
+
       ! begin timer
       ptdum(1) = dnekclock()
       
       call set_part_pointers
-      ! when llpart == 1 then assume no particle case
       if (llpart .ne. 1) call read_particle_input
       call set_bounds_box
       call set_part_params ! n initialized here
@@ -66,13 +71,113 @@ c----------------------------------------------------------------------
       endif
       call interp_props_part_location ! interpolate again for two-way
 
-      call pre_sim_collisions
+      if (time_integ .lt. 0) call pre_sim_collisions ! e.g., settling p
+
+      resetFindpts = 0
+c     call computeRatio
+c     call reinitialize
+c     call printVerify
+
 
       ntmp  = iglsum(n,1)
       if (nid.eq.0) write(6,*) 'Passed usr_particles_init'
 
       ! end timer
       pttime(1) = pttime(1) + dnekclock() - ptdum(1)
+
+      return
+      end
+c----------------------------------------------------------------------
+      subroutine place_particles
+c
+c     Place particles in this routine, also called for injection
+c
+      include 'SIZE'
+      include 'TOTAL'
+      include 'CMTDATA'
+      include 'CMTPART'
+
+      integer icalld
+      save    icalld
+      data    icalld  /-1/
+
+      icalld = icalld + 1
+
+      if (ipart_restartr .eq. 0) then
+
+c        correct nwe if discrepancy on rank 0
+         nwe         = int(nw/np)                ! num. part per proc
+         nw_tmp      = iglsum(nwe,1)
+         if ((nw_tmp .ne. nw) .and. (nid.eq.0)) nwe = nwe +(nw - nw_tmp)
+         
+c        main loop to distribute particles
+         do i = 1,nwe
+            n = n + 1
+
+            call place_particles_user
+
+            do j=0,2
+               rpart(jx +j,n) = x_part(j)
+               rpart(jx1+j,n) = x_part(j)
+               rpart(jx2+j,n) = x_part(j)
+               rpart(jx3+j,n) = x_part(j)
+
+               rpart(jv0+j,n) = v_part(j)
+               rpart(jv1+j,n) = v_part(j)
+               rpart(jv2+j,n) = v_part(j)
+               rpart(jv3+j,n) = v_part(j)
+            enddo
+         
+c           set some rpart values for later use
+            rpart(jdp,n)   = d_part                              ! particle diameter
+            rpart(jtaup,n) = rpart(jdp,n)**2*rho_p/18.0d+0/mu_0  ! particle time scale
+            rpart(jrhop,n) = rho_p                               ! particle density 
+            rpart(jvol,n)  = pi*rpart(jdp,n)**3/6.               ! particle volume
+            rpart(jspl,n)  = rspl                                ! super particle loading
+         
+            rpart(jtemp,n)  = tp_0                               ! intial particle temp
+            rpart(jtempf,n) = tp_0                               ! intial fluid temp (overwritten)
+            rpart(jrho,n)   = param(1)                           ! initial fluid density (overwritten interp)
+         
+c           set global particle id (3 part tag)
+            ipart(jpid1,n) = nid 
+            ipart(jpid2,n) = i
+            ipart(jpid3,n) = icalld
+         enddo
+
+      else
+         ! read in data
+         call read_parallel_restart_part
+
+         ! in case user wants to reset parameter
+         do i=1,n
+            call place_particles_user
+
+            do j=0,2
+               rpart(jv0+j,n) = v_part(j)
+               rpart(jv1+j,n) = v_part(j)
+               rpart(jv2+j,n) = v_part(j)
+               rpart(jv3+j,n) = v_part(j)
+            enddo
+         enddo
+      endif
+
+      ! Error checking
+      if (n.gt.llpart)then 
+         if (nid.eq.0)
+     >      write(6,*)'Not enough space to store more particles'
+         call exitt
+      endif
+
+      if (.not. if3d) then
+         do i=1,n
+            if (abs(rpart(jz,i)-1.0) .gt. 1E-16) then
+               if (nid.eq.0)
+     >            write(6,*)'Particle zstart is not right for 2d case'
+               call exitt
+            endif
+         enddo
+      endif
 
       return
       end
@@ -88,10 +193,10 @@ c
       include 'CMTTIMERS'
       include 'CMTPART'
 
-      real   xdrange(2,3)
-      common /domainrange/ xdrange
-      real   xerange(2,3,lelt)
-      common /elementrange/ xerange
+c     added by keke
+      common /elementload/ gfirst, inoassignd, resetFindpts, pload(lelg)
+      integer gfirst, inoassignd, resetFindpts, pload
+c     end added by keke
 
       ! begin timer
       ptdum(2) = dnekclock()
@@ -99,7 +204,8 @@ c
       rdum  = 1E8
       rleng = 1E8
 
-      if(istep.eq.0.or.istep.eq.1)then
+c     if(istep.eq.0.or.istep.eq.1)then
+      if((istep.eq.0) .or. (istep.eq.1).or.(resetFindpts.eq.1)) then !resetFindpts .eq. 0 added by keke
         call domain_size(xdrange(1,1),xdrange(2,1),xdrange(1,2)
      $                  ,xdrange(2,2),xdrange(1,3),xdrange(2,3))
         ntot = lx1*ly1*lz1*nelt
@@ -148,6 +254,8 @@ c----------------------------------------------------------------------
       if (icalld .lt. 0) then
          rdum   = ran2(-nrandseed*np-nid-1) ! initialize random number generator
          icalld = icalld + 1
+
+         icmtp = 1
       endif
 
 c     setup items
@@ -277,7 +385,7 @@ c----------------------------------------------------------------------
       ! begin timer
       ptdum(5) = dnekclock()
 
-      if (nw .eq. 0) goto 1234
+      if (llpart .eq. 1) goto 1234
 
       icalld = icalld + 1
       if (icalld .eq. 0) then
@@ -292,7 +400,7 @@ c----------------------------------------------------------------------
       endif
 
 c     ! particle cfl, particles cant move due to velocity
-      dt_dum = abs(param(12))
+      dt_dum = rdt_part
       dt_part = 1000.
       cflp = 0.10
       do i=1,n
@@ -489,10 +597,10 @@ c     should we inject particles at this time step?
       if (istep .gt. time_delay) then
 
 c     scheme 1 --------------------------------------------------------
-      if (time_integ .eq. 0) then           
+      if (abs(time_integ) .eq. 0) then           
 
 c     rk3 integration -------------------------------------------------
-      elseif (time_integ .eq. 1) then       
+      elseif (abs(time_integ) .eq. 1) then       
          if (stage.eq.1) then
             call update_particle_location   ! move outlier particles
             if (ifinject) call place_particles ! inject particles
@@ -508,7 +616,7 @@ c     rk3 integration -------------------------------------------------
          call compute_forcing_post_part     ! update forces
 
 c     Other -----------------------------------------------------------
-      elseif (time_integ .eq. 2) then
+      elseif (abs(time_integ) .eq. 2) then
 
       endif ! particle scheme
 
@@ -531,11 +639,6 @@ c
       include 'CMTDATA'
       include 'MASS'
       include 'CMTPART'
-
-      real   xerange(2,3,lelt)
-      common /elementrange/ xerange
-      real   xdrange(2,3)
-      common /domainrange/ xdrange
 
       real rdumvol(llpart,2*3)
 
@@ -757,11 +860,6 @@ c
       include 'TSTEP'
       include 'CMTPART'
 
-      real   xdrange(2,3)
-      common /domainrange/ xdrange
-      real   xerange(2,3,lelt)
-      common /elementrange/ xerange
-
       real    xx,yy,zz,vol,pfx,pfy,pfz,pmass,pmassf,vcell,multfc
      >       ,qgqf,rvx,rvy,rvz,rcountv(8,nelt)
       integer e
@@ -916,9 +1014,6 @@ c
       include 'SOLN'
       include 'CMTDATA'
       include 'CMTPART'
-
-      real   xerange(2,3,lelt)
-      common /elementrange/ xerange
 
       integer e,er
       real    fvalgx(nx1,ny1,nz1,nelt),fvalgy(nx1,ny1,nz1,nelt),
@@ -1309,10 +1404,10 @@ c
       pi  = 4.0d+0*atan(1.0d+0)
 
 c     scheme 1 ------------------------------------------------------
-      if (time_integ.eq.0) then 
+      if (abs(time_integ).eq.0) then 
 
 c     RK3 ------------------------------------------------------------
-      elseif (time_integ.eq.1) then 
+      elseif (abs(time_integ).eq.1) then 
 
       call calc_substantial_derivative
 
@@ -1325,16 +1420,21 @@ c        setup values ------------------------------------------------
          vel_diff = sqrt((rpart(ju0  ,i)-rpart(jv0  ,i))**2+
      >                   (rpart(ju0+1,i)-rpart(jv0+1,i))**2+
      >                   (rpart(ju0+2,i)-rpart(jv0+2,i))**2)
-         rpart(ja,i)  = MixtPerf_C_GRT(gmaref,rgasref,rpart(jtempf,i)) !Nek5000 comment
+         rpart(ja,i)  = MixtPerf_C_GRT_part(gmaref,rgasref,
+     >                           rpart(jtempf,i),icmtp)
          rpart(ja,i)  = vel_diff/rpart(ja,i) ! relative mach number
          rpart(jre,i) = rpart(jrho,i)*rpart(jdp,i)*vel_diff/mu_0 ! Re
 
 c        momentum rhs ------------------------------------------------
 
-         call usr_particles_f_col(i) ! colision force all at once
+         call usr_particles_f_col(i)     ! colision force all at once
+
+         call usr_particles_f_user(i)    ! user/body force
+            rpart(jfusr+0,i) = f_part(0)
+            rpart(jfusr+1,i) = f_part(1)
+            rpart(jfusr+2,i) = f_part(2)
 
          do j=0,ndim-1
-            call usr_particles_f_user(i,j)
             call usr_particles_f_qs(i,j)
             call usr_particles_f_un(i,j)
             call usr_particles_f_iu(i,j)
@@ -1363,7 +1463,7 @@ c        energy rhs --------------------------------------------------
       enddo
 
 c     other ----------------------------------------------------------
-      elseif (time_integ.eq.2) then 
+      elseif (abs(time_integ).eq.2) then 
 
       endif
 
@@ -1395,10 +1495,10 @@ c
       pi  = 4.0d+0*atan(1.0d+0)
 
 c     scheme 1 ------------------------------------------------------- 
-      if (time_integ.eq.0) then 
+      if (abs(time_integ).eq.0) then 
 
 c     rk3 ------------------------------------------------------------ 
-      elseif (time_integ.eq.1) then
+      elseif (abs(time_integ).eq.1) then
          do i=1,n
             pmass = rpart(jvol,i)*rpart(jrhop,i)
             pmassf= rpart(jvol,i)*rpart(jrho,i)
@@ -1435,7 +1535,7 @@ c           energy forcing to fluid (quasi-steady)
 
          enddo
 c     other ---------------------------------------------------------- 
-      elseif (time_integ.eq.2) then 
+      elseif (abs(time_integ).eq.2) then 
 
       endif
 
@@ -1809,9 +1909,6 @@ c
       include 'CMTDATA'
       include 'CMTPART'
 
-      real   xdrange(2,3)
-      common /domainrange/ xdrange
-
       real pmass1,pmass2,rxwall(3),rvwall(3),rdp1,rdp2,one_t
       logical ifcol
 
@@ -1934,9 +2031,6 @@ c
       include 'SOLN'
       include 'CMTDATA'
       include 'CMTPART'
-
-      real   xerange(2,3,lelt)
-      common /elementrange/ xerange
 
       logical ifcol
 
@@ -2111,11 +2205,6 @@ c
       include 'CMTDATA'
       include 'CMTPART'
 
-      real   xerange(2,3,lelt)
-      common /elementrange/ xerange
-      real   xdrange(2,3)
-      common /domainrange/ xdrange
-
       common /nekmpi/ mid,mp,nekcomm,nekgroup,nekreal
       common /myparth/ i_fp_hndl, i_cr_hndl
 
@@ -2170,11 +2259,6 @@ c
       include 'SOLN'
       include 'CMTDATA'
       include 'CMTPART'
-
-      real   xdrange(2,3)
-      common /domainrange/ xdrange
-      real   xerange(2,3,lelt)
-      common /elementrange/ xerange
 
       real bl_list(3),rthresh,rxdum(3)
       integer idummap(2,3)
@@ -2443,9 +2527,6 @@ c
       include 'CMTDATA'
       include 'CMTPART'
 
-      real   xerange(2,3,lelt)
-      common /elementrange/ xerange
-
       ! begin timer
       ptdum(22) = dnekclock()
 
@@ -2527,9 +2608,6 @@ c
       include 'CMTDATA'
       include 'CMTPART'
 
-      real   xerange(2,3,lelt)
-      common /elementrange/ xerange
-
       ! begin timer
       ptdum(23) = dnekclock()
 
@@ -2590,11 +2668,6 @@ c
       include 'TOTAL'
       include 'CMTDATA'
       include 'CMTPART'
-
-      real   xerange(2,3,lelt)
-      common /elementrange/ xerange
-      real   xdrange(2,3)
-      common /domainrange/ xdrange
 
       common /nekmpi/ mid,mp,nekcomm,nekgroup,nekreal
       common /myparth/ i_fp_hndl, i_cr_hndl
@@ -2835,11 +2908,6 @@ c     el_*_proc_map(i,j) and el_*_el_map(i,j) are ordered by elements
 c     1 <= i <= nelt, and 1 <= j <= 26, where j=1,nfacegp are element
 c     faces, j=nfacegp+1,nfacegp+nedgegp are element edges, and 
 c     j = nfacegp+nedgegp+1,nfacegp+nedgegp+ncornergp are corners
-
-      real   xerange(2,3,lelt)
-      common /elementrange/ xerange
-      real   xdrange(2,3)
-      common /domainrange/ xdrange
 
       common /nekmpi/ mid,mp,nekcomm,nekgroup,nekreal
       common /myparth/ i_fp_hndl, i_cr_hndl
@@ -3138,9 +3206,6 @@ c     > if bc_part = -1,1 then particles are killed (outflow)
       include 'CMTDATA'
       include 'CMTPART'
 
-      real  xdrange(2,3) 
-      common /domainrange/ xdrange
-
       integer in_part(llpart)
 
       ! begin timer
@@ -3380,9 +3445,6 @@ c     used for 3d trilinear interpolation
 c
       include 'SIZE'
       include 'CMTPART'
-
-      real   xerange(2,3,lelt)
-      common /elementrange/ xerange
 
       real field(nx1,ny1,nz1),xf(nx1,ny1,nz1),yf(nx1,ny1,nz1),
      >                        zf(nx1,ny1,nz1)
@@ -4026,11 +4088,6 @@ c----------------------------------------------------------------------
      >     rtmp(50)
       integer nlfl
 
-      real   xdrange(2,3)
-      common /domainrange/ xdrange
-      real   xerange(2,3,lelt)
-      common /elementrange/ xerange
-
       common /running_avgs/ rec_vals
       real rec_vals(1+50,8000*15) !8000 elements, by nx1=15 max
 
@@ -4175,11 +4232,6 @@ c----------------------------------------------------------------------
 
       real*8 rlengy
 
-      real   xdrange(2,3)
-      common /domainrange/ xdrange
-      real   xerange(2,3,lelt)
-      common /elementrange/ xerange
-
       common /running_avgs/ rec_vals
       real rec_vals(1+50,8000*15) !8000 elements, by nx1=15 max
 
@@ -4322,11 +4374,6 @@ c----------------------------------------------------------------------
      >     rtmp(50)
       integer nlfl
 
-      real   xdrange(2,3)
-      common /domainrange/ xdrange
-      real   xerange(2,3,lelt)
-      common /elementrange/ xerange
-
       common /running_avgs/ rec_vals
       real rec_vals(1+50,8000*15) !8000 elements, by nx1=15 max
 
@@ -4448,6 +4495,7 @@ c----------------------------------------------------------------------
 c----------------------------------------------------------------------
       subroutine read_particle_input
       include 'SIZE'
+      include 'INPUT'
       include 'CMTTIMERS'
       include 'TSTEP'
       include 'PARALLEL'
@@ -4504,6 +4552,8 @@ c - - - - DEM - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
       close(81)
 
+      mu_0   = abs(param(2))
+
       return
       end
 c----------------------------------------------------------------------
@@ -4557,6 +4607,9 @@ c     is insufficient room.
       common /nekmpi/ mid,mp,nekcomm,nekgroup,nekreal
       common /myparth/ i_fp_hndl, i_cr_hndl
 
+      common /elementload/ gfirst, inoassignd, resetFindpts, pload(lelg)
+      integer gfirst, inoassignd, resetFindpts, pload
+
       integer icalld1
       save    icalld1
       data    icalld1 /0/
@@ -4568,7 +4621,8 @@ c     is insufficient room.
 
       nl = 0                ! No logicals exchanged
 
-      if (icalld1.eq.0) then
+c     if (icalld1.eq.0) then
+      if (icalld1.eq.0 .or. (resetFindpts .eq. 1)) then
          tolin = 1.e-12
          if (wdsize.eq.4) tolin = 1.e-6
          call intpts_setup  (tolin,i_fp_hndl)
@@ -4619,9 +4673,6 @@ c-----------------------------------------------------------------------
       subroutine particles_in_nid
       include 'SIZE'
       include 'CMTPART'
-
-      real   xerange(2,3,lelt)
-      common /elementrange/ xerange
 
       integer icalld
       save    icalld
@@ -4746,9 +4797,6 @@ c
       include 'CMTDATA'
       include 'CMTPART'
 
-      real   xerange(2,3,lelt)
-      common /elementrange/ xerange
-
       integer i,j,k,e,ip
       real    xx,yy,zz,msum
 
@@ -4821,9 +4869,6 @@ c
       real    xx,yy,zz,Lx,Ly,Lz,rdum(lx1,ly1,lz1)
       real    mesharound(81),gam_val,dumval(lx1,ly1,lz1,27)
       real    xgd(lx1,ly1,lz1),ygd(lx1,ly1,lz1),zgd(lx1,ly1,lz1)
-
-      real   xerange(2,3,lelt)
-      common /elementrange/ xerange
 
       xs = xerange(1,1,ie)
       xe = xerange(2,1,ie)
@@ -5057,3 +5102,224 @@ C> Compute coefficients for Runge-Kutta stages \cite{TVDRK}
       return
       end
 c----------------------------------------------------------------------
+      subroutine compute_phig_qtl(rdt_in,div)
+c
+c     Computes modified divergence constraint for multiphase dense
+c     compressible flow
+c
+      include 'SIZE'
+      include 'TOTAL'
+      include 'CMTDATA'
+      include 'CMTPART'
+
+      real div(lx2,ly2,lz2,lelv)
+
+      common /phig_qtl_blk/ phig_last,phig_qtl
+      real phig_last(lx1,ly1,lz1,lelt,4),phig_qtl(lx1,ly1,lz1,lelt)
+
+      real ur(lx1,ly1,lz1),us(lx1,ly1,lz1),ut(lx1,ly1,lz1)
+
+      integer icalld
+      save    icalld
+      data    icalld  /-1/
+
+      icalld = icalld + 1
+
+      do ie=1,nelt
+      do iz=1,nz1
+      do iy=1,ny1
+      do ix=1,nx1
+         phig_last(ix,iy,iz,ie,1) = 1. - ptw(ix,iy,iz,ie,4)
+         phig_qtl(ix,iy,iz,ie) = 0.
+      enddo
+      enddo
+      enddo
+      enddo
+
+      if (icalld .eq. 0) then
+         do ie=1,nelt
+         do iz=1,nz1
+         do iy=1,ny1
+         do ix=1,nx1
+            phig_last(ix,iy,iz,ie,2) = 1. - ptw(ix,iy,iz,ie,4)
+            phig_last(ix,iy,iz,ie,3) = 1. - ptw(ix,iy,iz,ie,4)
+            phig_last(ix,iy,iz,ie,4) = 1. - ptw(ix,iy,iz,ie,4)
+         enddo
+         enddo
+         enddo
+         enddo
+
+         goto 123
+      endif
+      
+      if (icalld .lt. 5) goto 123
+
+      do ie=1,nelt
+         call gradl_rst(ur(1,1,1),us(1,1,1),ut(1,1,1),
+     >                                   phig_last(1,1,1,ie,1),lx1,if3d)
+         
+         do iz=1,nz1
+         do iy=1,ny1
+         do ix=1,nx1
+            phig_qtl(ix,iy,iz,ie) = phig_last(ix,iy,iz,ie,1) -
+     >                              phig_last(ix,iy,iz,ie,2)
+            phig_qtl(ix,iy,iz,ie) = phig_qtl(ix,iy,iz,ie)/rdt_in
+
+c           phig_qtl(ix,iy,iz,ie) =  (11./6.)*phig_last(ix,iy,iz,ie,1) 
+c    >                              -(3.    )*phig_last(ix,iy,iz,ie,2) 
+c    >                              +(3./2. )*phig_last(ix,iy,iz,ie,3) 
+c    >                              -(1./3. )*phig_last(ix,iy,iz,ie,4) 
+c           phig_qtl(ix,iy,iz,ie) = phig_qtl(ix,iy,iz,ie)/rdt_in
+
+
+            phig_qtl(ix,iy,iz,ie) = phig_qtl(ix,iy,iz,ie) + 
+     >          vx(ix,iy,iz,ie)/JACM1(ix,iy,iz,ie)* !d/dx
+     >             (ur(ix,iy,iz)*RXM1(ix,iy,iz,ie) +
+     >              us(ix,iy,iz)*SXM1(ix,iy,iz,ie) +
+     >              ut(ix,iy,iz)*TXM1(ix,iy,iz,ie))
+
+            phig_qtl(ix,iy,iz,ie) = phig_qtl(ix,iy,iz,ie) + 
+     >          vy(ix,iy,iz,ie)/JACM1(ix,iy,iz,ie)* !d/dy
+     >             (ur(ix,iy,iz)*RYM1(ix,iy,iz,ie) +
+     >              us(ix,iy,iz)*SYM1(ix,iy,iz,ie) +
+     >              ut(ix,iy,iz)*TYM1(ix,iy,iz,ie))
+
+            phig_qtl(ix,iy,iz,ie) = phig_qtl(ix,iy,iz,ie) + 
+     >          vz(ix,iy,iz,ie)/JACM1(ix,iy,iz,ie)* !d/dz
+     >             (ur(ix,iy,iz)*RZM1(ix,iy,iz,ie) +
+     >              us(ix,iy,iz)*SZM1(ix,iy,iz,ie) +
+     >              ut(ix,iy,iz)*TZM1(ix,iy,iz,ie))
+
+
+            phig_qtl(ix,iy,iz,ie) = -1.0*phig_qtl(ix,iy,iz,ie)/
+     >                              phig_last(ix,iy,iz,ie,1)
+         enddo
+         enddo
+         enddo
+      enddo
+
+  123 continue
+
+      do ie=1,nelt
+      do iz=1,nz1
+      do iy=1,ny1
+      do ix=1,nx1
+         phig_last(ix,iy,iz,ie,4) = phig_last(ix,iy,iz,ie,3)
+         phig_last(ix,iy,iz,ie,3) = phig_last(ix,iy,iz,ie,2)
+         phig_last(ix,iy,iz,ie,2) = phig_last(ix,iy,iz,ie,1)
+      enddo
+      enddo
+      enddo
+      enddo
+
+      do ie=1,nelt
+      do iz=1,nz1
+      do iy=1,ny1
+      do ix=1,nx1
+         div(ix,iy,iz,ie) = phig_qtl(ix,iy,iz,ie)
+      enddo
+      enddo
+      enddo
+      enddo
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine pre_sim_collisions
+c
+c     time stepping routine for pre-simulation collisions/settling
+c
+      include 'SIZE'
+      include 'TOTAL'
+      include 'CTIMER'
+      include 'CMTDATA'
+      include 'CMTPART'
+
+      nmax_step = 300000000  ! number of pre-iteration steps
+
+      rtime = 0.
+
+      ! pre simulation iteration for packed bed
+      do i=1,nmax_step
+
+         if (nid.eq. 0) write(6,*) 'pre-sim_io time',i,rtime,dt_cmt
+         if(mod(i,iostep).eq.0) then
+            call usr_particles_io
+         endif
+
+         do stage=1,3
+
+            if (stage .eq. 1) then
+               rdt_part = abs(param(12))
+               call set_dt_particles(rdt_part)
+               dt_cmt = rdt_part
+               dt     = dt_cmt
+               rtime = rtime + dt_cmt
+               call set_tstep_coef_part(rdt_part)
+
+               call update_particle_location
+               call move_particles_inproc
+
+               if (two_way.gt.1) then
+                  call particles_solver_nearest_neighbor
+                  call spread_props_grid
+               endif
+            endif
+
+            call usr_particles_forcing ! at most only qs,user,col here
+            call rk3_integrate
+
+         enddo
+      enddo
+
+      return
+      end
+c----------------------------------------------------------------------
+      subroutine userf_particles(ix,iy,iz,e,ffxp,ffyp,ffzp,qvolp)
+      include 'SIZE'
+      include 'TOTAL'
+      include 'NEKUSE'
+      include 'CMTPART'
+      include 'CMTDATA'
+
+      integer ix,iy,iz,e
+
+      real ffxp,ffyp,ffzp,qvolp
+
+      ! particle forcing
+      if (two_way .ge.2) then
+         if (istep .gt. time_delay) then
+            ffxp =  ptw(ix,iy,iz,e,1)/vtrans(ix,iy,iz,e,1)
+     >                              /(1.-ptw(ix,iy,iz,e,4))
+            ffyp =  ptw(ix,iy,iz,e,2)/vtrans(ix,iy,iz,e,1)
+     >                              /(1.-ptw(ix,iy,iz,e,4))
+            ffzp =  ptw(ix,iy,iz,e,3)/vtrans(ix,iy,iz,e,1)
+     >                              /(1.-ptw(ix,iy,iz,e,4))
+            ! energy coupling for cmt-nek
+            qvolp= ptw(ix,iy,iz,e,5) + rhs_fluidp(ix,iy,iz,e,4)
+         else
+            ffxp = 0.0
+            ffyp = 0.0
+            ffzp = 0.0
+         endif
+      else
+         ffxp = 0.0
+         ffyp = 0.0
+         ffzp = 0.0
+      endif
+
+      return
+      end
+c-----------------------------------------------------------------------
+      FUNCTION MixtPerf_C_GRT_part(G,R,T,icmt)
+      IMPLICIT NONE
+      REAL G,R,T! INTENT(IN) 
+      REAL MixtPerf_C_GRT_part
+      integer icmt
+      if (icmt .eq. 0) then
+         MixtPerf_C_GRT_part = 1.
+      else
+         MixtPerf_C_GRT_part = SQRT(G*R*T)
+      endif
+
+      END

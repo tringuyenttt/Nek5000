@@ -22,10 +22,10 @@ c     particle options ----------------------------------------------
       common /part_options/ bc_part, two_way, red_interp,time_integ,
      >                      part_force,time_delay,nitspl,inject_rate,
      >                      ipart_restarto,ipart_restartr,nrect_assume,
-     >                      npro_method,npio_method
+     >                      npro_method,npio_method,icmtp
       integer bc_part(6),two_way, red_interp,time_integ,part_force(5)
      >       ,time_delay,nitspl,inject_rate,ipart_restarto
-     >       ,ipart_restartr,nrect_assume,npro_method,npio_method
+     >       ,ipart_restartr,nrect_assume,npro_method,npio_method,icmtp
 
 c     particle parameters -------------------------------------------
       common /part_paramsr/ deltaf, dp, deltax, rho_p, tau_p,mu_0,tp_0,
@@ -43,6 +43,16 @@ c     barycentric interpolation -------------------------------------
       real xgll(lx1), ygll(ly1), zgll(lz1),
      >     wxgll(lx1), wygll(ly1), wzgll(lz1)
       integer nx1r
+
+c     initialize particles ------------------------------------------
+      real x_part(0:2),v_part(0:2),f_part(0:2),d_part
+      common /part_use/ x_part,v_part,f_part,d_part
+
+c     domain and element size
+      real   xdrange(2,3)
+      common /domainrange/ xdrange
+      real   xerange(2,3,lelt)
+      common /elementrange/ xerange
 
 c     ghost particles -----------------------------------------------
       parameter (lrgp=14,ligp=6)
