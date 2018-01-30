@@ -2063,7 +2063,7 @@ c     meant for this element
       return
       end
 c-----------------------------------------------------------------------
-      subroutine compute_collide(rx1,rx2,rv1,rv2,deff,
+      subroutine compute_collide(rx1,rx2,rv1,rv2,rdeff,
      >                           rm1,rm2,fcf,rspl1,rspl2)
 c
 c     extra body forces
