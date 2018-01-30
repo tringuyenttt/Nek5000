@@ -4402,6 +4402,10 @@ c----------------------------------------------------------------------
       include 'CMTPART'
 
       if(mod(istep,iostep).eq.0.or. istep.eq.1) then
+
+         rftime_t = 0.
+         rptime_t = 0.
+
          if(nid.eq.0) then
             write(6,*) 'TIMER H: ', istep
          endif
@@ -4410,8 +4414,19 @@ c----------------------------------------------------------------------
             rdum  = pttime(i)/istep
             dtime = glsum(rdum,1)
             rtime = dtime/np
-            if(nid.eq.0)  write(6,*) 'TIMER:',i,rtime
+            if(nid.eq.0)  write(6,*) 'TIMER #:',i,rtime
+
+            ! fluid and particle total time: note i == iptlen is f_col
+            if (i .eq. 1) rftime_t = rtime
+            if ((i .gt. 1) .and. (i.ne.iptlen)) rptime_t = rptime_t +
+     >                                                     rtime
          enddo
+
+         
+         if (nid.eq.0) then
+            write (6,*) 'TOTAL F:', rftime_t
+            write (6,*) 'TOTAL P:', rptime_t
+         endif
 
       endif
 
