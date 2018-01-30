@@ -8,6 +8,7 @@ c  bdf/ext time integration. Otherwise, cmt-nek will not call this fxn.
       include 'CMTDATA'
       include 'CMTPART'
 
+
       if (istep.eq.0) then
          call usr_particles_init
          icmtp = 0
@@ -39,9 +40,6 @@ c----------------------------------------------------------------------
       common /elementload/ gfirst, inoassignd, resetFindpts, pload(lelg)
       integer gfirst, inoassignd, resetFindpts, pload
 
-      ! begin timer
-      ptdum(1) = dnekclock()
-      
       call set_part_pointers
       if (llpart .ne. 1) call read_particle_input
       call set_bounds_box
@@ -53,20 +51,23 @@ c----------------------------------------------------------------------
       if (red_part .le. 2) call init_interpolation ! barycentric weights for interpolation
       if (two_way.gt.1) then
          call compute_neighbor_el_proc    ! compute list of neigh. el. ranks 
-         call particles_solver_nearest_neighbor ! nearest neigh
+         call create_extra_particles
+         call send_ghost_particles
          call point_to_grid_corr_init    ! for gamma correction integrat
          call spread_props_grid           ! put particle props on grid
 
          do i = 1,nitspl
             call interp_props_part_location ! interpolate
             call correct_spl
-            call particles_solver_nearest_neighbor ! nearest neigh
+            call create_extra_particles
+            call send_ghost_particles
             call spread_props_grid           ! put particle props on grid
             if (nid.eq.0) write(6,*) i,'Pre-SPL iteration'
          enddo
          
          call set_check_spl_params        !  in case spl has changed!
-         call particles_solver_nearest_neighbor ! nearest neigh 
+         call create_extra_particles
+         call send_ghost_particles
          call spread_props_grid           ! put particle props on grid
       endif
       call interp_props_part_location ! interpolate again for two-way
@@ -81,9 +82,6 @@ c     call printVerify
 
       ntmp  = iglsum(n,1)
       if (nid.eq.0) write(6,*) 'Passed usr_particles_init'
-
-      ! end timer
-      pttime(1) = pttime(1) + dnekclock() - ptdum(1)
 
       return
       end
@@ -198,9 +196,6 @@ c     added by keke
       integer gfirst, inoassignd, resetFindpts, pload
 c     end added by keke
 
-      ! begin timer
-      ptdum(2) = dnekclock()
-
       rdum  = 1E8
       rleng = 1E8
 
@@ -230,9 +225,6 @@ c     if(istep.eq.0.or.istep.eq.1)then
         endif
       endif
 
-      ! end timer
-      pttime(2) = pttime(2) + dnekclock() - ptdum(2)
-
       return
       end
 c----------------------------------------------------------------------
@@ -247,9 +239,6 @@ c----------------------------------------------------------------------
       data    icalld  /-1/
 
       character*132 deathmessage
-
-      ! begin timer
-      ptdum(3) = dnekclock()
 
       if (icalld .lt. 0) then
          rdum   = ran2(-nrandseed*np-nid-1) ! initialize random number generator
@@ -300,8 +289,6 @@ c     filter width setup (note deltax is implicit in expressions b4 def)
 
       rsig     = dfilt*rleng/(2.*sqrt(2.*log(2.))) ! gaussian filter std.
 
-      ! end timer
-      pttime(3) = pttime(3) + dnekclock() - ptdum(3)
       return
       end
 c----------------------------------------------------------------------
@@ -312,9 +299,6 @@ c----------------------------------------------------------------------
       include 'CMTPART'
 
       character*132 deathmessage
-
-      ! begin timer
-      ptdum(4) = dnekclock()
 
       ! set spl effective diameter
       do i=1,n 
@@ -363,8 +347,6 @@ c----------------------------------------------------------------------
       d2chk(2) = d2chk(1)
       d2chk(3) = d2chk(1)
 
-      ! end timer
-      pttime(4) = pttime(4) + dnekclock() - ptdum(4)
       return
       end
 c----------------------------------------------------------------------
@@ -382,9 +364,6 @@ c----------------------------------------------------------------------
       save    icalld
       data    icalld  /-1/
       
-      ! begin timer
-      ptdum(5) = dnekclock()
-
       if (llpart .eq. 1) goto 1234
 
       icalld = icalld + 1
@@ -430,18 +409,12 @@ c     ! particle cfl, particles cant move due to velocity
 
  1234 continue
 
-      ! end timer
-      pttime(5) = pttime(5) + dnekclock() - ptdum(5)
-
       return
       end
 c----------------------------------------------------------------------
       subroutine set_part_pointers
       include 'SIZE'
       include 'CMTPART'
-
-      ! begin timer
-      ptdum(6) = dnekclock()
 
       nr   = lr     ! Mandatory for proper striding
       ni   = li     ! Mandatory
@@ -561,9 +534,6 @@ c     ghost particle real pointers ----------------------------------
       jgpq0   = jgpg0 +1 ! 
       jgpv0   = jgpq0 +1 ! velocity (3 components)
 
-      ! end timer
-      pttime(6) = pttime(6) + dnekclock() - ptdum(6)
-
       return
       end
 c----------------------------------------------------------------------
@@ -583,8 +553,11 @@ c
       save    icalld
       data    icalld  /-1/
 
-      ! begin timer
-      ptdum(7) = dnekclock()
+      if (icalld .eq. -1) then
+         pttime(1) = 0.
+      else
+         pttime(1) = pttime(1) + dnekclock() - ptdum(1)
+      endif
 
 c     should we inject particles at this time step?
       ifinject = .false.
@@ -602,18 +575,58 @@ c     scheme 1 --------------------------------------------------------
 c     rk3 integration -------------------------------------------------
       elseif (abs(time_integ) .eq. 1) then       
          if (stage.eq.1) then
-            call update_particle_location   ! move outlier particles
-            if (ifinject) call place_particles ! inject particles
-            call move_particles_inproc      ! update mpi rank
-            if (two_way.gt.1) then             ! part. to fluid forcing
-               call particles_solver_nearest_neighbor    ! nn
-               call spread_props_grid          ! put particle props on grid
+            ! Update coordinates if particle moves outside boundary
+            ptdum(2) = dnekclock()
+               call update_particle_location  
+            pttime(2) = pttime(2) + dnekclock() - ptdum(2)
+
+            ! Inject particles if needed
+            if (ifinject) call place_particles
+
+            ! Update where particle is stored at
+            ptdum(3) = dnekclock()
+               call move_particles_inproc
+            pttime(3) = pttime(3) + dnekclock() - ptdum(3)
+
+            if (two_way.gt.1) then
+
+               ! Create ghost/wall particles
+               ptdum(4) = dnekclock()
+                  call create_extra_particles
+               pttime(4) = pttime(4) + dnekclock() - ptdum(4)
+
+               ! Send ghost particles
+               ptdum(5) = dnekclock()
+                  call send_ghost_particles
+               pttime(5) = pttime(5) + dnekclock() - ptdum(5)
+   
+               ! Projection to Eulerian grid
+               ptdum(6) = dnekclock()
+                  call spread_props_grid
+               pttime(6) = pttime(6) + dnekclock() - ptdum(6)
+   
             endif
          endif
-         call interp_props_part_location    ! interpolate
-         call usr_particles_forcing         ! fluid to part. forcing
-         call rk3_integrate                 ! time integration
-         call compute_forcing_post_part     ! update forces
+
+         ! Interpolate Eulerian properties to particle location
+         ptdum(7) = dnekclock()
+            call interp_props_part_location
+         pttime(7) = pttime(7) + dnekclock() - ptdum(7)
+
+         ! Evaluate particle force models
+         ptdum(8) = dnekclock()
+            call usr_particles_forcing  
+         pttime(8) = pttime(8) + dnekclock() - ptdum(8)
+
+         ! Integrate in time
+         ptdum(9) = dnekclock()
+            call rk3_integrate
+         pttime(9) = pttime(9) + dnekclock() - ptdum(9)
+
+         ! Update forces
+         ptdum(10) = dnekclock()
+            call compute_forcing_post_part
+         pttime(10) = pttime(10) + dnekclock() - ptdum(10)
 
 c     Other -----------------------------------------------------------
       elseif (abs(time_integ) .eq. 2) then
@@ -622,8 +635,7 @@ c     Other -----------------------------------------------------------
 
       endif ! time_delay
 
-      ! end timer
-      pttime(7) = pttime(7) + dnekclock() - ptdum(7)
+      ptdum(1) = dnekclock()
 
       return
       end
@@ -641,9 +653,6 @@ c
       include 'CMTPART'
 
       real rdumvol(llpart,2*3)
-
-      ! begin timer
-      ptdum(8) = dnekclock()
 
       ! this routine needs updating!
 
@@ -841,9 +850,6 @@ c        endif
  1511 continue
       enddo
 
-      ! end timer
-      pttime(8) = pttime(8) + dnekclock() - ptdum(8)
-
       return
       end
 c----------------------------------------------------------------------
@@ -863,9 +869,6 @@ c
       real    xx,yy,zz,vol,pfx,pfy,pfz,pmass,pmassf,vcell,multfc
      >       ,qgqf,rvx,rvy,rvz,rcountv(8,nelt)
       integer e
-
-      ! begin timer
-      ptdum(9) = dnekclock()
 
       nlxyze = lx1*ly1*lz1*lelt
       nxyze  = nx1*ny1*nz1*nelt
@@ -996,9 +999,6 @@ c     volume fraction cant be more tahn rvfmax ...
       enddo
       enddo
 
-      ! end timer
-      pttime(9) = pttime(9) + dnekclock() - ptdum(9)
-
       return
       end
 c----------------------------------------------------------------------
@@ -1022,10 +1022,6 @@ c
      >        fvalv2(nx1,ny1,nz1,nelt),fvalv3(nx1,ny1,nz1,nelt),
      >        rcountv(8,nelt)
 
-      ! begin timer
-      ptdum(10) = dnekclock()
-
-
          do ie=1,nelt
 
             rvole = (xerange(2,1,ie) - xerange(1,1,ie))*
@@ -1047,9 +1043,6 @@ c
          enddo
          enddo
          enddo
-
-      ! end timer
-      pttime(10) = pttime(10) + dnekclock() - ptdum(10)
 
       return
       end
@@ -1077,9 +1070,6 @@ c
      >        fvalgg(lx1,ly1,lz1,lelt),fvalv1(lx1,ly1,lz1,lelt),
      >        fvalv2(lx1,ly1,lz1,lelt),fvalv3(lx1,ly1,lz1,lelt),
      >        pvalpx,pvalpy,pvalpz,pvalpv,xx,yy,zz,ppg,ppv1,ppv2,ppv3
-
-      ! begin timer
-      ptdum(11) = dnekclock()
 
 c     this element
       call point_to_grid(fvalgx(1,1,1,e),fvalgy(1,1,1,e),
@@ -1149,9 +1139,6 @@ c     corners
          endif
       enddo
 
-      ! end timer
-      pttime(11) = pttime(11) + dnekclock() - ptdum(11)
-
       return
       end
 c----------------------------------------------------------------------
@@ -1178,9 +1165,6 @@ c
      >        pvalpx,pvalpy,pvalpz,pvalpv,xx,yy,zz,ppg,
      >        ppv1,ppv2,ppv3
 
-      ! begin timer
-      ptdum(12) = dnekclock()
-
       call point_to_grid(fvalgx(1,1,1,e),fvalgy(1,1,1,e),
      >                   fvalgz(1,1,1,e),fvalgv(1,1,1,e),
      >                   fvalgg(1,1,1,e),fvalv1(1,1,1,e),
@@ -1190,9 +1174,6 @@ c
      >                   ppv1,ppv2,ppv3,
      >                   xx,yy,zz,rbexpi,
      >                   ralph,ralph2)
-
-      ! end timer
-      pttime(12) = pttime(12) + dnekclock() - ptdum(12)
 
       return
       end
@@ -1224,9 +1205,6 @@ c
      >        pvalpx,pvalpy,pvalpz,pvalpv,pi,
      >        distx,disty,distz,xx,yy,zz,distx2,disty2,distz2,multfc,
      >        ppg,ppv1,ppv2,ppv3
-
-      ! begin timer
-      ptdum(13) = dnekclock()
 
 c     optimized code ------------------------------------------------
 c     can we skip this entire element?
@@ -1278,9 +1256,6 @@ c     if (rxl.gt.ralph .and. rxr.gt.ralph) goto 1514
       enddo
  1514 continue
 
-      ! end timer
-      pttime(13) = pttime(13) + dnekclock() - ptdum(13)
-
       return
       end
 c-----------------------------------------------------------------------
@@ -1297,9 +1272,6 @@ c-----------------------------------------------------------------------
 
       integer fdim
       real    pmass
-
-      ! begin timer
-      ptdum(14) = dnekclock()
 
       jx0 = jx
 
@@ -1377,9 +1349,6 @@ c     endif
 c     write(6,*) 'forcing',rpart(jx,i),rpart(jv0,i),rpart(jf0,i)
       enddo
 
-      ! end timer
-      pttime(14) = pttime(14) + dnekclock() - ptdum(14)
-
       return
       end
 c-----------------------------------------------------------------------
@@ -1397,9 +1366,6 @@ c
 
       common /PARTRK3/ kv_stage_p
       real kv_stage_p(llpart,7)
-
-      ! begin timer
-      ptdum(15) = dnekclock()
 
       pi  = 4.0d+0*atan(1.0d+0)
 
@@ -1467,9 +1433,6 @@ c     other ----------------------------------------------------------
 
       endif
 
-      ! end timer
-      pttime(15) = pttime(15) + dnekclock() - ptdum(15)
-
       return
       end
 c-----------------------------------------------------------------------
@@ -1488,9 +1451,6 @@ c
       real kv_stage_p(llpart,7)
 
       common /myparts/ times(0:3),alpha(0:3),beta(0:3)
-
-      ! begin timer
-      ptdum(16) = dnekclock()
 
       pi  = 4.0d+0*atan(1.0d+0)
 
@@ -1539,9 +1499,6 @@ c     other ----------------------------------------------------------
 
       endif
 
-      ! end timer
-      pttime(16) = pttime(16) + dnekclock() - ptdum(16)
-
       return
       end
 c-----------------------------------------------------------------------
@@ -1572,9 +1529,6 @@ c
       integer e
       real ur(lx1,ly1,lz1),us(lx1,ly1,lz1),ut(lx1,ly1,lz1),
      >         pm1(lx1,ly1,lz1,lelt,3)
-
-      ! begin timer
-      ptdum(17) = dnekclock()
 
       nxyz=nx1*ny1*nz1
       nlxyze = lx1*ly1*lz1*lelt
@@ -1703,9 +1657,6 @@ c     compute grad phi_g
       enddo
       enddo
       enddo
-
-      ! end timer
-      pttime(17) = pttime(17) + dnekclock() - ptdum(17)
 
       return
       end
@@ -1912,9 +1863,6 @@ c
       real pmass1,pmass2,rxwall(3),rvwall(3),rdp1,rdp2,one_t
       logical ifcol
 
-      ! begin timer
-      ptdum(18) = dnekclock()
-
       rpart(jfcol  ,i) = 0.
       rpart(jfcol+1,i) = 0.
       rpart(jfcol+2,i) = 0.
@@ -2014,9 +1962,6 @@ c              rlamb  = 0.150*deff
             endif
          enddo
       endif
-
-      ! end timer
-      pttime(18) = pttime(18) + dnekclock() - ptdum(18)
 
       return
       end
@@ -2192,10 +2137,9 @@ c     rfn_mag = sqrt(rfn1**2 + rfn2**2 + rfn3**2)
       return
       end
 c-----------------------------------------------------------------------
-      subroutine particles_solver_nearest_neighbor
+      subroutine send_ghost_particles
 c
-c     this routine will let particles search for their nearest neighbors
-c     using the ghost particle approach.
+c     send only ghost particles
 c
 c     bc_part = -1,1  => non-periodic search
 c     bc_part = 0  => periodic search
@@ -2210,41 +2154,29 @@ c
 
       logical partl         ! dummy used in c_t_t()
 
-      ! begin timer
-      ptdum(19) = dnekclock()
-
-      if (istep.eq.0.or.istep.eq.1) then
-         ntmp = iglsum(nfptsgp,1)
-         if (nid.eq.0) write(6,*) 'Passed ini ghost part',d2chk(1)/rleng
-      endif
-
-c     create ghost particles
-      if (nrect_assume .eq. 2) call create_ghost_particles_rect_full
-      if (nrect_assume .eq. 1) call create_ghost_particles_rect
-
-      if (nrect_assume .gt. 0) call create_wall_particles_image
-
-      if (istep.eq.0.or.istep.eq.1) then
-         ntmp = iglsum(nfptsgp,1)
-         if (nid.eq.0) write(6,*) 'Passed create_ghost_particles',ntmp
-      endif
-
 c     send ghost particles
       call fgslib_crystal_tuple_transfer(i_cr_hndl,nfptsgp,llpart
      $           , iptsgp,nigp,partl,0,rptsgp,nrgp,jgpps) ! jgpps is overwri
 
-      if (istep.eq.0.or.istep.eq.1) then
-c        ntmp = iglmax(nfptsgp,1)
-         ntmp = iglsum(nfptsgp,1)
-         if (nid.eq.0) write(6,*) 'Passed send ghost particles',ntmp
-      endif
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine create_extra_particles
+c
+c     create ghost and wall particles
+c
+c     bc_part = -1,1  => non-periodic search
+c     bc_part = 0  => periodic search
+c
+      include 'SIZE'
+      include 'TOTAL'
+      include 'CMTDATA'
+      include 'CMTPART'
 
-c     search nearest neighbors from this proc particles and
-c     remote proc nearby particles (ghost particles)
-c     call search_nearest_neighbor
-
-      ! end timer
-      pttime(19) = pttime(19) + dnekclock() - ptdum(19)
+c     create ghost particles
+      if (nrect_assume .eq. 2) call create_ghost_particles_rect_full
+      if (nrect_assume .eq. 1) call create_ghost_particles_rect
+      if (nrect_assume .gt. 0) call create_wall_particles_image
 
       return
       end
@@ -2449,70 +2381,6 @@ c
       return
       end
 c-----------------------------------------------------------------------
-      subroutine search_nearest_neighbor
-      include 'SIZE'
-      include 'TOTAL'
-      include 'CMTDATA'
-      include 'CMTPART'
-c
-c     this routine implements a naive particle search. This should be
-c     updated for the future with some kind of more recent algorithm for
-c     nearest neighbor searching. Particles will need to search local
-c     particles (in rpart and ipart) and remote particles that are
-c     nearby but on different MPI ranks (rptsgp and iptsgp of length nfptsgp)
-c
-c     particles will check if they are within d2chk of each other
-c
-
-      integer nneigh
-
-      ! begin timer
-      ptdum(20) = dnekclock()
-
-      d3 = 0.5*d2chk(1) ! user can change, but d2chk is robust max value
-                        ! Note: 1/2*d2chk seems to work even w/outflow
-
-c     let every particle search for itself
-      do i = 1,n
-         ipart(jai,i) = ipart(jpnn,i) ! for testing
-         nneigh = 0
-c        particles in local elements
-         do j = 1,n
-            if (i .ne. j) then
-               pdist = abs(rpart(jx,i)-rpart(jx,j))**2  
-     >                          + abs(rpart(jy,i)-rpart(jy,j))**2
-     >                          + abs(rpart(jz,i)-rpart(jz,j))**2
-               pdist = sqrt(pdist)
-               if (pdist .gt. d3) goto 1109
-               nneigh = nneigh + 1
-            endif
-1109        continue
-         enddo
-
-c        search list of ghost particles
-         do j = 1,nfptsgp
-            if (iptsgp(jgpes,j).eq. ipart(je0,i)) then ! exclude ghosts not
-                                                      ! meant for this eleme
-            pdist = abs(rpart(jx,i)-rptsgp(jgpx,j))**2  
-     >                    + abs(rpart(jy,i)-rptsgp(jgpy,j))**2
-     >                    + abs(rpart(jz,i)-rptsgp(jgpz,j))**2
-            pdist = sqrt(pdist)
-            if (pdist .gt. d3) goto 11092
-            nneigh = nneigh + 1
-            endif
-11092       continue
-         enddo
-         ipart(jpnn,i) = nneigh
-         ipart(jai,i) = ipart(jai,i) - ipart(jpnn,i) ! comptued distance
-                                                     ! for testing
-      enddo
-
-      ! end timer
-      pttime(20) = pttime(20) + dnekclock() - ptdum(20)
-
-      return
-      end
-c-----------------------------------------------------------------------
       subroutine create_ghost_particles_rect
 c
 c     this routine will create ghost particles by checking if particle
@@ -2526,9 +2394,6 @@ c
       include 'TOTAL'
       include 'CMTDATA'
       include 'CMTPART'
-
-      ! begin timer
-      ptdum(22) = dnekclock()
 
       nfptsgp = 0
       do i = 1,n
@@ -2588,9 +2453,6 @@ c        vector coordinates of what faces a particle is next to
          endif
       enddo
 
-      ! end timer
-      pttime(22) = pttime(22) + dnekclock() - ptdum(22)
-
       return
       end
 c-----------------------------------------------------------------------
@@ -2607,9 +2469,6 @@ c
       include 'TOTAL'
       include 'CMTDATA'
       include 'CMTPART'
-
-      ! begin timer
-      ptdum(23) = dnekclock()
 
       nfptsgp = 0
       do i = 1,n
@@ -2638,9 +2497,6 @@ c
          enddo
 
       enddo
-
-      ! end timer
-      pttime(23) = pttime(23) + dnekclock() - ptdum(23)
 
       return
       end
@@ -3208,9 +3064,6 @@ c     > if bc_part = -1,1 then particles are killed (outflow)
 
       integer in_part(llpart)
 
-      ! begin timer
-      ptdum(24) = dnekclock()
-
       jx0 = jx
 
       do i=1,n
@@ -3281,9 +3134,6 @@ c              elseif (bc_part(1).eq. 1) then
       enddo
       n = ic
       endif
-
-      ! end timer
-      pttime(24) = pttime(24) + dnekclock() - ptdum(24)
 
       return
       end
@@ -3405,9 +3255,6 @@ c     used for 3d interpolation only
       real              rep(lx1,ly1,lz1), bot
       real field(1),pofx,top
 
-      ! begin timer
-      ptdum(25) = dnekclock()
-
       pofx = 0.00
       if (nx1r.eq.lx1) then ! full interpolation
       do i=1,nxyz
@@ -3433,9 +3280,6 @@ c     used for 3d interpolation only
       enddo
       endif
 
-      ! end timer
-      pttime(25) = pttime(25) + dnekclock() - ptdum(25)
-
       return
       end
 c-----------------------------------------------------------------------
@@ -3449,9 +3293,6 @@ c
       real field(nx1,ny1,nz1),xf(nx1,ny1,nz1),yf(nx1,ny1,nz1),
      >                        zf(nx1,ny1,nz1)
       real x,y,z,pval,c00,c01,c10,c11,c0,c1_0,c1_1,r,s,t
-
-      ! begin timer
-      ptdum(26) = dnekclock()
 
       rdelta = 2./(nx1-1.)
       sdelta = 2./(ny1-1.)
@@ -3475,9 +3316,6 @@ c
 
       pval = c1_0*(1.-zd) + c1_1*zd
 
-      ! end timer
-      pttime(26) = pttime(26) + dnekclock() - ptdum(26)
-
       return
       end
 c-----------------------------------------------------------------------
@@ -3493,9 +3331,6 @@ c-----------------------------------------------------------------------
 
       common /point2gridc/ p2gc
       real   p2gc(lx1,ly1,lz1,lelt,4)
-
-      ! begin timer
-      ptdum(27) = dnekclock()
 
       nxyz = nx1*ny1*nz1
         do i=1,n
@@ -3579,9 +3414,6 @@ c    >                       ie,rpart(jgam,i))
 
         enddo
 
-      ! end timer
-      pttime(27) = pttime(27) + dnekclock() - ptdum(27)
-
       return
       end
 c----------------------------------------------------------------------
@@ -3597,8 +3429,7 @@ c----------------------------------------------------------------------
       include 'CMTPART'
       include 'mpif.h'
 
-      ! begin timer
-      ptdum(28) = dnekclock()
+      rdumt = dnekclock()
 
 c     always output fields if 2 or 4 way coupled 
       if (two_way .gt. 1) then
@@ -3656,8 +3487,7 @@ c     output restart information if needed
 
       endif
 
-      ! end timer
-      pttime(28) = pttime(28) + dnekclock() - ptdum(28)
+      pttime(1) = pttime(1) - (dnekclock() - rdumt)
 
       return
       end
@@ -4565,26 +4395,65 @@ c----------------------------------------------------------------------
       include 'CMTPART'
 
       if(mod(istep,iostep).eq.0.or. istep.eq.1) then
-c        first compute totals
-         rdum  = ftime/istep
-         dtime = glsum(rdum,1)
-         rtime_total = dtime/np ! both pinit and psolve in here
-
-c        rtime_fsolve = rtime_total - rtime_psolve - rtime_pinit
-c        rtime_fpsolve = rtime_fsolve + rtime_psolve
-
          if(nid.eq.0) then
-            write (6,*) 'TIME TOTAL (& init..)', rtime_total
+            write(6,*) 'TIMER H: ', istep
          endif
 
-         do i=1,iptlen
+            ! Inject particles if needed
+            if (ifinject) call place_particles
+
+            ! Update where particle is stored at
+            ptdum(3) = dnekclock()
+               call move_particles_inproc
+            pttime(3) = pttime(3) + dnekclock() - ptdum(3)
+
+            if (two_way.gt.1) then
+
+               ! Create ghost/wall particles
+               ptdum(4) = dnekclock()
+                  call create_extra_particles
+               pttime(4) = pttime(4) + dnekclock() - ptdum(4)
+
+               ! Send ghost particles
+               ptdum(5) = dnekclock()
+                  call send_ghost_particles
+               pttime(5) = pttime(5) + dnekclock() - ptdum(5)
+   
+               ! Projection to Eulerian grid
+               ptdum(6) = dnekclock()
+                  call spread_props_grid
+               pttime(6) = pttime(6) + dnekclock() - ptdum(6)
+   
+            endif
+         endif
+
+         ! Interpolate Eulerian properties to particle location
+         ptdum(7) = dnekclock()
+            call interp_props_part_location
+         pttime(7) = pttime(7) + dnekclock() - ptdum(7)
+
+         ! Evaluate particle force models
+         ptdum(8) = dnekclock()
+            call usr_particles_forcing  
+         pttime(8) = pttime(8) + dnekclock() - ptdum(8)
+
+         ! Integrate in time
+         ptdum(9) = dnekclock()
+            call rk3_integrate
+         pttime(9) = pttime(9) + dnekclock() - ptdum(9)
+
+         ! Update forces
+         ptdum(10) = dnekclock()
+            call compute_forcing_post_part
+         pttime(10) = pttime(10) + dnekclock() - ptdum(10)
+
+         do i = 1,iptlen
             rdum  = pttime(i)/istep
             dtime = glsum(rdum,1)
             rtime = dtime/np
-            if(nid.eq.0) then
-               write(6,*) 'TIMER', istep, i, rtime
-            endif
-          enddo
+            if(nid.eq.0)  write(6,*) 'TIMER:',i,rtime
+         enddo
+
       endif
 
       return
@@ -4615,9 +4484,6 @@ c     is insufficient room.
       data    icalld1 /0/
 
       logical partl         ! This is a dummy placeholder, used in cr()
-
-      ! begin timer
-      ptdum(23) = dnekclock()
 
       nl = 0                ! No logicals exchanged
 
@@ -4664,9 +4530,6 @@ c        Sort by element number - for improved local-eval performance
      $              , ipart,ni,partl,nl,rpart,nr,je0,1)
       endif
 
-      ! end timer
-      pttime(23) = pttime(23) + dnekclock() - ptdum(23)
-
       return
       end
 c-----------------------------------------------------------------------
@@ -4677,9 +4540,6 @@ c-----------------------------------------------------------------------
       integer icalld
       save    icalld
       data    icalld  /-1/
-
-      ! begin timer
-      ptdum(24) = dnekclock()
 
       icalld = icalld + 1
 
@@ -4729,9 +4589,6 @@ c-----------------------------------------------------------------------
 123      continue
       enddo
 
-      ! end timer
-      pttime(24) = pttime(24) + dnekclock() - ptdum(24)
-
       return
       end
 c-----------------------------------------------------------------------
@@ -4739,16 +4596,10 @@ c-----------------------------------------------------------------------
       include 'SIZE'
       include 'CMTPART'
 
-      ! begin timer
-      ptdum(25) = dnekclock()
-
       do ifp = 1,nfpts
          call copy(rpart(1,ifptsmap(ifp)),rfpts(1,ifp),nrf)
          call icopy(ipart(1,ifptsmap(ifp)),ifpts(1,ifp),nif)
       enddo
-
-      ! end timer
-      pttime(25) = pttime(25) + dnekclock() - ptdum(25)
 
       return
       end
@@ -5261,7 +5112,8 @@ c
                call move_particles_inproc
 
                if (two_way.gt.1) then
-                  call particles_solver_nearest_neighbor
+                  call create_extra_particles
+                  call send_ghost_particles
                   call spread_props_grid
                endif
             endif
@@ -5296,7 +5148,11 @@ c----------------------------------------------------------------------
             ffzp =  ptw(ix,iy,iz,e,3)/vtrans(ix,iy,iz,e,1)
      >                              /(1.-ptw(ix,iy,iz,e,4))
             ! energy coupling for cmt-nek
-            qvolp= ptw(ix,iy,iz,e,5) + rhs_fluidp(ix,iy,iz,e,4)
+            if (icmtp .eq. 1) then
+               qvolp= ptw(ix,iy,iz,e,5) + rhs_fluidp(ix,iy,iz,e,4)
+            else
+               qvolp=0.
+            endif
          else
             ffxp = 0.0
             ffyp = 0.0
