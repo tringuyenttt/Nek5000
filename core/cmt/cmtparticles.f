@@ -4399,54 +4399,6 @@ c----------------------------------------------------------------------
             write(6,*) 'TIMER H: ', istep
          endif
 
-            ! Inject particles if needed
-            if (ifinject) call place_particles
-
-            ! Update where particle is stored at
-            ptdum(3) = dnekclock()
-               call move_particles_inproc
-            pttime(3) = pttime(3) + dnekclock() - ptdum(3)
-
-            if (two_way.gt.1) then
-
-               ! Create ghost/wall particles
-               ptdum(4) = dnekclock()
-                  call create_extra_particles
-               pttime(4) = pttime(4) + dnekclock() - ptdum(4)
-
-               ! Send ghost particles
-               ptdum(5) = dnekclock()
-                  call send_ghost_particles
-               pttime(5) = pttime(5) + dnekclock() - ptdum(5)
-   
-               ! Projection to Eulerian grid
-               ptdum(6) = dnekclock()
-                  call spread_props_grid
-               pttime(6) = pttime(6) + dnekclock() - ptdum(6)
-   
-            endif
-         endif
-
-         ! Interpolate Eulerian properties to particle location
-         ptdum(7) = dnekclock()
-            call interp_props_part_location
-         pttime(7) = pttime(7) + dnekclock() - ptdum(7)
-
-         ! Evaluate particle force models
-         ptdum(8) = dnekclock()
-            call usr_particles_forcing  
-         pttime(8) = pttime(8) + dnekclock() - ptdum(8)
-
-         ! Integrate in time
-         ptdum(9) = dnekclock()
-            call rk3_integrate
-         pttime(9) = pttime(9) + dnekclock() - ptdum(9)
-
-         ! Update forces
-         ptdum(10) = dnekclock()
-            call compute_forcing_post_part
-         pttime(10) = pttime(10) + dnekclock() - ptdum(10)
-
          do i = 1,iptlen
             rdum  = pttime(i)/istep
             dtime = glsum(rdum,1)
