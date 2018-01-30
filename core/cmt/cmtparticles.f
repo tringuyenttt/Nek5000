@@ -559,6 +559,8 @@ c
          pttime(1) = pttime(1) + dnekclock() - ptdum(1)
       endif
 
+      icalld = icalld + 1
+
 c     should we inject particles at this time step?
       ifinject = .false.
       if (inject_rate .gt. 0) then
@@ -1863,6 +1865,8 @@ c
       real pmass1,pmass2,rxwall(3),rvwall(3),rdp1,rdp2,one_t
       logical ifcol
 
+      ptdum(11) = dnekclock()
+
       rpart(jfcol  ,i) = 0.
       rpart(jfcol+1,i) = 0.
       rpart(jfcol+2,i) = 0.
@@ -1883,14 +1887,12 @@ c        particles in local elements
                   pmass2 = rpart(jvol,j)*rho_p ! assuming same density!
                   rdp2   = rpart(jdpe,j)
                   rdeff  = 0.5*(rdp1 + rdp2)
-c                 rlamb  = 0.075*deff
-                  rlamb  = 0.
                   rspl2  = rpart(jspl,j)
                   call compute_collide(rpart(jx,i) ,rpart(jx,j) ,
      >                                 rpart(jv0,i),rpart(jv0,j),
-     >                                 rdp1          ,rdp2      ,rdeff,
+     >                                 rdeff,
      >                                 pmass1        ,pmass2    ,
-     >                                 rpart(jfcol,i),rlamb,rspl1,rspl2)
+     >                                 rpart(jfcol,i),rspl1,rspl2)
                endif
             endif
          enddo
@@ -1919,14 +1921,12 @@ c        search list of ghost particles
                pmass2 = rptsgp(jgpvol,j)*rho_p ! assuming same density!
                rdp2 = rptsgp(jgpdpe,j)
                rdeff  = 0.5*(rdp1 + rdp2)
-c              rlamb  = 0.075*deff
-               rlamb  = 0.
                rspl2  = rptsgp(jgpspl,j)
                call compute_collide(rpart(jx,i),rptsgp(jgpx,j),
      >                            rpart(jv0,i),rptsgp(jgpv0,j),
-     >                            rdp1        ,rdp2           ,rdeff,
+     >                            rdeff,
      >                            pmass1      ,pmass2         ,
-     >                            rpart(jfcol,i),rlamb,rspl1,rspl2)
+     >                            rpart(jfcol,i),rspl1,rspl2)
             endif
  1234 continue
          enddo
@@ -1949,19 +1949,19 @@ c        collision with 6 walls, but only when specified by .inp file
                rvwall(3) = 0.
 
                pmass2 = 1E8 ! assume infinite mass
-               rdp2   =  0.  ! zero radius
-               rdeff  = rdp1
-c              rlamb  = 0.150*deff
+               rdeff  = 0.5*rdp1
                rlamb  = 0.
                rspl2  = 1.
                call compute_collide(rpart(jx,i) ,rxwall ,
      >                           rpart(jv0,i),rvwall    ,
-     >                           rdp1        ,rdp2      ,rdeff,
+     >                           rdeff,
      >                           pmass1      ,pmass2    ,
-     >                           rpart(jfcol,i),rlamb,rspl1,rspl2)
+     >                           rpart(jfcol,i),rspl1,rspl2)
             endif
          enddo
       endif
+
+      pttime(11) = pttime(11) + dnekclock() - ptdum(11)
 
       return
       end
@@ -2063,8 +2063,8 @@ c     meant for this element
       return
       end
 c-----------------------------------------------------------------------
-      subroutine compute_collide(rx1,rx2,rv1,rv2,rd1,rd2,deff,
-     >                           rm1,rm2,fcf,rlamb,rspl1,rspl2)
+      subroutine compute_collide(rx1,rx2,rv1,rv2,deff,
+     >                           rm1,rm2,fcf,rspl1,rspl2)
 c
 c     extra body forces
 c
@@ -2077,10 +2077,13 @@ c
       real rx1(3),rx2(3),rv1(3),rv2(3),fcf(3),er,eta,ere
       logical ifcol
 
-c     rlamb = 0.
-      rthresh = 0.5*(rd1 + rd2) + rlamb
+      integer icalld      ! Be careful if varying ksp or e_rest
+      save    icalld
+      data    icalld  /0/
+      real    rmult_save
+      save    rmult_save
 
-c     write(6,*) 'hi', deff, rd1,rd2,rlamb
+      rthresh = rdeff
 
       rxdiff = rx2(1) - rx1(1)
 c     write(6,*) 'yooo1', rxdiff,rthresh
@@ -2097,10 +2100,14 @@ c     write(6,*) 'yooo4', rdiff,rthresh
          goto 1511
       endif
 
-
-      rm12   = 1./(1./rm1 + 1./rm2)
-      eta    = 2.*sqrt(rm12*ksp)*log(e_rest)
-     >                  /sqrt(log(e_rest)**2+pi**2)
+      icalld = icalld + 1
+      if (icalld .eq. 1) then
+         rmult_save =
+     >      2.*sqrt(ksp)*log(e_rest)/sqrt(log(e_rest)**2+pi**2)
+      endif
+         
+      rm12   = rm1*rm2/(rm1 + rm2)
+      eta    = rmult_save*sqrt(rm12)
 
       ! first, handle normal collision part
       rn_12x   = rxdiff/rdiff

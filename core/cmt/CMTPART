@@ -1,5 +1,5 @@
 c     timer stuff ---------------------------------------------------
-      parameter (iptlen=10)
+      parameter (iptlen=11)
       real pttime(iptlen),ptdum(iptlen)
       common /pt_timers/ pttime,ptdum
 
