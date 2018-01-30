@@ -328,7 +328,7 @@ c----------------------------------------------------------------------
                endif
              endif
          endif
-            rtmp_rle2 = rtmp_rle_col
+            rtmp_rle2 = max(rtmp_rle_col,rtmp_rle2)
          else
             ! no filter dependent spreading, so use collision width
             rtmp_rle2 = rtmp_rle_col ! note r/Le > 0.5 is already caught
