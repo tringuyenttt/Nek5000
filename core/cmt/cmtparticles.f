@@ -8,6 +8,8 @@ c  bdf/ext time integration. Otherwise, cmt-nek will not call this fxn.
       include 'CMTDATA'
       include 'CMTPART'
 
+      nstage_part = 3
+      if (abs(time_integ) .eq. 2) nstage_part = 1
 
       if (istep.eq.0) then
          call usr_particles_init
@@ -15,7 +17,7 @@ c  bdf/ext time integration. Otherwise, cmt-nek will not call this fxn.
       else
 
          call set_tstep_coef_part(dt) ! in nek5000 with rk3
-         do stage=1,3
+         do stage=1,nstage_part
             call usr_particles_solver
          enddo
          call compute_phig_qtl(dt,usrdiv) ! nek5000 (see Zwick 2018)
@@ -109,7 +111,7 @@ c        correct nwe if discrepancy on rank 0
          if ((nw_tmp .ne. nw) .and. (nid.eq.0)) nwe = nwe +(nw - nw_tmp)
          
 c        main loop to distribute particles
-         do i = 1,nwe
+         do i_pt_part = 1,nwe
             n = n + 1
 
             call place_particles_user
@@ -145,17 +147,21 @@ c           set global particle id (3 part tag)
 
       else
          ! read in data
-         call read_parallel_restart_part
+         nread_part = 1
+         do j=1,nread_part
+            call read_parallel_restart_part_many(j,nread_part)
+            call move_particles_inproc
+         enddo
 
          ! in case user wants to reset parameter
-         do i=1,n
+         do i_pt_part=1,n
             call place_particles_user
 
             do j=0,2
-               rpart(jv0+j,n) = v_part(j)
-               rpart(jv1+j,n) = v_part(j)
-               rpart(jv2+j,n) = v_part(j)
-               rpart(jv3+j,n) = v_part(j)
+               rpart(jv0+j,i_pt_part) = v_part(j)
+               rpart(jv1+j,i_pt_part) = v_part(j)
+               rpart(jv2+j,i_pt_part) = v_part(j)
+               rpart(jv3+j,i_pt_part) = v_part(j)
             enddo
          enddo
       endif
@@ -271,8 +277,15 @@ c     filter width setup (note deltax is implicit in expressions b4 def)
 
          if (rtmp_rle .gt. 0.5) then
 
+            if (rtmp_rle .lt. 1.0) then
             if (nrect_assume .eq. 2) then
-               if (rtmp_rle .lt. 1.0) goto 123
+               goto 123
+            else
+               deathmessage = 'Resetting to full projection for filter'
+               if (nid.eq. 0) write(6,*) deathmessage
+               nrect_assume = 2
+               goto 123
+            endif
             endif
 
             deathmessage = 'WARNING filter width is too large'
@@ -316,15 +329,24 @@ c----------------------------------------------------------------------
          rdeff_max = glmax(rdeff_max,1)
 
          rtmp_rle2 = d2chk(1)/rleng
-         rtmp_rle_col = rdeff_max/rleng
+         rtmp_rle_col = rdeff_max*1.00/rleng
 
          if ( abs(npro_method) .gt. 1) then
          if ( rtmp_rle_col .gt. rtmp_rle2) then
             if (rtmp_rle_col .gt. 0.5) then
                if (nrect_assume .eq. 2) then
-                  if (rtmp_rle_col .gt. 1) goto 1234
+                  if (rtmp_rle_col .gt. 1) then
+                     goto 1234
+                  else
+                     deathmessage =  
+     >                  'Collision > filter width-Resetting width'
+                     if (nid.eq. 0)write(6,*) deathmessage
+                  endif
                elseif (nrect_assume .eq. 1) then
-                  goto 1234
+                  deathmessage =  
+     >              'Collision > filter width-Using full project now'
+                  if (nid.eq. 0)write(6,*) deathmessage
+                  nrect_assume = 2
                endif
              endif
          endif
@@ -334,18 +356,18 @@ c----------------------------------------------------------------------
             rtmp_rle2 = rtmp_rle_col ! note r/Le > 0.5 is already caught
          endif
       endif
-      goto 1235
+      goto 1237
 
  1234 continue
             deathmessage =  
-     >        'WARNING collision > filter width, element size too small'
+     >        'Collision/filter width is too large!'
             if (nid.eq. 0)write(6,*) deathmessage,rdeff_max,icalld
             call exittr(deathmessage,rdeff_max,icalld)
- 1235 continue
+ 1237 continue
 
-      d2chk(1) = rtmp_rle2*rleng
-      d2chk(2) = d2chk(1)
-      d2chk(3) = d2chk(1)
+      d2chk(1) = max(d2chk(1),rtmp_rle2*rleng)
+      d2chk(2) = d2chk(2)
+      d2chk(3) = rtmp_rle_col*rleng
 
       return
       end
@@ -382,6 +404,7 @@ c     ! particle cfl, particles cant move due to velocity
       dt_dum = rdt_part
       dt_part = 1000.
       cflp = 0.10
+      rvmag_max = 0.
       do i=1,n
          rvmag  = sqrt(rpart(jv0,i)**2 + rpart(jv0+1,i)**2 
      >                 + rpart(jv0+2,i)**2)
@@ -389,7 +412,10 @@ c     ! particle cfl, particles cant move due to velocity
          cflt = dt_dum*rvmag/rdpe_min
          if (cflt .lt. cflp) dt_part = dt_dum
          if (cflt .ge. cflp) dt_part = cflp*rdpe_min/rvmag ! make sure smallest small overlap
+
+         if (rvmag .gt. rvmag_max) rvmag_max = rvmag
       enddo
+      rvmag_max = glmax(rvmag_max,1)
       dt_part  = glmin(dt_part,1)
 
       ! resolving collisions
@@ -405,7 +431,8 @@ c     ! particle cfl, particles cant move due to velocity
          rdt_part = dt_part ! don't set if no collisions!
       endif
 
-      if (nid.eq.0) write(6,*) 'PART DT:', rdt_part,dt_part,dt_col
+      if (nid.eq.0) write(6,*) 'PART DT:', 
+     >      rdt_part,dt_part,dt_col,rvmag_max
 
  1234 continue
 
@@ -515,12 +542,10 @@ c     bdf/ext integration
       if (nar.le.0) call exitti('Error in nar:$',nr)
 
 c     ghost particle integer pointers -------------------------------
-      jgppid1 = 1 ! initial proc number
-      jgppid2 = 2 ! initial local particle id
-      jgppid3 = 3 ! initial time step introduced
-      jgpps   = 4 ! Pointer to proc id for data swap
-      jgppt   = 5 ! findpts return processor id
-      jgpes   = 6 ! Destination element to be sent to
+      jgpiic  = 1 ! if gp used in collisions or not
+      jgpps   = 2 ! Pointer to proc id for data swap
+      jgppt   = 3 ! findpts return processor id
+      jgpes   = 4 ! Destination element to be sent to
 
 c     ghost particle real pointers ----------------------------------
       jgpx    = 1 ! ghost particle xloc
@@ -571,69 +596,60 @@ c     should we inject particles at this time step?
 
       if (istep .gt. time_delay) then
 
-c     scheme 1 --------------------------------------------------------
-      if (abs(time_integ) .eq. 0) then           
+      if (stage.eq.1) then
+         ! Update coordinates if particle moves outside boundary
+         ptdum(2) = dnekclock()
+            call update_particle_location  
+         pttime(2) = pttime(2) + dnekclock() - ptdum(2)
 
-c     rk3 integration -------------------------------------------------
-      elseif (abs(time_integ) .eq. 1) then       
-         if (stage.eq.1) then
-            ! Update coordinates if particle moves outside boundary
-            ptdum(2) = dnekclock()
-               call update_particle_location  
-            pttime(2) = pttime(2) + dnekclock() - ptdum(2)
+         ! Inject particles if needed
+         if (ifinject) call place_particles
 
-            ! Inject particles if needed
-            if (ifinject) call place_particles
+         ! Update where particle is stored at
+         ptdum(3) = dnekclock()
+            call move_particles_inproc
+         pttime(3) = pttime(3) + dnekclock() - ptdum(3)
 
-            ! Update where particle is stored at
-            ptdum(3) = dnekclock()
-               call move_particles_inproc
-            pttime(3) = pttime(3) + dnekclock() - ptdum(3)
+         if (two_way.gt.1) then
 
-            if (two_way.gt.1) then
+            ! Create ghost/wall particles
+            ptdum(4) = dnekclock()
+               call create_extra_particles
+            pttime(4) = pttime(4) + dnekclock() - ptdum(4)
 
-               ! Create ghost/wall particles
-               ptdum(4) = dnekclock()
-                  call create_extra_particles
-               pttime(4) = pttime(4) + dnekclock() - ptdum(4)
-
-               ! Send ghost particles
-               ptdum(5) = dnekclock()
-                  call send_ghost_particles
-               pttime(5) = pttime(5) + dnekclock() - ptdum(5)
+            ! Send ghost particles
+            ptdum(5) = dnekclock()
+               call send_ghost_particles
+            pttime(5) = pttime(5) + dnekclock() - ptdum(5)
    
-               ! Projection to Eulerian grid
-               ptdum(6) = dnekclock()
-                  call spread_props_grid
-               pttime(6) = pttime(6) + dnekclock() - ptdum(6)
+            ! Projection to Eulerian grid
+            ptdum(6) = dnekclock()
+               call spread_props_grid
+            pttime(6) = pttime(6) + dnekclock() - ptdum(6)
    
-            endif
          endif
+      endif
 
-         ! Interpolate Eulerian properties to particle location
-         ptdum(7) = dnekclock()
-            call interp_props_part_location
-         pttime(7) = pttime(7) + dnekclock() - ptdum(7)
+      ! Interpolate Eulerian properties to particle location
+      ptdum(7) = dnekclock()
+         call interp_props_part_location
+      pttime(7) = pttime(7) + dnekclock() - ptdum(7)
 
-         ! Evaluate particle force models
-         ptdum(8) = dnekclock()
-            call usr_particles_forcing  
-         pttime(8) = pttime(8) + dnekclock() - ptdum(8)
+      ! Evaluate particle force models
+      ptdum(8) = dnekclock()
+         call usr_particles_forcing  
+      pttime(8) = pttime(8) + dnekclock() - ptdum(8)
 
-         ! Integrate in time
-         ptdum(9) = dnekclock()
-            call rk3_integrate
-         pttime(9) = pttime(9) + dnekclock() - ptdum(9)
+      ! Integrate in time
+      ptdum(9) = dnekclock()
+         if (abs(time_integ) .eq. 1) call rk3_integrate
+         if (abs(time_integ) .eq. 2) call bdf_integrate
+      pttime(9) = pttime(9) + dnekclock() - ptdum(9)
 
-         ! Update forces
-         ptdum(10) = dnekclock()
-            call compute_forcing_post_part
-         pttime(10) = pttime(10) + dnekclock() - ptdum(10)
-
-c     Other -----------------------------------------------------------
-      elseif (abs(time_integ) .eq. 2) then
-
-      endif ! particle scheme
+      ! Update forces
+      ptdum(10) = dnekclock()
+         call compute_forcing_post_part
+      pttime(10) = pttime(10) + dnekclock() - ptdum(10)
 
       endif ! time_delay
 
@@ -1371,13 +1387,8 @@ c
 
       pi  = 4.0d+0*atan(1.0d+0)
 
-c     scheme 1 ------------------------------------------------------
-      if (abs(time_integ).eq.0) then 
-
-c     RK3 ------------------------------------------------------------
-      elseif (abs(time_integ).eq.1) then 
-
-      call calc_substantial_derivative
+      if ((part_force(2) .ne. 0) .or. (part_force(3) .ne. 0))
+     >   call calc_substantial_derivative
 
       do i=1,n
 c        setup values ------------------------------------------------
@@ -1430,11 +1441,6 @@ c        energy rhs --------------------------------------------------
 
       enddo
 
-c     other ----------------------------------------------------------
-      elseif (abs(time_integ).eq.2) then 
-
-      endif
-
       return
       end
 c-----------------------------------------------------------------------
@@ -1456,50 +1462,41 @@ c
 
       pi  = 4.0d+0*atan(1.0d+0)
 
-c     scheme 1 ------------------------------------------------------- 
-      if (abs(time_integ).eq.0) then 
+      do i=1,n
+         pmass = rpart(jvol,i)*rpart(jrhop,i)
+         pmassf= rpart(jvol,i)*rpart(jrho,i)
+         if (part_force(3).ne.0) pmass =pmass + rpart(jcmiu,i)*pmassf
 
-c     rk3 ------------------------------------------------------------ 
-      elseif (abs(time_integ).eq.1) then
-         do i=1,n
-            pmass = rpart(jvol,i)*rpart(jrhop,i)
-            pmassf= rpart(jvol,i)*rpart(jrho,i)
-            if (part_force(3).ne.0) pmass =pmass + rpart(jcmiu,i)*pmassf
-
-c           momentum forcing to fluid
-            do j=0,ndim-1
-               rdum = 0.
-
-               rdvdt = rpart(jf0+j,i) ! note already divided by Mp + am
-               ram_s = rdvdt*rpart(jcmiu,i)*pmassf
-               rpart(jfiu+j,i) = rpart(jfiu+j,i) - ram_s
-
-c              note that no coupled f_un in this formulation
-               rdum = rdum + rpart(jfiu+j,i)
-               rdum = rdum + rpart(jfqs+j,i)
-
-               rpart(jf0+j,i) = rdum ! now the force to couple with gas
-            enddo
-
-c           energy forcing to fluid (quasi-steady)
-            rpart(jg0,i) = rpart(jv0  ,i)*rpart(jfqs  ,i) + !force work
-     >                     rpart(jv0+1,i)*rpart(jfqs+1,i) +
-     >                     rpart(jv0+2,i)*rpart(jfqs+2,i)
-            rpart(jg0,i) = rpart(jg0,i) + 
-     >                     rpart(ju0  ,i)*rpart(jfiu  ,i) + !iu
-     >                     rpart(ju0+1,i)*rpart(jfiu+1,i) +
-     >                     rpart(ju0+2,i)*rpart(jfiu+2,i)
-
+c        momentum forcing to fluid
+         do j=0,ndim-1
             rdum = 0.
-            rdum = rdum + rpart(jqqs,i)
 
-            rpart(jq0,i) = rdum
+            rdvdt = rpart(jf0+j,i) ! note already divided by Mp + am
+            ram_s = rdvdt*rpart(jcmiu,i)*pmassf
+            rpart(jfiu+j,i) = rpart(jfiu+j,i) - ram_s
 
+c           note that no coupled f_un in this formulation
+            rdum = rdum + rpart(jfiu+j,i)
+            rdum = rdum + rpart(jfqs+j,i)
+
+            rpart(jf0+j,i) = rdum ! now the force to couple with gas
          enddo
-c     other ---------------------------------------------------------- 
-      elseif (abs(time_integ).eq.2) then 
 
-      endif
+c        energy forcing to fluid (quasi-steady)
+         rpart(jg0,i) = rpart(jv0  ,i)*rpart(jfqs  ,i) + !force work
+     >                  rpart(jv0+1,i)*rpart(jfqs+1,i) +
+     >                  rpart(jv0+2,i)*rpart(jfqs+2,i)
+         rpart(jg0,i) = rpart(jg0,i) + 
+     >                  rpart(ju0  ,i)*rpart(jfiu  ,i) + !iu
+     >                  rpart(ju0+1,i)*rpart(jfiu+1,i) +
+     >                  rpart(ju0+2,i)*rpart(jfiu+2,i)
+
+         rdum = 0.
+         rdum = rdum + rpart(jqqs,i)
+
+         rpart(jq0,i) = rdum
+
+      enddo
 
       return
       end
@@ -1690,7 +1687,6 @@ c
 
       real nu_g,S_qs,rpra,kappa_g
 
-      ! begin timer
       pi      = 4.0d+0*atan(1.0d+0)
 
       kappa_g = abs(param(8))
@@ -1706,9 +1702,6 @@ c
          S_qs    = 0.
          rpart(jqqs,ii) = S_qs
       endif
-
-
-      ! end timer
 
       return
       end
@@ -1762,8 +1755,6 @@ c        need to fix, fake, no D(rho_f u)/Dt contribution
 
          rpart(jfiu+jj,ii) = 0.
       endif
-
-
 
       return
       end
@@ -1887,49 +1878,34 @@ c        particles in local elements
                   pmass2 = rpart(jvol,j)*rho_p ! assuming same density!
                   rdp2   = rpart(jdpe,j)
                   rdeff  = 0.5*(rdp1 + rdp2)
-                  rspl2  = rpart(jspl,j)
                   call compute_collide(rpart(jx,i) ,rpart(jx,j) ,
      >                                 rpart(jv0,i),rpart(jv0,j),
      >                                 rdeff,
      >                                 pmass1        ,pmass2    ,
-     >                                 rpart(jfcol,i),rspl1,rspl2)
+     >                                 rpart(jfcol,i))
                endif
             endif
          enddo
 
 c        search list of ghost particles
          do j = 1,nfptsgp
-            ! exclude if same particle
-            if (iptsgp(jgppid1,j) .eq. ipart(jpid1,i)) then
-            if (iptsgp(jgppid2,j) .eq. ipart(jpid2,i)) then
-            if (iptsgp(jgppid3,j) .eq. ipart(jpid3,i)) then
-               goto 1234
-            endif
-            endif
-            endif
-            ! exclude if wall particle mirror
-            if (iptsgp(jgppid1,j) .eq. -1) then
-            if (iptsgp(jgppid2,j) .eq. -1) then
-            if (iptsgp(jgppid3,j) .eq. -1) then
-               goto 1234
-            endif
-            endif
-            endif
+            ! exclude if not meant for collisions
+            if (iptsgp(jgpiic,j) .eq. 1) goto 1235
+
             call check_remote_cols(i,j,ifcol)
 
             if (ifcol) then
                pmass2 = rptsgp(jgpvol,j)*rho_p ! assuming same density!
                rdp2 = rptsgp(jgpdpe,j)
                rdeff  = 0.5*(rdp1 + rdp2)
-               rspl2  = rptsgp(jgpspl,j)
                call compute_collide(rpart(jx,i),rptsgp(jgpx,j),
      >                            rpart(jv0,i),rptsgp(jgpv0,j),
      >                            rdeff,
      >                            pmass1      ,pmass2         ,
-     >                            rpart(jfcol,i),rspl1,rspl2)
+     >                            rpart(jfcol,i))
             endif
- 1234 continue
          enddo
+ 1235 continue
 
 c        collision with 6 walls, but only when specified by .inp file 
          do j = 1,6
@@ -1951,12 +1927,11 @@ c        collision with 6 walls, but only when specified by .inp file
                pmass2 = 1E8 ! assume infinite mass
                rdeff  = 0.5*rdp1
                rlamb  = 0.
-               rspl2  = 1.
                call compute_collide(rpart(jx,i) ,rxwall ,
      >                           rpart(jv0,i),rvwall    ,
      >                           rdeff,
      >                           pmass1      ,pmass2    ,
-     >                           rpart(jfcol,i),rspl1,rspl2)
+     >                           rpart(jfcol,i))
             endif
          enddo
       endif
@@ -2064,7 +2039,7 @@ c     meant for this element
       end
 c-----------------------------------------------------------------------
       subroutine compute_collide(rx1,rx2,rv1,rv2,rdeff,
-     >                           rm1,rm2,fcf,rspl1,rspl2)
+     >                           rm1,rm2,fcf)
 c
 c     extra body forces
 c
@@ -2116,6 +2091,14 @@ c     write(6,*) 'yooo4', rdiff,rthresh
 
       rdelta12 = rthresh - rdiff
 c     if (rdelta12 .lt. 0) rdelta12 = 0. ! no overlap
+
+      ! DZ CHECK HERE
+      rtdum = 0.01*rdeff
+c     if (rm2 .lt. 1E2) then ! dont do for walls
+         if (rdelta12 .gt. rtdum) rdelta12 = rtdum
+c     endif
+      ! DZ CHECK HERE
+      
       
       rv12_mag = (rv2(1) - rv1(1))*rn_12x +
      >           (rv2(2) - rv1(2))*rn_12y +
@@ -2165,6 +2148,14 @@ c     send ghost particles
       call fgslib_crystal_tuple_transfer(i_cr_hndl,nfptsgp,llpart
      $           , iptsgp,nigp,partl,0,rptsgp,nrgp,jgpps) ! jgpps is overwri
 
+c     sort ghost particles by jgpiic for quick discard in collision
+c     algorithm. Note that jgpiic loc in iptsgp has values of 0 (used
+c     in collisions) or 1 (not used in collisions, but for projection)
+      if (two_way .gt. 2) then
+      call fgslib_crystal_tuple_sort    (i_cr_hndl,nfptsgp
+     $              , iptsgp,nigp,partl,0,rptsgp,nrgp,jgpiic,1)
+      endif
+
       return
       end
 c-----------------------------------------------------------------------
@@ -2181,8 +2172,7 @@ c
       include 'CMTPART'
 
 c     create ghost particles
-      if (nrect_assume .eq. 2) call create_ghost_particles_rect_full
-      if (nrect_assume .eq. 1) call create_ghost_particles_rect
+      call create_ghost_particles_rect
       if (nrect_assume .gt. 0) call create_wall_particles_image
 
       return
@@ -2210,7 +2200,6 @@ c
       idummap(2,2) = 4
       idummap(1,3) = 5
       idummap(2,3) = 6
-
 
       rthresh = 1E-9
 
@@ -2263,9 +2252,7 @@ c
                rptsgp(jgpv0+1,nfptsgp) = rpart(jv0+1,i) ! particle velocity
                rptsgp(jgpv0+2,nfptsgp) = rpart(jv0+2,i) ! particle velocity
                
-               iptsgp(jgppid1,nfptsgp) = -1
-               iptsgp(jgppid2,nfptsgp) = -1
-               iptsgp(jgppid3,nfptsgp) = -1
+               iptsgp(jgpiic,nfptsgp)  =  1
                
                   ipdum  = nid
                   iedum  = ipart(je0,i)
@@ -2295,9 +2282,7 @@ c
                      rptsgp(jgpv0+1,nfptsgp) = rpart(jv0+1,i) ! particle velocity
                      rptsgp(jgpv0+2,nfptsgp) = rpart(jv0+2,i) ! particle velocity
                    
-                     iptsgp(jgppid1,nfptsgp) = -1
-                     iptsgp(jgppid2,nfptsgp) = -1
-                     iptsgp(jgppid3,nfptsgp) = -1
+                     iptsgp(jgpiic,nfptsgp)  =  1
                    
                         ipdum  = el_face_proc_map(ie,ifc)
                         iedum  = el_face_el_map(ie,ifc)
@@ -2330,9 +2315,7 @@ c
                      rptsgp(jgpv0+1,nfptsgp) = rpart(jv0+1,i) ! particle velocity
                      rptsgp(jgpv0+2,nfptsgp) = rpart(jv0+2,i) ! particle velocity
                    
-                     iptsgp(jgppid1,nfptsgp) = -1
-                     iptsgp(jgppid2,nfptsgp) = -1
-                     iptsgp(jgppid3,nfptsgp) = -1
+                     iptsgp(jgpiic,nfptsgp)  =  1
                    
                         ipdum  = el_edge_proc_map(ie,ifc)
                         iedum  = el_edge_el_map(ie,ifc)
@@ -2364,9 +2347,7 @@ c
                      rptsgp(jgpv0+1,nfptsgp) = rpart(jv0+1,i) ! particle velocity
                      rptsgp(jgpv0+2,nfptsgp) = rpart(jv0+2,i) ! particle velocity
                    
-                     iptsgp(jgppid1,nfptsgp) = -1
-                     iptsgp(jgppid2,nfptsgp) = -1
-                     iptsgp(jgppid3,nfptsgp) = -1
+                     iptsgp(jgpiic,nfptsgp)  =  1
                    
                         ipdum  = el_corner_proc_map(ie,ifc)
                         iedum  = el_corner_el_map(ie,ifc)
@@ -2404,103 +2385,127 @@ c
 
       nfptsgp = 0
       do i = 1,n
-         ie = ipart(je0,i) + 1
-c        vector coordinates of what faces a particle is next to
-         ii = 0
-         jj = 0
-         kk = 0
-         if (abs(rpart(jx,i) - xerange(1,1,ie)).lt.d2chk(1)) ii=-1
-         if (abs(rpart(jx,i) - xerange(2,1,ie)).lt.d2chk(1)) ii=1
-         if (abs(rpart(jy,i) - xerange(1,2,ie)).lt.d2chk(2)) jj=-1
-         if (abs(rpart(jy,i) - xerange(2,2,ie)).lt.d2chk(2)) jj=1
-         if (abs(rpart(jz,i) - xerange(1,3,ie)).lt.d2chk(3)) kk=-1
-         if (abs(rpart(jz,i) - xerange(2,3,ie)).lt.d2chk(3)) kk=1
+         ie = ipart(je0,i)+1
+         ! collisions
+         iic1 = 0
+         iic2 = 0
+         iic3 = 0
+         if (abs(rpart(jx,i) - xerange(1,1,ie)).lt.d2chk(3)) iic1 = -1
+         if (abs(rpart(jx,i) - xerange(2,1,ie)).lt.d2chk(3)) iic1 = 1
+         if (abs(rpart(jy,i) - xerange(1,2,ie)).lt.d2chk(3)) iic2 = -1
+         if (abs(rpart(jy,i) - xerange(2,2,ie)).lt.d2chk(3)) iic2 = 1
+         if (abs(rpart(jz,i) - xerange(1,3,ie)).lt.d2chk(3)) iic3 = -1
+         if (abs(rpart(jz,i) - xerange(2,3,ie)).lt.d2chk(3)) iic3 = 1
 
-         itype = abs(ii)+abs(jj)+abs(kk) ! face (1), edge (2), or
-                                         ! corner (3) particle
+         ! projection
+         iip1 = 0
+         iip2 = 0
+         iip3 = 0
+         if (abs(rpart(jx,i) - xerange(1,1,ie)).lt.d2chk(1)) iip1 = -1
+         if (abs(rpart(jx,i) - xerange(2,1,ie)).lt.d2chk(1)) iip1 = 1
+         if (abs(rpart(jy,i) - xerange(1,2,ie)).lt.d2chk(1)) iip2 = -1
+         if (abs(rpart(jy,i) - xerange(2,2,ie)).lt.d2chk(1)) iip2 = 1
+         if (abs(rpart(jz,i) - xerange(1,3,ie)).lt.d2chk(1)) iip3 = -1
+         if (abs(rpart(jz,i) - xerange(2,3,ie)).lt.d2chk(1)) iip3 = 1
 
-         if (itype.eq.1) then          ! face particle
-            call gp_create(ii,jj,kk,i,
-     >       nfacegp,el_face_num,el_face_proc_map,el_face_el_map)
-         elseif (itype.eq.2) then      ! edge particle
-            call gp_create(ii,jj,kk,i,
-     >       nedgegp,el_edge_num,el_edge_proc_map,el_edge_el_map)
-            if (abs(ii) + abs(jj) .eq. 2) then
-               call gp_create(0,jj,kk,i,
-     >          nfacegp,el_face_num,el_face_proc_map,el_face_el_map)
-               call gp_create(ii,0,kk,i,
-     >          nfacegp,el_face_num,el_face_proc_map,el_face_el_map)
-            elseif (abs(ii) + abs(kk) .eq. 2) then
-               call gp_create(0,jj,kk,i,
-     >          nfacegp,el_face_num,el_face_proc_map,el_face_el_map)
-               call gp_create(ii,jj,0,i,
-     >          nfacegp,el_face_num,el_face_proc_map,el_face_el_map)
-            elseif (abs(jj) + abs(kk) .eq. 2) then
-               call gp_create(ii,0,kk,i,
-     >          nfacegp,el_face_num,el_face_proc_map,el_face_el_map)
-               call gp_create(ii,jj,0,i,
-     >          nfacegp,el_face_num,el_face_proc_map,el_face_el_map)
-            endif
-         elseif (itype.eq.3) then       ! corner particle
-            call gp_create(ii,jj,kk,i,
-     >       ncornergp,el_corner_num,el_corner_proc_map,
-     >       el_corner_el_map)
-            call gp_create(0,jj,kk,i,
-     >       nedgegp,el_edge_num,el_edge_proc_map,el_edge_el_map)
-            call gp_create(ii,0,kk,i,
-     >       nedgegp,el_edge_num,el_edge_proc_map,el_edge_el_map)
-            call gp_create(ii,jj,0,i,
-     >       nedgegp,el_edge_num,el_edge_proc_map,el_edge_el_map)
-            call gp_create(ii,0,0,i,
-     >       nfacegp,el_face_num,el_face_proc_map,el_face_el_map)
-            call gp_create(0,jj,0,i,
-     >       nfacegp,el_face_num,el_face_proc_map,el_face_el_map)
-            call gp_create(0,0,kk,i,
-     >       nfacegp,el_face_num,el_face_proc_map,el_face_el_map)
-         endif
-      enddo
-
-      return
-      end
-c-----------------------------------------------------------------------
-      subroutine create_ghost_particles_rect_full
-c
-c     this routine will create ghost particles by checking if particle
-c     is within d2chk of element faces
-c
-c     ghost particle x,y,z list will be in rptsgp(jgpx,j),rptsgp(jgpy,j),
-c     rptsgp(jgpz,j), while processor and local element id are in
-c     iptsgp(jgppt,j) and iptsgp(jgpes,j)
-c
-      include 'SIZE'
-      include 'TOTAL'
-      include 'CMTDATA'
-      include 'CMTPART'
-
-      nfptsgp = 0
-      do i = 1,n
          do j=1,3*nfacegp-2,3   ! faces
             ii = el_face_num(j) 
             jj = el_face_num(j+1) 
             kk = el_face_num(j+2) 
-            call gp_create(ii,jj,kk,i,
+
+            iip = 0
+            iic = 1
+            if (ii .ne. 0) then
+            if (iic1 .eq. ii) then
+               iic = 0
+               iip = 1
+            endif
+            endif
+            if (jj .ne. 0) then
+            if (iic2 .eq. jj) then
+               iic = 0
+               iip = 1
+            endif
+            endif
+            if (kk .ne. 0) then
+            if (iic3 .eq. kk) then
+               iic = 0
+               iip = 1
+            endif
+            endif
+
+            if (nrect_assume .eq. 2) iip = 1
+            if (iip .eq. 1) then
+            call gp_create(ii,jj,kk,iic,i,
      >       nfacegp,el_face_num,el_face_proc_map,el_face_el_map)
+            endif
          enddo
 
          do j=1,3*nedgegp-2,3   ! edges
             ii = el_edge_num(j) 
             jj = el_edge_num(j+1) 
             kk = el_edge_num(j+2) 
-            call gp_create(ii,jj,kk,i,
+
+            iip = 0
+            iic = 1
+            if (ii .ne. 0) then
+            if (jj .ne. 0) then
+            ! ii jj
+            if (iic1 .eq. ii) then
+            if (iic2 .eq. jj) then
+               iic = 0 
+               iip = 1
+            endif
+            endif
+            elseif (kk .ne. 0) then
+            ! ii kk
+            if (iic1 .eq. ii) then
+            if (iic3 .eq. kk) then
+               iic = 0 
+               iip = 1
+            endif
+            endif
+            endif
+            elseif (jj .ne. 0) then
+            if (kk .ne. 0) then
+            ! jj kk
+            if (iic2 .eq. jj) then
+            if (iic3 .eq. kk) then
+               iic = 0 
+               iip = 1
+            endif
+            endif
+            endif
+            endif
+
+            if (nrect_assume .eq. 2) iip = 1
+            if (iip .eq. 1) then
+            call gp_create(ii,jj,kk,iic,i,
      >       nedgegp,el_edge_num,el_edge_proc_map,el_edge_el_map)
+            endif
          enddo
 
          do j=1,3*ncornergp-2,3   ! corners
             ii = el_corner_num(j) 
             jj = el_corner_num(j+1) 
             kk = el_corner_num(j+2) 
-            call gp_create(ii,jj,kk,i,
+
+            iip = 0
+            iic = 1
+            if (iic1 .eq. ii) then
+            if (iic2 .eq. jj) then
+            if (iic3 .eq. kk) then
+               iic = 0
+               iip = 1
+            endif
+            endif
+            endif
+
+            if (nrect_assume .eq. 2) iip = 1
+            if (iip .eq. 1) then
+            call gp_create(ii,jj,kk,iic,i,
      >     ncornergp,el_corner_num,el_corner_proc_map,el_corner_el_map)
+            endif
          enddo
 
       enddo
@@ -2508,7 +2513,7 @@ c
       return
       end
 c-----------------------------------------------------------------------
-      subroutine gp_create(ii,jj,kk,i,
+      subroutine gp_create(ii,jj,kk,iic,i,
      >             nnl,el_tmp_num,el_tmp_proc_map,el_tmp_el_map)
 c
 c     this routine will create a ghost particle and append its position
@@ -2623,9 +2628,7 @@ c           endif
             rptsgp(jgpv0+1,nfptsgp) = rpart(jv0+1,i) ! particle velocity
             rptsgp(jgpv0+2,nfptsgp) = rpart(jv0+2,i) ! particle velocity
 
-            iptsgp(jgppid1,nfptsgp) = ipart(jpid1,i)          ! part id 1 tag
-            iptsgp(jgppid2,nfptsgp) = ipart(jpid2,i)          ! part id 2 tag
-            iptsgp(jgppid3,nfptsgp) = ipart(jpid3,i)          ! part id 3 tag
+            iptsgp(jgpiic,nfptsgp)  = iic            ! use in collisions
 
                ipdum  = el_tmp_proc_map(ie,ic)
                iedum  = el_tmp_el_map(ie,ic)
@@ -2796,7 +2799,7 @@ c     face, edge, and corner number, x,y,z are all inline, so stride=3
       ncornergp = 8  ! number of corners
       idum      = 0  ! dummy arguement
 
-      rtmult = 1.1
+      rtmult = 1.5
 
       icount = 0 
       do i=1,nelt
@@ -3618,7 +3621,7 @@ c         output data so files can be easily converted to binary
       return
       end
 c----------------------------------------------------------------------
-      subroutine read_parallel_restart_part
+      subroutine read_parallel_restart_part_many(iit,imax)
       include 'SIZE'
       include 'SOLN'
       include 'INPUT'
@@ -3637,7 +3640,28 @@ c----------------------------------------------------------------------
       integer      prevs(0:np-1),npt_total,e,oldfile
       real         realtmp(42,llpart)
 
+      real    rinit
+      save    rinit
+
       rpi    = 4.0d+0*atan(1.d+0) ! pi
+
+!     set up copying above in the y direction if iterations > 1
+      if (iit .eq. 2) then
+         rmin = 1E8
+         do i=1,n
+            if (rpart(jy,i)-rpart(jdpe,i)/2. .lt. rmin) 
+     >                    rmin = rpart(jy,i) - rpart(jdpe,i)/2.
+         enddo
+         rmin = glmin(rmin,1)
+         rmax = -1E8
+         do i=1,n
+            if (rpart(jy,i)+rpart(jdpe,i)/2. .gt. rmax) 
+     >                    rmax = rpart(jy,i) + rpart(jdpe,i)/2.
+         enddo
+         rmax = glmax(rmax,1)
+         rinit = rmax - rmin
+      endif
+      rshift = rinit*(iit-1)
 
 c     setup files to write to mpi 
       write(locstring,'(A8,I5.5,A3)') 'rpartxyz', ipart_restartr, '.3D' 
@@ -3647,17 +3671,30 @@ c     setup files to write to mpi
          read(364,*) nw
       close(364)
 
-      n         = int(nw/np)                ! num. part per proc
-      nw_tmp    = iglsum(n,1)
-      if ((nw_tmp .ne. nw) .and. (nid.eq.0)) n = n + (nw - nw_tmp)
+      npmax     = 4096 ! may make larger?
+
+      if (np .le. npmax) then
+
+      nnp       = int(nw/np)                ! num. part per proc
+      nw_tmp    = iglsum(nnp,1)
+      if ((nw_tmp .ne. nw) .and. (nid.eq.0)) nnp = nnp + (nw - nw_tmp)
+
+      else
+
+      nnp       = int(nw/npmax)                ! num. part per proc
+      if (nid.gt.npmax-1) nnp = 0
+      nw_tmp    = iglsum(nnp,1)
+      if ((nw_tmp .ne. nw) .and. (nid.eq.0)) nnp = nnp + (nw - nw_tmp)
+
+      endif
 
       ! now preparing to read in parallel
-      call MPI_Send(n, 1, MPI_INTEGER, 0, 0, nekcomm, ierr)
-      npt_total = iglsum(n,1)
+      call MPI_Send(nnp, 1, MPI_INTEGER, 0, 0, nekcomm, ierr)
+      npt_total = iglsum(nnp,1)
 
       ! keep track of how many particles are on previous procs
       if (nid.eq. 0) then
-          prevs(0) = n
+          prevs(0) = nnp
           do i=1,np-1
              call MPI_Recv(prevs(i),1,MPI_INTEGER,i,
      >                        0,nekcomm,status_mpi,ierr)
@@ -3680,59 +3717,61 @@ c     setup files to write to mpi
       call MPI_FILE_SET_VIEW(oldfile, disp, MPI_DOUBLE_PRECISION,
      >                       MPI_DOUBLE_PRECISION, "native", 
      >                       MPI_INFO_NULL, ierr) 
-      call MPI_FILE_READ(oldfile, realtmp(1,1), n*42,
+      call MPI_FILE_READ(oldfile, realtmp(1,1), nnp*42,
      >                  MPI_DOUBLE_PRECISION,
      >                  MPI_STATUS_IGNORE, ierr) 
 
       call MPI_FILE_CLOSE(oldfile, ierr) 
 
+      i = n
 c     assign values to rpart and ipart
-      do i = 1,n
-         rpart(jx,i)           =  realtmp(1,i) 
-         rpart(jy,i)           =  realtmp(2,i)  
-         rpart(jz,i)           =  realtmp(3,i)  
-         rpart(jx1+0,i)        =  realtmp(4,i)  
-         rpart(jx1+1,i)        =  realtmp(5,i)  
-         rpart(jx1+2,i)        =  realtmp(6,i)  
-         rpart(jx2+0,i)        =  realtmp(7,i)  
-         rpart(jx2+1,i)        =  realtmp(8,i)  
-         rpart(jx2+2,i)        =  realtmp(9,i)  
-         rpart(jx3+0,i)        =  realtmp(10,i)
-         rpart(jx3+1,i)        =  realtmp(11,i)
-         rpart(jx3+2,i)        =  realtmp(12,i)
+      do ii = 1,nnp
+         i = n + ii
+         rpart(jx,i)           =  realtmp(1,ii) 
+         rpart(jy,i)           =  realtmp(2,ii)  + rshift
+         rpart(jz,i)           =  realtmp(3,ii)  
+         rpart(jx1+0,i)        =  realtmp(4,ii)  
+         rpart(jx1+1,i)        =  realtmp(5,ii)  + rshift
+         rpart(jx1+2,i)        =  realtmp(6,ii)  
+         rpart(jx2+0,i)        =  realtmp(7,ii)  
+         rpart(jx2+1,i)        =  realtmp(8,ii)  + rshift
+         rpart(jx2+2,i)        =  realtmp(9,ii)  
+         rpart(jx3+0,i)        =  realtmp(10,ii)
+         rpart(jx3+1,i)        =  realtmp(11,ii) + rshift
+         rpart(jx3+2,i)        =  realtmp(12,ii)
                                                
-         rpart(jv0,i)          =  realtmp(13,i)
-         rpart(jv0+1,i)        =  realtmp(14,i)
-         rpart(jv0+2,i)        =  realtmp(15,i)
-         rpart(jv1+0,i)        =  realtmp(16,i)
-         rpart(jv1+1,i)        =  realtmp(17,i)
-         rpart(jv1+2,i)        =  realtmp(18,i)
-         rpart(jv2+0,i)        =  realtmp(19,i)
-         rpart(jv2+1,i)        =  realtmp(20,i)
-         rpart(jv2+2,i)        =  realtmp(21,i)
-         rpart(jv3+0,i)        =  realtmp(22,i)
-         rpart(jv3+1,i)        =  realtmp(23,i)
-         rpart(jv3+2,i)        =  realtmp(24,i)
+         rpart(jv0,i)          =  realtmp(13,ii)
+         rpart(jv0+1,i)        =  realtmp(14,ii)
+         rpart(jv0+2,i)        =  realtmp(15,ii)
+         rpart(jv1+0,i)        =  realtmp(16,ii)
+         rpart(jv1+1,i)        =  realtmp(17,ii)
+         rpart(jv1+2,i)        =  realtmp(18,ii)
+         rpart(jv2+0,i)        =  realtmp(19,ii)
+         rpart(jv2+1,i)        =  realtmp(20,ii)
+         rpart(jv2+2,i)        =  realtmp(21,ii)
+         rpart(jv3+0,i)        =  realtmp(22,ii)
+         rpart(jv3+1,i)        =  realtmp(23,ii)
+         rpart(jv3+2,i)        =  realtmp(24,ii)
                                                
-         rpart(ju0,i)          =  realtmp(25,i)
-         rpart(ju0+1,i)        =  realtmp(26,i)
-         rpart(ju0+2,i)        =  realtmp(27,i)
-         rpart(ju1+0,i)        =  realtmp(28,i)
-         rpart(ju1+1,i)        =  realtmp(29,i)
-         rpart(ju1+2,i)        =  realtmp(30,i)
-         rpart(ju2+0,i)        =  realtmp(31,i)
-         rpart(ju2+1,i)        =  realtmp(32,i)
-         rpart(ju2+2,i)        =  realtmp(33,i)
-         rpart(ju3+0,i)        =  realtmp(34,i)
-         rpart(ju3+1,i)        =  realtmp(35,i)
-         rpart(ju3+2,i)        =  realtmp(36,i)
+         rpart(ju0,i)          =  realtmp(25,ii)
+         rpart(ju0+1,i)        =  realtmp(26,ii)
+         rpart(ju0+2,i)        =  realtmp(27,ii)
+         rpart(ju1+0,i)        =  realtmp(28,ii)
+         rpart(ju1+1,i)        =  realtmp(29,ii)
+         rpart(ju1+2,i)        =  realtmp(30,ii)
+         rpart(ju2+0,i)        =  realtmp(31,ii)
+         rpart(ju2+1,i)        =  realtmp(32,ii)
+         rpart(ju2+2,i)        =  realtmp(33,ii)
+         rpart(ju3+0,i)        =  realtmp(34,ii)
+         rpart(ju3+1,i)        =  realtmp(35,ii)
+         rpart(ju3+2,i)        =  realtmp(36,ii)
                                                
-         rpart(jdp,i)          =  realtmp(37,i)
-         rpart(jspl,i)         =  realtmp(38,i)
-         rpart(jtemp,i)        =  realtmp(39,i)
-         ipart(jpid1,i)        =  nint(realtmp(40,i))
-         ipart(jpid2,i)        =  nint(realtmp(41,i))
-         ipart(jpid3,i)        =  nint(realtmp(42,i))
+         rpart(jdp,i)          =  realtmp(37,ii)
+         rpart(jspl,i)         =  realtmp(38,ii)
+         rpart(jtemp,i)        =  realtmp(39,ii)
+         ipart(jpid1,i)        =  nint(realtmp(40,ii))
+         ipart(jpid2,i)        =  nint(realtmp(41,ii))
+         ipart(jpid3,i)        =  nint(realtmp(42,ii))
 
          ! extra stuff
          rpart(jtaup,i) = rpart(jdp,i)**2*rho_p/18.0d+0/mu_0
@@ -3741,6 +3780,11 @@ c     assign values to rpart and ipart
          rpart(jgam,i)  = 1.          ! initial integration correction
 
       enddo
+
+      n = i
+      nmax = iglmax(n,1)
+      if (nid.eq.0)
+     >       write(6,*)'Read-',locstring,rshift,iit,imax,nmax,llpart
 
       return
       end
@@ -4108,6 +4152,7 @@ c----------------------------------------------------------------------
       write(outstring,'(A9,I5.5)') 'avgsdatay', icalld
 
       rlengy = ym1(1,ny1,1,1) - ym1(1,1,1,1)
+      rlengy = glmin(rlengy,1)
       do i=1,ny1 
          rygls(i) = (ygll(i) + 1.)*rlengy/2.
       enddo
@@ -4116,7 +4161,8 @@ c----------------------------------------------------------------------
       rys = xdrange(1,2)
       ryt = rys
       icm = 1
-      do while (abs(rys - xdrange(2,2)) .ge. rthresh)
+
+      do while (abs(rxs - xdrange(2,1)) .ge. rthresh)
 
          do i=1,ny1
             rys = ryt + rygls(i)
@@ -4523,7 +4569,6 @@ c-----------------------------------------------------------------------
          yloc = rpart(jy,ip)
          zloc = rpart(jz,ip)
          itest = 0
-         if (nrect_assume .eq. 0) goto 1511
          do ie=1,nelt
             if (xloc.ge.xerange(1,1,ie).and.xloc.le.xerange(2,1,ie))then
             if (yloc.ge.xerange(1,2,ie).and.yloc.le.xerange(2,2,ie))then
@@ -4548,7 +4593,6 @@ c-----------------------------------------------------------------------
             endif
             endif
          enddo
- 1511 continue
          if (itest.eq.0)then
             nfpts = nfpts + 1
             ifptsmap(nfpts) = ip
@@ -4746,7 +4790,7 @@ c
 c     ralphd   = 1E10   ! dummy so it will spread everywhere
 c     ralphd2   = 1E10  ! dummy so it will spread everywhere
 
-      ralphd    = d2chk(1)     ! assume all directions same!
+      ralphd    = d2chk(2)     ! assume all directions same!
       ralphd2   = ralphd**2
 
       do iie=1,27         
@@ -5060,43 +5104,99 @@ c
       include 'CMTDATA'
       include 'CMTPART'
 
+      common /elementload/ gfirst, inoassignd, resetFindpts, pload(lelg)
+      integer gfirst, inoassignd, resetFindpts, pload
+
       nmax_step = 300000000  ! number of pre-iteration steps
 
-      rtime = 0.
+      nstage_part = 3
+      if (abs(time_integ) .eq. 2) nstage_part = 1
 
       ! pre simulation iteration for packed bed
-      do i=1,nmax_step
+      do istep=0,nmax_step
 
-         if (nid.eq. 0) write(6,*) 'pre-sim_io time',i,rtime,dt_cmt
-         if(mod(i,iostep).eq.0) then
+         if (istep.eq.0) then
+            time = 0
+            pttime(1) = 0.
+         else
+            pttime(1) = pttime(1) + dnekclock() - ptdum(1)
+         endif
+
+         if (nid.eq. 0) write(6,*) 'pre-sim_io time',istep,time,dt_cmt
+         if(mod(istep,iostep).eq.0) then
             call usr_particles_io
          endif
 
-         do stage=1,3
+         do stage=1,nstage_part
 
             if (stage .eq. 1) then
                rdt_part = abs(param(12))
                call set_dt_particles(rdt_part)
                dt_cmt = rdt_part
                dt     = dt_cmt
-               rtime = rtime + dt_cmt
-               call set_tstep_coef_part(rdt_part)
+               time   = time + dt_cmt
+               if (abs(time_integ).eq.1)
+     >            call set_tstep_coef_part(rdt_part)
 
-               call update_particle_location
-               call move_particles_inproc
+               ! Update coordinates if particle moves outside boundary
+               ptdum(2) = dnekclock()
+                  call update_particle_location  
+               pttime(2) = pttime(2) + dnekclock() - ptdum(2)
+
+               resetFindpts = 0
+               ilbstep = param(78)
+               if ((mod(istep,ilbstep).eq.0) .or. (istep.eq.100)) then
+                  ! Load balance if applicable
+                  resetFindpts = 1
+                  call computeRatio
+                  call reinitialize
+                  !call printVerify
+               else
+                  ! Update where particle is stored at
+                  ptdum(3) = dnekclock()
+                     call move_particles_inproc
+                  pttime(3) = pttime(3) + dnekclock() - ptdum(3)
+               endif
 
                if (two_way.gt.1) then
-                  call create_extra_particles
-                  call send_ghost_particles
-                  call spread_props_grid
+                  ! Create ghost/wall particles
+                  ptdum(4) = dnekclock()
+                     call create_extra_particles
+                  pttime(4) = pttime(4) + dnekclock() - ptdum(4)
+                  
+                  ! Send ghost particles
+                  ptdum(5) = dnekclock()
+                     call send_ghost_particles
+                  pttime(5) = pttime(5) + dnekclock() - ptdum(5)
+                  
+                  ! Projection to Eulerian grid
+                  ptdum(6) = dnekclock()
+                     call spread_props_grid
+                  pttime(6) = pttime(6) + dnekclock() - ptdum(6)
                endif
             endif
 
-            call usr_particles_forcing ! at most only qs,user,col here
-            call rk3_integrate
+            ! Evaluate particle force models
+            ptdum(8) = dnekclock()
+               call usr_particles_forcing  
+            pttime(8) = pttime(8) + dnekclock() - ptdum(8)
+   
+            ! Integrate in time
+            ptdum(9) = dnekclock()
+               if (abs(time_integ) .eq. 1) call rk3_integrate
+               if (abs(time_integ) .eq. 2) call bdf_integrate
+            pttime(9) = pttime(9) + dnekclock() - ptdum(9)
+   
+            ! Update forces
+            ptdum(10) = dnekclock()
+               call compute_forcing_post_part
+            pttime(10) = pttime(10) + dnekclock() - ptdum(10)
 
          enddo
+
+         ptdum(1) = dnekclock()
       enddo
+
 
       return
       end
@@ -5141,6 +5241,52 @@ c----------------------------------------------------------------------
       return
       end
 c-----------------------------------------------------------------------
+      subroutine bdf_integrate
+      include 'SIZE'
+      include 'TOTAL'
+      include 'CMTDATA'
+      include 'CMTPART'
+
+      common /myparts/ times(0:3),alpha(0:3),beta(0:3)
+      
+      real s,pmass
+
+      call get_bdf_ext_coefs(beta,alpha,times)
+
+      jx0 = jx
+c     move data to previous positions
+      do j=0,ndim-1
+      do i=1,n
+         rpart(ju3+j,i)=rpart(ju2+j,i)
+         rpart(ju2+j,i)=rpart(ju1+j,i)
+         rpart(ju1+j,i)=rpart(ju0+j,i)
+         rpart(jv3+j,i)=rpart(jv2+j,i)
+         rpart(jv2+j,i)=rpart(jv1+j,i)
+         rpart(jv1+j,i)=rpart(jv0+j,i)
+         rpart(jx3+j,i)=rpart(jx2+j,i)
+         rpart(jx2+j,i)=rpart(jx1+j,i)
+         rpart(jx1+j,i)=rpart(jx0+j,i)
+      enddo
+      enddo
+
+c     Solve for velocity at time t^n
+      do i=1,n
+        do j=0,ndim-1
+          rhs = rpart(jf0+j,i)
+     $        +     beta (1)*rpart(jv1+j,i)
+     $        +     beta (2)*rpart(jv2+j,i)
+     $        +     beta (3)*rpart(jv3+j,i)
+          rpart(jv0+j,i) = rhs / beta(0)
+          rhx = beta (1)*rpart(jx1+j,i)
+     $        + beta (2)*rpart(jx2+j,i)
+     $        + beta (3)*rpart(jx3+j,i) + rpart(jv0+j,i)
+          rpart(jx0+j,i) = rhx / beta(0)     ! Implicit solve for x
+        enddo
+      enddo
+      
+      return
+      end
+c-----------------------------------------------------------------------
       FUNCTION MixtPerf_C_GRT_part(G,R,T,icmt)
       IMPLICIT NONE
       REAL G,R,T! INTENT(IN) 
@@ -5153,3 +5299,4 @@ c-----------------------------------------------------------------------
       endif
 
       END
+c-----------------------------------------------------------------------
