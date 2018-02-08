@@ -5147,9 +5147,9 @@ c
                ilbstep = param(78)
                if ((mod(istep,ilbstep).eq.0) .or. (istep.eq.100)) then
                   ! Load balance if applicable
-                  resetFindpts = 1
-                  call computeRatio
-                  call reinitialize
+                  resetFindpts = 0
+c                 call computeRatio
+c                 call reinitialize
                   !call printVerify
                else
                   ! Update where particle is stored at
