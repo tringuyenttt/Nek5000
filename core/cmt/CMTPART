@@ -4,7 +4,7 @@ c     timer stuff ---------------------------------------------------
       common /pt_timers/ pttime,ptdum
 
 c     main common blocks - rpart and ipart --------------------------
-      parameter (lr=85,li=12)
+      parameter (lr=85,li=11)
       common  /cpartr/ rpart(lr,llpart) 
       common  /cparti/ ipart(li,llpart) 
       common  /iparti/ n,nr,ni

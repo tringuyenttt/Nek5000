@@ -52,7 +52,7 @@ C> @file step.f time stepping and mesh spacing routines
       endif
 
       ! particle cfl
-      rdt_part = dt_cmt
+      rdt_part = dt_cmt ! set large, so compute correct here
       call set_dt_particles(rdt_part)
       dt_cmt = min(dt_cmt,rdt_part)
         
@@ -171,12 +171,14 @@ c
       real x(lx1,ly1,lz1,nelt) ! intent(in)
       real y(lx1,ly1,lz1,nelt) ! intent(in)
       real z(lx1,ly1,lz1,nelt) ! intent(in)
+      common /elementload/ gfirst, inoassignd, resetFindpts, pload(lelg)
+      integer gfirst, inoassignd, resetFindpts, pload
       integer e
       integer icalld
       data icalld /0/
       save icalld
       
-      if (icalld .eq. 1) then
+      if (icalld .eq. 1 .and. resetFindpts .eq. 0) then
          return
       else
          icalld=1
@@ -298,12 +300,14 @@ c
       real y(lx1,ly1,lz1,nelt) ! intent(in)
       real z(lx1,ly1,lz1,nelt) ! intent(in)
       real xcrn(8),ycrn(8),zcrn(8)
+      common /elementload/ gfirst, inoassignd, resetFindpts, pload(lelg)
+      integer gfirst, inoassignd, resetFindpts, pload !added by keke
       integer e
       integer icalld
       data icalld /0/
       save icalld
       
-      if (icalld .eq. 1) then
+      if (icalld .eq. 1 .and. resetFindpts .eq. 0) then
          return
       else
          icalld=1
