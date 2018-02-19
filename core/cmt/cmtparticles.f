@@ -2021,8 +2021,12 @@ c
 
 c     rm12 = rm1*rm2/(rm1 + rm2)
 c     eta  = 2.*sqrt(ksp*rm12)*log(e_rest)/sqrt(log(e_rest)**2+pi**2)
-      rbot = sqrt(1./rm1 + 1./rm2)
-      eta  = mcfac/rbot
+c     rtop  = rm1*rm2
+c     rbot  = rm1 + rm2
+c     rmult = rtop/rbot
+c     rmult = rmult**(0.5)
+      rmult = 1./sqrt(1./rm1 + 1./rm2)
+      eta  = mcfac*rmult
 
       ! first, handle normal collision part
       rbot     = 1./rdiff
@@ -2038,15 +2042,13 @@ c     eta  = 2.*sqrt(ksp*rm12)*log(e_rest)/sqrt(log(e_rest)**2+pi**2)
 
       rv12_mage = rv12_mag*eta
 
-      rv12xe = rv12_mage*rn_12x
-      rv12ye = rv12_mage*rn_12y
-      rv12ze = rv12_mage*rn_12z
-
       rksp_max = ksp*rdelta12
 
-      rfn1 = -rksp_max*rn_12x - rv12xe
-      rfn2 = -rksp_max*rn_12y - rv12ye
-      rfn3 = -rksp_max*rn_12z - rv12ze
+      rnmag = -rksp_max - rv12_mage
+
+      rfn1 = rnmag*rn_12x
+      rfn2 = rnmag*rn_12y
+      rfn3 = rnmag*rn_12z
 
       fcf1(1) = fcf1(1) + rfn1
       fcf1(2) = fcf1(2) + rfn2
