@@ -150,7 +150,7 @@ c           set global particle id (3 part tag)
 
       else
          ! read in data
-         nread_part = 2
+         nread_part = 1
          do j=1,nread_part
             call read_parallel_restart_part_many(j,nread_part)
             call move_particles_inproc
@@ -1391,6 +1391,12 @@ c
      >   call calc_substantial_derivative
 
       do i=1,n
+         rpart(jfcol  ,i) = 0.
+         rpart(jfcol+1,i) = 0.
+         rpart(jfcol+2,i) = 0.
+      enddo
+
+      do i=1,n
 c        setup values ------------------------------------------------
          pmass = rpart(jvol,i)*rpart(jrhop,i)
          pmassf= rpart(jvol,i)*rpart(jrho,i)
@@ -1853,7 +1859,7 @@ c
       include 'CMTDATA'
       include 'CMTPART'
 
-      real mcfac
+      real mcfac, rdum, rdum3(3)
 
       real rrp1,rrp2,rvol1,rvol2,rrho1,rrho2,rx1(3),rx2(3),rv1(3),rv2(3)
       common /tcol_b/ rrp1,rvol1,rrho1,rx1,rv1
@@ -1862,9 +1868,6 @@ c
 
       mcfac  = 2.*sqrt(ksp)*log(e_rest)/sqrt(log(e_rest)**2+pi**2)
 
-      rpart(jfcol  ,i) = 0.
-      rpart(jfcol+1,i) = 0.
-      rpart(jfcol+2,i) = 0.
 
       if (two_way .gt. 2) then
 
@@ -1891,9 +1894,9 @@ c
 
 c     let every particle search for itself
 c        particles in local elements
-         do j = 1,n
+         do j = i+1,n
             if (ipart(je0,i) .eq. ipart(je0,j)) then
-            if (i .ne. j) then
+c           if (i .ne. j) then
 
                ! finally excude on basis of sub element mesh
                icx2 = ipart(jicx,j)
@@ -1913,14 +1916,15 @@ c        particles in local elements
                rv2(2) = rpart(jv0+1,j)
                rv2(3) = rpart(jv0+2,j)
 
+               idum = 1
                call compute_collide(mcfac,rrp2,rvol2,rrho2,rx2,rv2,
-     >                              rpart(jfcol,i))
+     >                              rpart(jfcol,i),rpart(jfcol,j),idum)
 
                endif
                endif
                endif
                
-            endif
+c           endif
             endif
          enddo
 
@@ -1939,8 +1943,9 @@ c        search list of ghost particles
                rv2(2) = rptsgp(jgpv0+1,j)
                rv2(3) = rptsgp(jgpv0+2,j)
 
+               idum = 0
                call compute_collide(mcfac,rrp2,rvol2,rrho2,rx2,rv2,
-     >                              rpart(jfcol,i))
+     >                              rpart(jfcol,i),rdum3,idum)
 
         endif
          enddo
@@ -1965,8 +1970,9 @@ c        collision with 6 walls, but only when specified by .inp file
                rv2(3) = 0.
                rx2(nj2) = xdrange(nj1,nj2)
 
+               idum = 0
                call compute_collide(mcfac,rrp2,rvol2,rrho2,rx2,rv2,
-     >                              rpart(jfcol,i))
+     >                              rpart(jfcol,i),rdum3,idum)
             endif
          enddo
       endif
@@ -1976,7 +1982,8 @@ c        collision with 6 walls, but only when specified by .inp file
       return
       end
 c----------------------------------------------------------------------
-      subroutine compute_collide(mcfac,rrp2,rvol2,rrho2,rx2,rv2,fcf)
+      subroutine compute_collide(mcfac,rrp2,rvol2,rrho2,rx2,rv2,fcf1,
+     >                                                      fcf2,iflg)
 c
 c     extra body forces
 c
@@ -1985,7 +1992,8 @@ c
       include 'CMTDATA'
       include 'CMTPART'
 
-      real fcf(3),er,eta,ere,mcfac
+      real fcf1(3),fcf2(3),er,eta,ere,mcfac
+      integer iflg
 
       real rrp1,rrp2,rvol1,rvol2,rrho1,rrho2,rx1(3),rx2(3),rv1(3),rv2(3)
       common /tcol_b/ rrp1,rvol1,rrho1,rx1,rv1
@@ -2040,9 +2048,15 @@ c     eta  = 2.*sqrt(ksp*rm12)*log(e_rest)/sqrt(log(e_rest)**2+pi**2)
       rfn2 = -rksp_max*rn_12y - rv12ye
       rfn3 = -rksp_max*rn_12z - rv12ze
 
-      fcf(1) = fcf(1) + rfn1
-      fcf(2) = fcf(2) + rfn2
-      fcf(3) = fcf(3) + rfn3
+      fcf1(1) = fcf1(1) + rfn1
+      fcf1(2) = fcf1(2) + rfn2
+      fcf1(3) = fcf1(3) + rfn3
+
+      if (iflg .eq. 1) then
+          fcf2(1) = fcf2(1) - rfn1
+          fcf2(2) = fcf2(2) - rfn2
+          fcf2(3) = fcf2(3) - rfn3
+      endif
 
  1511 continue
 
@@ -4119,7 +4133,8 @@ c----------------------------------------------------------------------
       rxs = xdrange(1,1)
       rxt = rxs
       icm = 1
-      do while (abs(rxs - xdrange(2,1)) .ge. rthresh)
+
+      do while (rxs .le. xdrange(2,1))
 
          do i=1,nx1
             rxs = rxt + rxgls(i)
@@ -4265,7 +4280,7 @@ c----------------------------------------------------------------------
       ryt = rys
       icm = 1
 
-      do while (abs(rxs - xdrange(2,1)) .ge. rthresh)
+      do while (rys .le. xdrange(2,2))
 
          do i=1,ny1
             rys = ryt + rygls(i)
@@ -4407,7 +4422,8 @@ c----------------------------------------------------------------------
       rzs = xdrange(1,3)
       rzt = rzs
       icm = 1
-      do while (abs(rzs - xdrange(2,3)) .ge. rthresh)
+
+      do while (rzs .le. xdrange(2,3))
 
          do i=1,nz1
             rzs = rzt + rzgls(i)
