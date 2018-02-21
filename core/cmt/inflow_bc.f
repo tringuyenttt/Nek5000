@@ -180,8 +180,6 @@ c                                     !     ux,uy,uz
 ! find a smarter way of doing this. fold it into usr file if you must
          wbc(l,f,e,iu5)  = rho*cv*temp+0.5/rhob*(rhoub**2+rhovb**2+
      >                                               rhowb**2)
-c        wbc(l,f,e,iu5)  = phi*rho*cv*temp+0.5/rhob*(rhoub**2+rhovb**2+
-c    >                                               rhowb**2)
 
       enddo
       enddo

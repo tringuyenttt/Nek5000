@@ -21,6 +21,7 @@
       ntol=1.0e-10
 
       if (icalld .eq. 0) then
+         if (nio .eq. 0) write(6,*) 'zeroing out entropy stack',istep
          icalld=1
          call rzero(s,ntot)
          call rzero(s(1,1,2),ntot) ! s_{n-1}
@@ -69,7 +70,7 @@
       maxdiff =     glamax(scrent,ntot)
       if (maxdiff.le.0.0) then
          write(deathmessage,*) 'zero maxdiff usually means NAN$'
-         call exittr(deathmessage,maxdiff,istep) ! dz comment
+         call exittr(deathmessage,maxdiff,istep)
 !     else
 !        if (nio .eq. 0) write (6,*) 'max(s-<s>)=',maxdiff, meshh(1)
       endif
