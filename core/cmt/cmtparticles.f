@@ -4620,7 +4620,7 @@ c
       nzf     = 2*nz1
       bb_t    = 0.1 ! relative size to expand bounding boxes by
 c
-      if(nidd.eq.0) write(6,*) 'initializing intpts(), tol=', tol
+      if(nid.eq.0) write(6,*) 'initializing intpts(), tol=', tol
       call fgslib_findpts_setup(ih,nekcomm,npp,ndim,
      &                     xm1,ym1,zm1,nx1,ny1,nz1,
      &                     nelt,nxf,nyf,nzf,bb_t,n,n,
