@@ -4333,8 +4333,13 @@ c     if (icalld1.eq.0) then
          if (wdsize.eq.4) tolin = 1.e-6
          call intpts_setup  (tolin,i_fp_hndl)
          call fgslib_crystal_setup (i_cr_hndl,nekcomm,np)
-         icalld1 = icalld1 + 1
 
+         if (resetFindpts .eq. 1) icalld = 0
+      endif
+
+      icalld1 = icalld1 + 1
+
+      if (icalld .le. 2 .or. (resetFindpts .eq. 1)) then
          call particles_in_nid
          call fgslib_findpts(i_fp_hndl !  stride     !   call fgslib_findpts( ihndl,
      $           , ifpts(jrc,1),lif        !   $             rcode,1,
@@ -4349,19 +4354,6 @@ c     if (icalld1.eq.0) then
       else
          call findpts_box
       endif
-
-c        call particles_in_nid
-c        call fgslib_findpts(i_fp_hndl !  stride     !   call fgslib_findpts( ihndl,
-c    $           , ifpts(jrc,1),lif        !   $             rcode,1,
-c    $           , ifpts(jpt,1),lif        !   &             proc,1,
-c    $           , ifpts(je0,1),lif        !   &             elid,1,
-c    $           , rfpts(jr ,1),lrf        !   &             rst,ndim,
-c    $           , rfpts(jd ,1),lrf        !   &             dist,1,
-c    $           , rfpts(jx ,1),lrf        !   &             pts(    1),1,
-c    $           , rfpts(jy ,1),lrf        !   &             pts(  n+1),1,
-c    $           , rfpts(jz ,1),lrf ,nfpts)    !   &             pts(2*n+1),1,n)
-c        call update_findpts_info
-
 
       nmax = iglmax(n,1)
       if (nmax.gt.llpart) then
