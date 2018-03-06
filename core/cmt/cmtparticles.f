@@ -146,7 +146,7 @@ c           set some rpart values for later use
          
 c           set global particle id (3 part tag)
             ipart(jpid1,n) = nid 
-            ipart(jpid2,n) = i
+            ipart(jpid2,n) = i_pt_part
             ipart(jpid3,n) = icalld
          enddo
 
