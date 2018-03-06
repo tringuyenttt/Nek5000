@@ -109,7 +109,7 @@ c        correct nwe if discrepancy on rank 0
          nwe         = int(nw/np)                ! num. part per proc
          nw_tmp      = iglsum(nwe,1)
          ndef        = nw - nw_tmp
-         if (nid .le. ndef) nwe = nwe + 1
+         if (nid .lt. ndef) nwe = nwe + 1
 c        if ((nw_tmp .ne. nw) .and. (nid.eq.0)) nwe = nwe +(nw - nw_tmp)
 
 c        main loop to distribute particles
