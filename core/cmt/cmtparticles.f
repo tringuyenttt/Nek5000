@@ -3427,7 +3427,7 @@ c         output data so files can be easily converted to binary
    
       disp = stride_len*42*8  ! 42 properties each with 8 bytes
       call MPI_FILE_SET_VIEW(oldfile, disp, MPI_DOUBLE_PRECISION,
-     >                       MPI_DOUBLE_PRECISION, "external32", 
+     >                       MPI_DOUBLE_PRECISION, "native", 
      >                       MPI_INFO_NULL, ierr) 
       call MPI_FILE_WRITE(oldfile, realtmp(1,1), n*42,
      >                  MPI_DOUBLE_PRECISION,
@@ -3533,7 +3533,7 @@ c     endif
    
       disp = stride_len*42*8  ! 42 properties each with 8 bytes
       call MPI_FILE_SET_VIEW(oldfile, disp, MPI_DOUBLE_PRECISION,
-     >                       MPI_DOUBLE_PRECISION, "external32", 
+     >                       MPI_DOUBLE_PRECISION, "native", 
      >                       MPI_INFO_NULL, ierr) 
       call MPI_FILE_READ(oldfile, realtmp(1,1), nnp*42,
      >                  MPI_DOUBLE_PRECISION,
