@@ -3306,13 +3306,13 @@ c     output particle  information
 
       endif
 
+      ! Always output restart files
 c     output restart information if needed
-      if (ipart_restarto .gt. 0) then
-         if (mod(nistep,ipart_restarto) .eq. 0) then
+c     if (ipart_restarto .gt. 0) then
+c        if (mod(nistep,ipart_restarto) .eq. 0) then
             call output_parallel_restart_part
-         endif
-
-      endif
+c        endif
+c     endif
 
       pttime(1) = pttime(1) - (dnekclock() - rdumt)
 
@@ -3340,7 +3340,7 @@ c----------------------------------------------------------------------
       integer*8    disp, stride_len 
       integer      status_mpi(MPI_STATUS_SIZE)
       integer      prevs(0:np-1),npt_total,e,oldfile
-      real         realtmp(42,llpart)
+      real*8         realtmp(42,llpart)
 
 c     setup files to write to mpi 
       icalld = icalld+1
@@ -3425,9 +3425,9 @@ c         output data so files can be easily converted to binary
      >                   MPI_MODE_CREATE + MPI_MODE_WRONLY, 
      >                   MPI_INFO_NULL, oldfile, ierr) 
    
-      disp = stride_len*42*8 ! 42 properties each with 8 bytes
+      disp = stride_len*42*8  ! 42 properties each with 8 bytes
       call MPI_FILE_SET_VIEW(oldfile, disp, MPI_DOUBLE_PRECISION,
-     >                       MPI_DOUBLE_PRECISION, "native", 
+     >                       MPI_DOUBLE_PRECISION, "external32", 
      >                       MPI_INFO_NULL, ierr) 
       call MPI_FILE_WRITE(oldfile, realtmp(1,1), n*42,
      >                  MPI_DOUBLE_PRECISION,
@@ -3455,7 +3455,7 @@ c----------------------------------------------------------------------
       integer*8    disp, stride_len 
       integer      status_mpi(MPI_STATUS_SIZE)
       integer      prevs(0:np-1),npt_total,e,oldfile
-      real         realtmp(42,llpart)
+      real*8         realtmp(42,llpart)
 
       real    rinit
       save    rinit
@@ -3531,9 +3531,9 @@ c     endif
      >                   MPI_MODE_RDONLY, 
      >                   MPI_INFO_NULL, oldfile, ierr) 
    
-      disp = stride_len*42*8 ! 42 properties each with 8 bytes
+      disp = stride_len*42*8  ! 42 properties each with 8 bytes
       call MPI_FILE_SET_VIEW(oldfile, disp, MPI_DOUBLE_PRECISION,
-     >                       MPI_DOUBLE_PRECISION, "native", 
+     >                       MPI_DOUBLE_PRECISION, "external32", 
      >                       MPI_INFO_NULL, ierr) 
       call MPI_FILE_READ(oldfile, realtmp(1,1), nnp*42,
      >                  MPI_DOUBLE_PRECISION,
@@ -3674,7 +3674,7 @@ c         output data so files can be easily converted to binary
      >                   MPI_MODE_CREATE + MPI_MODE_WRONLY, 
      >                   MPI_INFO_NULL, oldfile, ierr) 
    
-      disp = stride_len*4*8 ! 4 properties each with 8 bytes
+      disp = stride_len*42*8  ! 42 properties each with 8 bytes
       call MPI_FILE_SET_VIEW(oldfile, disp, MPI_DOUBLE_PRECISION,
      >                       MPI_DOUBLE_PRECISION, "native", 
      >                       MPI_INFO_NULL, ierr) 
