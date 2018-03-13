@@ -60,7 +60,7 @@ c----------------------------------------------------------------------
 
          do i = 1,nitspl
             call interp_props_part_location ! interpolate
-            call correct_spl
+c           call correct_spl
             call create_extra_particles
             call send_ghost_particles
             call spread_props_grid           ! put particle props on grid
@@ -454,17 +454,14 @@ c     ipart pointers ------------------------------------------------
       jrc   = 1 ! Pointer to findpts return code
       jpt   = 2 ! Pointer to findpts return processor id
       je0   = 3 ! Pointer to findpts return element id
-      je00  = 4 ! Pointer to findpts return element id
-      jps   = 5 ! Pointer to proc id for data swap
-      jpid1 = 6 ! initial proc number
-      jpid2 = 7 ! initial local particle id
-      jpid3 = 8 ! initial time step introduced
-      jpnn  = 9 ! initial time step introduced
-      jpid  = 10 ! initial time step introduced
-      jicx  = 11 ! initial time step introduced
-      jicy  = 12 ! initial time step introduced
-      jicz  = 13 ! initial time step introduced
-      jai   = 14 ! Pointer to auxiliary integers
+      jps   = 4 ! Pointer to proc id for data swap
+      jpid1 = 5 ! initial proc number
+      jpid2 = 6 ! initial local particle id
+      jpid3 = 7 ! initial time step introduced
+      jicx  = 8 ! initial time step introduced
+      jicy  = 9 ! initial time step introduced
+      jicz  = 10 ! initial time step introduced
+      jai   = 11 ! Pointer to auxiliary integers
 
       nai = ni - (jai-1)  ! Number of auxiliary integers
       if (nai.le.0) call exitti('Error in nai:$',ni)
@@ -658,79 +655,79 @@ c     should we inject particles at this time step?
       return
       end
 c----------------------------------------------------------------------
-      subroutine correct_spl
+c     subroutine correct_spl
 c
 c     correct initial super particle loading
 c
-      include 'SIZE'
-      include 'INPUT'
-      include 'GEOM'
-      include 'SOLN'
-      include 'CMTDATA'
-      include 'MASS'
-      include 'CMTPART'
+c     include 'SIZE'
+c     include 'INPUT'
+c     include 'GEOM'
+c     include 'SOLN'
+c     include 'CMTDATA'
+c     include 'MASS'
+c     include 'CMTPART'
 
-      real rdumvol(llpart,2*3)
+c     real rdumvol(llpart,2*3)
 
-      ! this routine needs updating!
+c     ! this routine needs updating!
 
-      do i=1,n
-         rdumvol(i,1) = rpart(jvol,i)  ! particle volume
-         rdumvol(i,2) = rpart(jvol1,i) ! interp vol frac @ part loc
-         rdumvol(i,3) = rpart(jspl,i)  ! super part. loading
-      enddo
+c     do i=1,n
+c        rdumvol(i,1) = rpart(jvol,i)  ! particle volume
+c        rdumvol(i,2) = rpart(jvol1,i) ! interp vol frac @ part loc
+c        rdumvol(i,3) = rpart(jspl,i)  ! super part. loading
+c     enddo
 
 c     call usr_particles_io
 
 c     begin diagnostics ----
 c
 c     eulerian volume frac 
-      nxyze = nx1*ny1*nz1*nelt
-      rmu1  = glsc2(bm1,ptw(1,1,1,1,4),nxyze)
-      rmu1  = rmu1/vol_distrib
+c     nxyze = nx1*ny1*nz1*nelt
+c     rmu1  = glsc2(bm1,ptw(1,1,1,1,4),nxyze)
+c     rmu1  = rmu1/vol_distrib
 
 c
 c     lagrangian volume frac
-      rmu2  = glsum(rdumvol(1,2),n)
-      rmu2  = rmu2/nw
-      rmin2 = glmin(rdumvol(1,2),n)
-      rmax2 = glmax(rdumvol(1,2),n)
+c     rmu2  = glsum(rdumvol(1,2),n)
+c     rmu2  = rmu2/nw
+c     rmin2 = glmin(rdumvol(1,2),n)
+c     rmax2 = glmax(rdumvol(1,2),n)
 
 c
 c     what spl mean should be
-      rdumt   = glsum(rdumvol(1,1),n)
-      rsplavg = phi_desire*vol_distrib/rdumt
+c     rdumt   = glsum(rdumvol(1,1),n)
+c     rsplavg = phi_desire*vol_distrib/rdumt
 
 c
 c     what spl mean actually is
-      rmu3  = glsum(rdumvol(1,3),n)
-      rmu3  = rmu3/nw
-      rmin3 = glmin(rdumvol(1,3),n)
-      rmax3 = glmax(rdumvol(1,3),n)
+c     rmu3  = glsum(rdumvol(1,3),n)
+c     rmu3  = rmu3/nw
+c     rmin3 = glmin(rdumvol(1,3),n)
+c     rmax3 = glmax(rdumvol(1,3),n)
 
 c
 c     variance and skew stuff
-      do i=1,n
-         rdumvol(i,4) = (rpart(jvol1,i) - rmu2)**2
-         rdumvol(i,5) = (rpart(jspl,i) - rmu3)**2
-      enddo
+c     do i=1,n
+c        rdumvol(i,4) = (rpart(jvol1,i) - rmu2)**2
+c        rdumvol(i,5) = (rpart(jspl,i) - rmu3)**2
+c     enddo
 
-      rvar2 = glsum(rdumvol(1,4),n)
-      rvar2 = rvar2/nw
+c     rvar2 = glsum(rdumvol(1,4),n)
+c     rvar2 = rvar2/nw
 
-      rvar3 = glsum(rdumvol(1,5),n)
-      rvar3 = rvar3/nw
+c     rvar3 = glsum(rdumvol(1,5),n)
+c     rvar3 = rvar3/nw
 
-      if (nid.eq.0) write(6,*) '-DZ- Md,bd,Me --'
-      if (nid.eq.0) write(6,*) phi_desire,rsplavg,rmu1
-      if (nid.eq.0) write(6,*) '-DZ-- Ml,Sl,Minl,Maxl'
-      if (nid.eq.0) write(6,*) rmu2,sqrt(rvar2),rmin2,rmax2
-      if (nid.eq.0) write(6,*) '-DZ--- Mb,Sb,Minb,Maxb'
-      if (nid.eq.0) write(6,*) rmu3,sqrt(rvar3),rmin3,rmax3
+c     if (nid.eq.0) write(6,*) '-DZ- Md,bd,Me --'
+c     if (nid.eq.0) write(6,*) phi_desire,rsplavg,rmu1
+c     if (nid.eq.0) write(6,*) '-DZ-- Ml,Sl,Minl,Maxl'
+c     if (nid.eq.0) write(6,*) rmu2,sqrt(rvar2),rmin2,rmax2
+c     if (nid.eq.0) write(6,*) '-DZ--- Mb,Sb,Minb,Maxb'
+c     if (nid.eq.0) write(6,*) rmu3,sqrt(rvar3),rmin3,rmax3
 c     end diagnostics ----
 
 
-      do ip=1,n
+c     do ip=1,n
 c        linear roll off near bed edges
 c        rthresh = 2.*rleng
 c        if (rpart(jx,ip) .lt. rxbo(1,1)+rthresh) then
@@ -781,11 +778,11 @@ c           rssig = sqrt(-(ryyr - ryyl)**2/2./log(0.01))
 c           phi_val = phi_desire*exp(-(ry-ryyl)**2/2./rssig**2)
 c        endif
 
-         phi_val = phi_desire ! comment out if bed and uncomment above
-         rtmp = 0.30*rpart(jspl,ip)
-         rxi = rtmp*(1. - rpart(jvol1,ip)/phi_val)
-         rpart(jspl,ip)=rpart(jspl,ip) + rxi
-         if (rpart(jspl,ip).lt.0.) rpart(jspl,ip) = 0.
+c        phi_val = phi_desire ! comment out if bed and uncomment above
+c        rtmp = 0.30*rpart(jspl,ip)
+c        rxi = rtmp*(1. - rpart(jvol1,ip)/phi_val)
+c        rpart(jspl,ip)=rpart(jspl,ip) + rxi
+c        if (rpart(jspl,ip).lt.0.) rpart(jspl,ip) = 0.
 
 c        rthresh = 2.*rleng
 c        if (rpart(jx,ip) .lt. rxbo(1,1)+rthresh) then
@@ -865,11 +862,11 @@ c        else
 c           phi_val = phi_desire
 c        endif
 
- 1511 continue
-      enddo
+c1511 continue
+c     enddo
 
-      return
-      end
+c     return
+c     end
 c----------------------------------------------------------------------
       subroutine spread_props_grid
 c
@@ -2088,7 +2085,7 @@ c
       logical partl         ! dummy used in c_t_t()
 
 c     send ghost particles
-      call fgslib_crystal_tuple_transfer(i_cr_hndl,nfptsgp,llpart
+      call fgslib_crystal_tuple_transfer(i_cr_hndl,nfptsgp,llpart_gp
      $           , iptsgp,nigp,partl,0,rptsgp,nrgp,jgpps) ! jgpps is overwri
 
 c     sort ghost particles by jgpiic for quick discard in collision
@@ -2120,13 +2117,20 @@ c     create ghost particles
       call create_ghost_particles_rect
 c     if (nrect_assume .gt. 0) call create_wall_particles_image2
 
-      nmax = iglmax(nfptsgp,1)
-      if (nmax.gt.llpart) then
-         if (nid.eq.0) write(6,1) nmax,llpart
-    1    format('WARNING: Max number of ghost particles:',
-     $   i9,'.  Not moving because llpart =',i9,'.')
-         call exittr('Particles die, reset llpart',nmax,llpart)
+      nmax   = iglmax(n,1)
+      ngpmax = iglmax(nfptsgp,1)
+
+      if (nmax .gt. llpart) then
+         if (nid.eq.0) write(6,1) nmax, llpart, nid
+         call exitt
+      elseif (ngpmax .gt. llpart_gp) then
+         if (nid.eq.0) write(6,2) ngpmax, llpart_gp, nid
+         call exitt
       endif
+    1 format('Max number of real particles:',
+     >   i9,'. Not moving because llpart =',i9, ' on nid = ', i9)
+    2 format('Max number of ghost particles:',
+     >   i9,'. Not moving because llpart_gp =',i9, ' on nid = ', i9)
 
       return
       end
@@ -3340,7 +3344,6 @@ c----------------------------------------------------------------------
       integer*8    disp, stride_len 
       integer      status_mpi(MPI_STATUS_SIZE)
       integer      prevs(0:np-1),npt_total,e,oldfile
-      real*8         realtmp(42,llpart)
 
 c     setup files to write to mpi 
       icalld = icalld+1
@@ -3349,51 +3352,51 @@ c     setup files to write to mpi
 
       ! these are the values that will be output in .3D binary files
       do i = 1,n
-         realtmp(1,i) = rpart(jx,i)
-         realtmp(2,i) = rpart(jy,i)
-         realtmp(3,i) = rpart(jz,i)
-         realtmp(4,i) = rpart(jx1+0,i)
-         realtmp(5,i) = rpart(jx1+1,i)
-         realtmp(6,i) = rpart(jx1+2,i)
-         realtmp(7,i) = rpart(jx2+0,i)
-         realtmp(8,i) = rpart(jx2+1,i)
-         realtmp(9,i) = rpart(jx2+2,i)
-         realtmp(10,i) = rpart(jx3+0,i)
-         realtmp(11,i) = rpart(jx3+1,i)
-         realtmp(12,i) = rpart(jx3+2,i)
+         rfpts(1,i) = rpart(jx,i)
+         rfpts(2,i) = rpart(jy,i)
+         rfpts(3,i) = rpart(jz,i)
+         rfpts(4,i) = rpart(jx1+0,i)
+         rfpts(5,i) = rpart(jx1+1,i)
+         rfpts(6,i) = rpart(jx1+2,i)
+         rfpts(7,i) = rpart(jx2+0,i)
+         rfpts(8,i) = rpart(jx2+1,i)
+         rfpts(9,i) = rpart(jx2+2,i)
+         rfpts(10,i) = rpart(jx3+0,i)
+         rfpts(11,i) = rpart(jx3+1,i)
+         rfpts(12,i) = rpart(jx3+2,i)
 
-         realtmp(13,i) = rpart(jv0,i)
-         realtmp(14,i) = rpart(jv0+1,i)
-         realtmp(15,i) = rpart(jv0+2,i)
-         realtmp(16,i) = rpart(jv1+0,i)
-         realtmp(17,i) = rpart(jv1+1,i)
-         realtmp(18,i) = rpart(jv1+2,i)
-         realtmp(19,i) = rpart(jv2+0,i)
-         realtmp(20,i) = rpart(jv2+1,i)
-         realtmp(21,i) = rpart(jv2+2,i)
-         realtmp(22,i) = rpart(jv3+0,i)
-         realtmp(23,i) = rpart(jv3+1,i)
-         realtmp(24,i) = rpart(jv3+2,i)
+         rfpts(13,i) = rpart(jv0,i)
+         rfpts(14,i) = rpart(jv0+1,i)
+         rfpts(15,i) = rpart(jv0+2,i)
+         rfpts(16,i) = rpart(jv1+0,i)
+         rfpts(17,i) = rpart(jv1+1,i)
+         rfpts(18,i) = rpart(jv1+2,i)
+         rfpts(19,i) = rpart(jv2+0,i)
+         rfpts(20,i) = rpart(jv2+1,i)
+         rfpts(21,i) = rpart(jv2+2,i)
+         rfpts(22,i) = rpart(jv3+0,i)
+         rfpts(23,i) = rpart(jv3+1,i)
+         rfpts(24,i) = rpart(jv3+2,i)
 
-         realtmp(25,i) = rpart(ju0,i)
-         realtmp(26,i) = rpart(ju0+1,i)
-         realtmp(27,i) = rpart(ju0+2,i)
-         realtmp(28,i) = rpart(ju1+0,i)
-         realtmp(29,i) = rpart(ju1+1,i)
-         realtmp(30,i) = rpart(ju1+2,i)
-         realtmp(31,i) = rpart(ju2+0,i)
-         realtmp(32,i) = rpart(ju2+1,i)
-         realtmp(33,i) = rpart(ju2+2,i)
-         realtmp(34,i) = rpart(ju3+0,i)
-         realtmp(35,i) = rpart(ju3+1,i)
-         realtmp(36,i) = rpart(ju3+2,i)
+         rfpts(25,i) = rpart(ju0,i)
+         rfpts(26,i) = rpart(ju0+1,i)
+         rfpts(27,i) = rpart(ju0+2,i)
+         rfpts(28,i) = rpart(ju1+0,i)
+         rfpts(29,i) = rpart(ju1+1,i)
+         rfpts(30,i) = rpart(ju1+2,i)
+         rfpts(31,i) = rpart(ju2+0,i)
+         rfpts(32,i) = rpart(ju2+1,i)
+         rfpts(33,i) = rpart(ju2+2,i)
+         rfpts(34,i) = rpart(ju3+0,i)
+         rfpts(35,i) = rpart(ju3+1,i)
+         rfpts(36,i) = rpart(ju3+2,i)
 
-         realtmp(37,i) = rpart(jdp,i)
-         realtmp(38,i) = rpart(jspl,i)
-         realtmp(39,i) = rpart(jtemp,i)
-         realtmp(40,i) = real(ipart(jpid1,i))
-         realtmp(41,i) = real(ipart(jpid2,i))
-         realtmp(42,i) = real(ipart(jpid3,i))
+         rfpts(37,i) = rpart(jdp,i)
+         rfpts(38,i) = rpart(jspl,i)
+         rfpts(39,i) = rpart(jtemp,i)
+         rfpts(40,i) = real(ipart(jpid1,i))
+         rfpts(41,i) = real(ipart(jpid2,i))
+         rfpts(42,i) = real(ipart(jpid3,i))
       enddo
      
       call MPI_Send(n, 1, MPI_INTEGER, 0, 0, nekcomm, ierr)
@@ -3425,11 +3428,11 @@ c         output data so files can be easily converted to binary
      >                   MPI_MODE_CREATE + MPI_MODE_WRONLY, 
      >                   MPI_INFO_NULL, oldfile, ierr) 
    
-      disp = stride_len*42*8  ! 42 properties each with 8 bytes
+      disp = stride_len*lrf*8  ! lrf properties each with 8 bytes
       call MPI_FILE_SET_VIEW(oldfile, disp, MPI_DOUBLE_PRECISION,
      >                       MPI_DOUBLE_PRECISION, "native", 
      >                       MPI_INFO_NULL, ierr) 
-      call MPI_FILE_WRITE(oldfile, realtmp(1,1), n*42,
+      call MPI_FILE_WRITE(oldfile, rfpts(1,1), n*lrf,
      >                  MPI_DOUBLE_PRECISION,
      >                  MPI_STATUS_IGNORE, ierr) 
 
@@ -3455,7 +3458,6 @@ c----------------------------------------------------------------------
       integer*8    disp, stride_len 
       integer      status_mpi(MPI_STATUS_SIZE)
       integer      prevs(0:np-1),npt_total,e,oldfile
-      real*8         realtmp(42,llpart)
 
       real    rinit
       save    rinit
@@ -3531,11 +3533,11 @@ c     endif
      >                   MPI_MODE_RDONLY, 
      >                   MPI_INFO_NULL, oldfile, ierr) 
    
-      disp = stride_len*42*8  ! 42 properties each with 8 bytes
+      disp = stride_len*lrf*8  ! lrf properties each with 8 bytes
       call MPI_FILE_SET_VIEW(oldfile, disp, MPI_DOUBLE_PRECISION,
      >                       MPI_DOUBLE_PRECISION, "native", 
      >                       MPI_INFO_NULL, ierr) 
-      call MPI_FILE_READ(oldfile, realtmp(1,1), nnp*42,
+      call MPI_FILE_READ(oldfile, rfpts(1,1), nnp*lrf,
      >                  MPI_DOUBLE_PRECISION,
      >                  MPI_STATUS_IGNORE, ierr) 
 
@@ -3545,51 +3547,51 @@ c     endif
 c     assign values to rpart and ipart
       do ii = 1,nnp
          i = n + ii
-         rpart(jx,i)           =  realtmp(1,ii) 
-         rpart(jy,i)           =  realtmp(2,ii)  + rshift
-         rpart(jz,i)           =  realtmp(3,ii)  
-         rpart(jx1+0,i)        =  realtmp(4,ii)  
-         rpart(jx1+1,i)        =  realtmp(5,ii)  + rshift
-         rpart(jx1+2,i)        =  realtmp(6,ii)  
-         rpart(jx2+0,i)        =  realtmp(7,ii)  
-         rpart(jx2+1,i)        =  realtmp(8,ii)  + rshift
-         rpart(jx2+2,i)        =  realtmp(9,ii)  
-         rpart(jx3+0,i)        =  realtmp(10,ii)
-         rpart(jx3+1,i)        =  realtmp(11,ii) + rshift
-         rpart(jx3+2,i)        =  realtmp(12,ii)
+         rpart(jx,i)           =  rfpts(1,ii) 
+         rpart(jy,i)           =  rfpts(2,ii)  + rshift
+         rpart(jz,i)           =  rfpts(3,ii)  
+         rpart(jx1+0,i)        =  rfpts(4,ii)  
+         rpart(jx1+1,i)        =  rfpts(5,ii)  + rshift
+         rpart(jx1+2,i)        =  rfpts(6,ii)  
+         rpart(jx2+0,i)        =  rfpts(7,ii)  
+         rpart(jx2+1,i)        =  rfpts(8,ii)  + rshift
+         rpart(jx2+2,i)        =  rfpts(9,ii)  
+         rpart(jx3+0,i)        =  rfpts(10,ii)
+         rpart(jx3+1,i)        =  rfpts(11,ii) + rshift
+         rpart(jx3+2,i)        =  rfpts(12,ii)
                                                
-         rpart(jv0,i)          =  realtmp(13,ii)
-         rpart(jv0+1,i)        =  realtmp(14,ii)
-         rpart(jv0+2,i)        =  realtmp(15,ii)
-         rpart(jv1+0,i)        =  realtmp(16,ii)
-         rpart(jv1+1,i)        =  realtmp(17,ii)
-         rpart(jv1+2,i)        =  realtmp(18,ii)
-         rpart(jv2+0,i)        =  realtmp(19,ii)
-         rpart(jv2+1,i)        =  realtmp(20,ii)
-         rpart(jv2+2,i)        =  realtmp(21,ii)
-         rpart(jv3+0,i)        =  realtmp(22,ii)
-         rpart(jv3+1,i)        =  realtmp(23,ii)
-         rpart(jv3+2,i)        =  realtmp(24,ii)
+         rpart(jv0,i)          =  rfpts(13,ii)
+         rpart(jv0+1,i)        =  rfpts(14,ii)
+         rpart(jv0+2,i)        =  rfpts(15,ii)
+         rpart(jv1+0,i)        =  rfpts(16,ii)
+         rpart(jv1+1,i)        =  rfpts(17,ii)
+         rpart(jv1+2,i)        =  rfpts(18,ii)
+         rpart(jv2+0,i)        =  rfpts(19,ii)
+         rpart(jv2+1,i)        =  rfpts(20,ii)
+         rpart(jv2+2,i)        =  rfpts(21,ii)
+         rpart(jv3+0,i)        =  rfpts(22,ii)
+         rpart(jv3+1,i)        =  rfpts(23,ii)
+         rpart(jv3+2,i)        =  rfpts(24,ii)
                                                
-         rpart(ju0,i)          =  realtmp(25,ii)
-         rpart(ju0+1,i)        =  realtmp(26,ii)
-         rpart(ju0+2,i)        =  realtmp(27,ii)
-         rpart(ju1+0,i)        =  realtmp(28,ii)
-         rpart(ju1+1,i)        =  realtmp(29,ii)
-         rpart(ju1+2,i)        =  realtmp(30,ii)
-         rpart(ju2+0,i)        =  realtmp(31,ii)
-         rpart(ju2+1,i)        =  realtmp(32,ii)
-         rpart(ju2+2,i)        =  realtmp(33,ii)
-         rpart(ju3+0,i)        =  realtmp(34,ii)
-         rpart(ju3+1,i)        =  realtmp(35,ii)
-         rpart(ju3+2,i)        =  realtmp(36,ii)
+         rpart(ju0,i)          =  rfpts(25,ii)
+         rpart(ju0+1,i)        =  rfpts(26,ii)
+         rpart(ju0+2,i)        =  rfpts(27,ii)
+         rpart(ju1+0,i)        =  rfpts(28,ii)
+         rpart(ju1+1,i)        =  rfpts(29,ii)
+         rpart(ju1+2,i)        =  rfpts(30,ii)
+         rpart(ju2+0,i)        =  rfpts(31,ii)
+         rpart(ju2+1,i)        =  rfpts(32,ii)
+         rpart(ju2+2,i)        =  rfpts(33,ii)
+         rpart(ju3+0,i)        =  rfpts(34,ii)
+         rpart(ju3+1,i)        =  rfpts(35,ii)
+         rpart(ju3+2,i)        =  rfpts(36,ii)
                                                
-         rpart(jdp,i)          =  realtmp(37,ii)
-         rpart(jspl,i)         =  realtmp(38,ii)
-         rpart(jtemp,i)        =  realtmp(39,ii)
-         ipart(jpid1,i)        =  nint(realtmp(40,ii))
-         ipart(jpid2,i)        =  nint(realtmp(41,ii))
-         ipart(jpid3,i)        =  nint(realtmp(42,ii))
+         rpart(jdp,i)          =  rfpts(37,ii)
+         rpart(jspl,i)         =  rfpts(38,ii)
+         rpart(jtemp,i)        =  rfpts(39,ii)
+         ipart(jpid1,i)        =  nint(rfpts(40,ii))
+         ipart(jpid2,i)        =  nint(rfpts(41,ii))
+         ipart(jpid3,i)        =  nint(rfpts(42,ii))
 
          ! extra stuff
          rpart(jtaup,i) = rpart(jdp,i)**2*rho_p/18.0d+0/mu_0
@@ -3628,7 +3630,7 @@ c----------------------------------------------------------------------
       integer*8    disp, stride_len 
       integer      status_mpi(MPI_STATUS_SIZE)
       integer      prevs(0:np-1),npt_total,e,oldfile
-      real         realtmp(4,llpart),one_t
+      real         one_t
 
       rpi    = 4.0*atan(1.) ! pi
 
@@ -3639,10 +3641,10 @@ c     setup files to write to mpi
 
       ! these are the values that will be output in .3D binary files
       do i = 1,n
-         realtmp(1,i) = rpart(jx,i)
-         realtmp(2,i) = rpart(jy,i)
-         realtmp(3,i) = rpart(jz,i)
-         realtmp(4,i) = 2.*rpart(jrpe,i) ! output diameter
+         rfpts(1,i) = rpart(jx,i)
+         rfpts(2,i) = rpart(jy,i)
+         rfpts(3,i) = rpart(jz,i)
+         rfpts(4,i) = 2.*rpart(jrpe,i) ! output diameter
       enddo
      
       call MPI_Send(n, 1, MPI_INTEGER, 0, 0, nekcomm, ierr)
@@ -3674,11 +3676,11 @@ c         output data so files can be easily converted to binary
      >                   MPI_MODE_CREATE + MPI_MODE_WRONLY, 
      >                   MPI_INFO_NULL, oldfile, ierr) 
    
-      disp = stride_len*42*8  ! 42 properties each with 8 bytes
+      disp = stride_len*4*8  ! 4 properties each with 8 bytes
       call MPI_FILE_SET_VIEW(oldfile, disp, MPI_DOUBLE_PRECISION,
      >                       MPI_DOUBLE_PRECISION, "native", 
      >                       MPI_INFO_NULL, ierr) 
-      call MPI_FILE_WRITE(oldfile, realtmp(1,1), n*4,
+      call MPI_FILE_WRITE(oldfile, rfpts(1,1), n*4,
      >                  MPI_DOUBLE_PRECISION,
      >                  MPI_STATUS_IGNORE, ierr) 
 
@@ -3981,7 +3983,9 @@ c----------------------------------------------------------------------
       ryt = rys
       icm = 1
 
-      do while (rys .le. xdrange(2,2))
+      ! DZ FAKE
+c     do while (rys .le. xdrange(2,2))
+      do while (rys .le. 0.69)
 
          do i=1,ny1
             rys = ryt + rygls(i)
@@ -4564,9 +4568,9 @@ c-----------------------------------------------------------------------
          enddo
          if (itest.eq.0)then
             nfpts = nfpts + 1
-            ifptsmap(nfpts) = ip
-            call copy (rfpts(1,nfpts),rpart(1,ip),nrf) 
-            call icopy(ifpts(1,nfpts),ipart(1,ip),nif) 
+            call copy (rfpts(1,nfpts),rpart(1,ip),7) ! only copy 1st 7 up to jz
+            call icopy(ifpts(1,nfpts),ipart(1,ip),3) ! only copy 1st 3
+            ifpts(4,nfpts) = ip                      ! 4th is map
             if(nfpts.gt.llpart)then
                write(6,*)'Too many points crossing over ',
      $                      nfpts,llpart,nid
@@ -4584,8 +4588,8 @@ c-----------------------------------------------------------------------
       include 'CMTPART'
 
       do ifp = 1,nfpts
-         call copy(rpart(1,ifptsmap(ifp)),rfpts(1,ifp),nrf)
-         call icopy(ipart(1,ifptsmap(ifp)),ifpts(1,ifp),nif)
+         call copy(rpart(1,ifpts(4,ifp)),rfpts(1,ifp),7) ! only copy 1st 7 up to jz
+         call icopy(ipart(1,ifpts(4,ifp)),ifpts(1,ifp),3) ! only copy 1st 3
       enddo
 
       return

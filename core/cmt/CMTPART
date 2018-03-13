@@ -4,13 +4,13 @@ c     timer stuff ---------------------------------------------------
       common /pt_timers/ pttime,ptdum
 
 c     main common blocks - rpart and ipart --------------------------
-      parameter (lr=85,li=14)
+      parameter (lr=85,li=11)
       common  /cpartr/ rpart(lr,llpart) 
       common  /cparti/ ipart(li,llpart) 
       common  /iparti/ n,nr,ni
 
-      common /ptpointers/ jrc,jpt,je0,je00,jps,jpid1,jpid2,jpid3,jpnn
-     >                   ,jpid,jrco,jai,jicx,jicy,jicz,nai
+      common /ptpointers/ jrc,jpt,je0,jps,jpid1,jpid2,jpid3
+     >                   ,jai,jicx,jicy,jicz,nai
      >                   ,jr,jd,jx,jy,jz,jv0,ju0,jf0,jfusr,jfcol
      >                   ,jfqs,jfun,jfiu,jtaup,jcd,jdrhodt,jre,jDuDt
      >                   ,jtemp,jrho,jrhop,ja,jvol,jdp,jar,jx1,jx2,jx3
@@ -57,9 +57,10 @@ c     domain and element size
       common /elementrange/ xerange
 
 c     ghost particles -----------------------------------------------
+      parameter (llpart_gp=26*llpart)
       parameter (lrgp=14,ligp=4)
-      common /gp_pointsr/ rptsgp(lrgp,llpart)
-      common /gp_pointsi/ iptsgp(ligp,llpart)
+      common /gp_pointsr/ rptsgp(lrgp,llpart_gp)
+      common /gp_pointsi/ iptsgp(ligp,llpart_gp)
       common /gp_lens/ nfptsgp,nigp,nrgp
 
       real    d2chk(3)
@@ -89,8 +90,8 @@ c     some grid values used in force calculations -------------------
       real rhs_fluidp(lx1,ly1,lz1,lelt,7)
 
 c     move particles between procs ----------------------------------
-      parameter (lrf=7,lif=12)
+      parameter (lrf=42,lif=4)
       common /fptspartr/ rfpts(lrf,llpart)
-      common /fptsparti/ ifpts(lif,llpart),ifptsmap(llpart)
+      common /fptsparti/ ifpts(lif,llpart)
       common /fptspartn/ nfpts,nrf,nif
 
