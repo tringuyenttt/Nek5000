@@ -1004,18 +1004,28 @@ c     ntmp = iglsum(n,1)
 c     if (nid.eq.0) write(6,*) 'Passed remote spreading to grid'
 
 c     volume fraction cant be more tahn rvfmax ... 
-      rvfmax = 0.7
+      wght = 1.0
+      ncut = 1
+      do i=1,8
+         call filter_s0(ptw(1,1,1,1,i),wght,ncut,'ptw') 
+      enddo
+
+c     rvfmax = 0.7
+      rvfmin = 0.0
       do ie=1,nelt
       do k=1,nz1
       do j=1,ny1
       do i=1,nx1
-         if (ptw(i,j,k,ie,4) .gt. rvfmax) ptw(i,j,k,ie,4) = rvfmax
-         phig(i,j,k,ie) = 1. - ptw(i,j,k,ie,4)
+c        if (ptw(i,j,k,ie,4) .gt. rvfmax) ptw(i,j,k,ie,4) = rvfmax
+         if (ptw(i,j,k,ie,4) .lt. rvfmin) ptw(i,j,k,ie,4) = rvfmin
+c        phig(i,j,k,ie) = 1. - ptw(i,j,k,ie,4)
       enddo
       enddo
       enddo
       enddo
 
+
+      
       return
       end
 c----------------------------------------------------------------------
@@ -1484,6 +1494,7 @@ c        momentum forcing to fluid
             rpart(jfiu+j,i) = rpart(jfiu+j,i) - ram_s
 
 c           note that no coupled f_un in this formulation
+c           rdum = rdum + rpart(jfun+j,i)
             rdum = rdum + rpart(jfiu+j,i)
             rdum = rdum + rpart(jfqs+j,i)
 
@@ -1535,7 +1546,7 @@ c
 
       integer e
       real ur(lx1,ly1,lz1),us(lx1,ly1,lz1),ut(lx1,ly1,lz1),
-     >         pm1(lx1,ly1,lz1,lelt,3)
+     >         pm1(lx1,ly1,lz1,lelt,3),udum(lx1,ly1,lz1)
 
       nxyz=nx1*ny1*nz1
       nlxyze = lx1*ly1*lz1*lelt
@@ -1579,8 +1590,11 @@ c     compute grad pr
 
       ! div (phi_p * v)
       do e=1,nelt
+        do i=1,nxyz
+           udum(i,1,1) = pm1(i,1,1,e,1)*ptw(1,1,1,e,6)
+        enddo
         call gradl_rst(ur(1,1,1),us(1,1,1),ut(1,1,1), ! x dir
-     >                                        ptw(1,1,1,e,6),lx1,if3d)
+     >                                        udum(1,1,1),lx1,if3d)
         if(if3d) then ! 3d
             do i=1,nxyz
               rhs_fluidp(i,1,1,e,4) = 1.0d+0/JACM1(i,1,1,e)* !d/dx
@@ -1590,8 +1604,11 @@ c     compute grad pr
             enddo
         endif ! end 3d
 
+        do i=1,nxyz
+           udum(i,1,1) = pm1(i,1,1,e,1)*ptw(1,1,1,e,7)
+        enddo
         call gradl_rst(ur(1,1,1),us(1,1,1),ut(1,1,1), ! y dir
-     >                                        ptw(1,1,1,e,7),lx1,if3d)
+     >                                        udum(1,1,1),lx1,if3d)
         if(if3d) then ! 3d
             do i=1,nxyz
               rhs_fluidp(i,1,1,e,4) = rhs_fluidp(i,1,1,e,4) +
@@ -1602,8 +1619,11 @@ c     compute grad pr
             enddo
          endif
 
+        do i=1,nxyz
+           udum(i,1,1) = pm1(i,1,1,e,1)*ptw(1,1,1,e,8)
+        enddo
         call gradl_rst(ur(1,1,1),us(1,1,1),ut(1,1,1), ! z dir
-     >                                        ptw(1,1,1,e,8),lx1,if3d)
+     >                                        udum(1,1,1),lx1,if3d)
         if(if3d) then ! 3d
             do i=1,nxyz
               rhs_fluidp(i,1,1,e,4) = rhs_fluidp(i,1,1,e,4) +
@@ -1619,7 +1639,7 @@ c     compute grad pr
       do k=1,nz1
       do j=1,ny1
       do i=1,nx1
-         rhs_fluidp(i,j,k,e,4) = -pm1(i,j,k,e,1)*rhs_fluidp(i,j,k,e,4)
+         rhs_fluidp(i,j,k,e,4) = -rhs_fluidp(i,j,k,e,4)
       enddo
       enddo
       enddo
@@ -3984,8 +4004,8 @@ c----------------------------------------------------------------------
       icm = 1
 
       ! DZ FAKE
-c     do while (rys .le. xdrange(2,2))
-      do while (rys .le. 0.69)
+      do while (rys .le. xdrange(2,2))
+c     do while (rys .le. 0.23)
 
          do i=1,ny1
             rys = ryt + rygls(i)

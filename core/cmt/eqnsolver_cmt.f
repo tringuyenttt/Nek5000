@@ -438,6 +438,7 @@ C> @}
       include  'SIZE'
       include  'INPUT'
       include  'GEOM'
+      include  'PARALLEL'
       include  'MASS'
       include  'SOLN'
       include  'CMTDATA'
@@ -494,6 +495,7 @@ c     common /ctmp1/ ur(ldd),us(ldd),ut(ldd),ju(ldd),ud(ldd),tu(ldd)
       endif ! eqn nums 2-4
 
 c     multiply by pressure
+c     call dssum(rdumz,lx1,ly1,lz1)
       call col2(rdumz,pr(1,1,1,e),nxyz)
 
         if (eq_num.eq.4.and.ldim.eq.2)then
