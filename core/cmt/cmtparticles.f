@@ -157,7 +157,9 @@ c           set global particle id (3 part tag)
             call read_parallel_restart_part_many(j,nread_part)
 c           do i=1,n
 c           rrad = sqrt(rpart(jx,i)**2 + rpart(jy,i)**2)
-c           if ( (rrad .gt. 2.0E-2) .or. (rrad .lt. 3.8E-3)) then
+c           rrin = 3.8E-3 -1E-3
+c           rrout = 2.0E-2 -1E-3
+c           if ( (rrad .gt. rrout) .or. (rrad .lt. rrin)) then
 c               rpart(jz,i) = 1E8
 c           endif
 c           enddo
@@ -2024,6 +2026,10 @@ c        collision with 6 walls, but only when specified by .inp file
          enddo
 
 !        collision with cylinders? put in rxbo(j,1) ...
+c        rrin = 3.8E-3 -1E-3
+c        rrout = 2.0E-2 -1E-3
+c        rxbo(1,1) = rrin
+c        rxbo(2,1) = rrout
 c        do j=1,2
 c           ! at this particles_location
 c           rtheta = atan2(rpart(jx+1,i),rpart(jx+0,i))
