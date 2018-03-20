@@ -454,7 +454,7 @@ c     common /ctmp1/ ur(ldd),us(ldd),ut(ldd),ju(ldd),ud(ldd),tu(ldd)
       if(eq_num.ne.1.and.eq_num.ne.5)then
 
         call gradl_rst(ur(1,1,1),us(1,1,1),ut(1,1,1),
-     >                                        phig(1,1,1,e),lx1,if3d)
+     >                                   phig(1,1,1,e),lx1,if3d)
         if(if3d) then ! 3d
           if(eq_num.eq.2) then
             do i=1,nxyz

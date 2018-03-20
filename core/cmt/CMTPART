@@ -87,7 +87,7 @@ c     two-way coupled values on eulerian mesh -----------------------
 
 c     some grid values used in force calculations -------------------
       common /fundpart/ rhs_fluidp
-      real rhs_fluidp(lx1,ly1,lz1,lelt,7)
+      real rhs_fluidp(lx1,ly1,lz1,lelt,8)
 
 c     move particles between procs ----------------------------------
       parameter (lrf=42,lif=4)

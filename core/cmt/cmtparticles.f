@@ -155,6 +155,13 @@ c           set global particle id (3 part tag)
          nread_part = 1
          do j=1,nread_part
             call read_parallel_restart_part_many(j,nread_part)
+c           do i=1,n
+c           rrad = sqrt(rpart(jx,i)**2 + rpart(jy,i)**2)
+c           if ( (rrad .gt. 2.0E-2) .or. (rrad .lt. 3.8E-3)) then
+c               rpart(jz,i) = 1E8
+c           endif
+c           enddo
+            call update_particle_location   ! move outlier particles
             call move_particles_inproc
          enddo
 
@@ -1003,12 +1010,15 @@ c     remote mpi rank effects
 c     ntmp = iglsum(n,1)
 c     if (nid.eq.0) write(6,*) 'Passed remote spreading to grid'
 
-c     volume fraction cant be more tahn rvfmax ... 
+c     wght = 1.0
+c     ncut = 1
+c     do i=1,8
+c        call filter_s0(ptw(1,1,1,1,i),wght,ncut,'ptw') 
+c     enddo
+
       wght = 1.0
       ncut = 1
-      do i=1,8
-         call filter_s0(ptw(1,1,1,1,i),wght,ncut,'ptw') 
-      enddo
+      call filter_s0(ptw(1,1,1,1,4),wght,ncut,'phip') 
 
 c     rvfmax = 0.7
       rvfmin = 0.0
@@ -1018,12 +1028,23 @@ c     rvfmax = 0.7
       do i=1,nx1
 c        if (ptw(i,j,k,ie,4) .gt. rvfmax) ptw(i,j,k,ie,4) = rvfmax
          if (ptw(i,j,k,ie,4) .lt. rvfmin) ptw(i,j,k,ie,4) = rvfmin
-c        phig(i,j,k,ie) = 1. - ptw(i,j,k,ie,4)
+         phig(i,j,k,ie) = 1. - ptw(i,j,k,ie,4)
+c        rhs_fluidp(i,j,k,ie,8) = phig(i,j,k,ie)
       enddo
       enddo
       enddo
       enddo
 
+
+c     do ie=1,nelt
+c     do k=1,nz1
+c     do j=1,ny1
+c     do i=1,nx1
+c        if (rhs_fluidp(i,j,k,ie,8) .gt. 1.0) rhs_fluidp(i,j,k,ie,8)=1.0
+c     enddo
+c     enddo
+c     enddo
+c     enddo
 
       
       return
@@ -1842,20 +1863,25 @@ c     cd_std = 24/re_p already taken into account below
          rphig = 1. - rpart(jvol1,i)
          rrep = rphig*rpart(jre,i)
 
-         if (rphip .gt. 0.2) then
-            rbeta = 150.*rphip*rphip*mu_0/rphig/rpart(jdp,i)**2 +
-     >               1.75*rphip*rpart(jrho,i)*vel_diff/rpart(jdp,i)
+         ! ergun
+         rbeta1 = 150.*rphip*rphip*mu_0/rphig/rpart(jdp,i)**2 +
+     >            1.75*rphip*rpart(jrho,i)*vel_diff/rpart(jdp,i)
 
-         elseif (rphip .le. 0.2) then
-            if (rrep .lt. 1000) then
-               rcd = 24./rrep*(1. + 0.15*rrep**(0.687))
-            else
-               rcd = 0.44
-            endif
-
-            rbeta = 0.75*rcd*rphig**(-2.65)*
-     >                rphip*rphig*rpart(jrho,i)*vel_diff/rpart(jdp,i)
+         ! wen-yu
+         if (rrep .lt. 1000) then
+            rcd = 24./rrep*(1. + 0.15*rrep**(0.687))
+         else
+            rcd = 0.44
          endif
+
+         rbeta2 = 0.75*rcd*rphig**(-2.65)*
+     >             rphip*rphig*rpart(jrho,i)*vel_diff/rpart(jdp,i)
+
+         ! stiching
+         rs = 0.2
+         rpp = atan(150 * 1.75*(rphip - rs))/pi + 0.5
+         rbeta = rpp*rbeta1 + (1.-rpp)*rbeta2
+
 
          rpart(jfqs+j,i) = rpart(jvol,i)*rbeta/rphip    
      >              *(rpart(ju0+j,i) - rpart(jv0+j,i))
@@ -1889,7 +1915,6 @@ c
       ptdum(11) = dnekclock()
 
       mcfac  = 2.*sqrt(ksp)*log(e_rest)/sqrt(log(e_rest)**2+pi**2)
-
 
       if (two_way .gt. 2) then
 
@@ -1997,6 +2022,29 @@ c        collision with 6 walls, but only when specified by .inp file
      >                              rpart(jfcol,i),rdum3,idum)
             endif
          enddo
+
+!        collision with cylinders? put in rxbo(j,1) ...
+c        do j=1,2
+c           ! at this particles_location
+c           rtheta = atan2(rpart(jx+1,i),rpart(jx+0,i))
+c           rrad   = rxbo(j,1) ! assumes radius stored here
+
+c           rrp2   = 0.
+c           rvol2  = 1.
+c           rrho2  = 1E8
+c           rx2(1) = rrad*cos(rtheta)
+c           rx2(2) = rrad*sin(rtheta)
+c           rx2(3) = rpart(jx+2,i)
+c           rv2(1) = 0.
+c           rv2(2) = 0.
+c           rv2(3) = 0.
+
+c           idum = 0
+c           call compute_collide(mcfac,rrp2,rvol2,rrho2,rx2,rv2,
+c    >                              rpart(jfcol,i),rdum3,idum)
+c        enddo
+
+
       endif
 
       pttime(11) = pttime(11) + dnekclock() - ptdum(11)
@@ -3660,11 +3708,18 @@ c     setup files to write to mpi
       write(datastring,'(A8,I5.5)')   'partdata', icalld
 
       ! these are the values that will be output in .3D binary files
+      ! kind of a dumb way to do it, but good for memory  and needed for
+      ! striding...
+      icount = 0
       do i = 1,n
-         rfpts(1,i) = rpart(jx,i)
-         rfpts(2,i) = rpart(jy,i)
-         rfpts(3,i) = rpart(jz,i)
-         rfpts(4,i) = 2.*rpart(jrpe,i) ! output diameter
+         icount = icount + 1
+         rfpts(icount,1) = rpart(jx,i)
+         icount = icount + 1
+         rfpts(icount,1) = rpart(jy,i)
+         icount = icount + 1
+         rfpts(icount,1) = rpart(jz,i)
+         icount = icount + 1
+         rfpts(icount,1) = 2.*rpart(jrpe,i) ! output diameter
       enddo
      
       call MPI_Send(n, 1, MPI_INTEGER, 0, 0, nekcomm, ierr)
@@ -4004,8 +4059,8 @@ c----------------------------------------------------------------------
       icm = 1
 
       ! DZ FAKE
-      do while (rys .le. xdrange(2,2))
-c     do while (rys .le. 0.23)
+c     do while (rys .le. xdrange(2,2))
+      do while (rys .le. 0.23)
 
          do i=1,ny1
             rys = ryt + rygls(i)
@@ -4941,6 +4996,35 @@ c
       return
       end
 c-----------------------------------------------------------------------
+      function unif_random_cyl(rxl,rxr)
+c
+c     must initialize ran2 first
+c
+      parameter (nxfn = 10000)
+      real xl,xr,unif_random_cyl,rstd,rxfne(nxfn),rcdf(nxfn)
+
+      real    unif_random
+      external unif_random
+
+      rxlf  = rxl
+      rxrf  = rxr
+      rdxf  = (rxrf-rxlf)/(nxfn-1.)
+      rdxf  = (1. - (rxlf/rxrf)**2)/(nxfn-1.)
+
+      rnormalized_cdf = (rxr)**2
+
+      do i=1,nxfn
+         rxfne(i) = (rxlf/rxrf)**2 + (i-1.)*rdxf
+         rcdf(i)  = (rxfne(i))**2 / rnormalized_cdf
+      enddo
+
+      rdum = unif_random((rxl/rxr)**2,rxr/rxr)
+
+      unif_random_cyl = rxr*sqrt(rdum)
+
+      return
+      end
+c----------------------------------------------------------------------
 C> Compute coefficients for Runge-Kutta stages \cite{TVDRK}
       subroutine set_tstep_coef_part(dt_in)
 
