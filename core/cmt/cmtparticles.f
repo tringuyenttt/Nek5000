@@ -156,14 +156,11 @@ c           set global particle id (3 part tag)
          do j=1,nread_part
             call read_parallel_restart_part_many(j,nread_part)
 c           do i=1,n
-c           rrad = sqrt(rpart(jx,i)**2 + rpart(jy,i)**2)
-c           rrin = 3.8E-3 -1E-3
-c           rrout = 2.0E-2 -1E-3
-c           if ( (rrad .gt. rrout) .or. (rrad .lt. rrin)) then
+c           if ( rpart(jz,i) + rpart(jrpe,i) .gt. 0.00075) then
 c               rpart(jz,i) = 1E8
 c           endif
 c           enddo
-            call update_particle_location   ! move outlier particles
+c           call update_particle_location   ! move outlier particles
             call move_particles_inproc
          enddo
 
