@@ -3476,7 +3476,7 @@ c----------------------------------------------------------------------
          ipart(jps,i) = int((stride_len + i)/llpart)
       enddo
       nl = 0
-      call crystal_tuple_transfer(i_cr_hndl,n,llpart
+      call fgslib_crystal_tuple_transfer(i_cr_hndl,n,llpart
      >                  , ipart,ni,partl,nl,rpart,nr,jps)
 
 ! -----------------------------------------
