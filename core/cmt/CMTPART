@@ -91,7 +91,7 @@ c     some grid values used in force calculations -------------------
 
 c     move particles between procs ----------------------------------
       parameter (lrf=42,lif=4)
-      integer lrf,lif,nfpts,nrf,nif,ifpts(lif,llpart)
+      integer nfpts,nrf,nif,ifpts(lif,llpart)
       real rfpts(lrf,llpart)
       common /fptspartr/ rfpts
       common /fptsparti/ ifpts

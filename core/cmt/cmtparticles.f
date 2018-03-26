@@ -12,8 +12,7 @@ c  bdf/ext time integration. Otherwise, cmt-nek will not call this fxn.
       if (abs(time_integ) .eq. 2) nstage_part = 1
 
       if (istep.eq.0) then
-         call usr_particles_init
-         icmtp = 0
+         call usr_particles_init(0)
       else
 
          call set_tstep_coef_part(dt) ! in nek5000 with rk3
@@ -32,7 +31,7 @@ c  bdf/ext time integration. Otherwise, cmt-nek will not call this fxn.
 c----------------------------------------------------------------------
 c     setup routines
 c----------------------------------------------------------------------
-      subroutine usr_particles_init
+      subroutine usr_particles_init(idum)
       include 'SIZE'
       include 'TOTAL'
       include 'CTIMER'
@@ -41,6 +40,8 @@ c----------------------------------------------------------------------
 
       common /elementload/ gfirst, inoassignd, resetFindpts, pload(lelg)
       integer gfirst, inoassignd, resetFindpts, pload
+
+      icmtp = idum
 
       call set_part_pointers
       if (llpart .ne. 1) call read_particle_input
@@ -155,9 +156,9 @@ c           set global particle id (3 part tag)
          do j=1,nread_part
             call read_parallel_restart_part
 c           do i=1,n
-c           rrad = sqrt(rpart(jx,i)**2 + rpart(jy,i)**2)
-c           if ( (rrad .gt. 2.0E-2) .or. (rrad .lt. 3.8E-3)) then
-c               rpart(jz,i) = 1E8
+c           ry = rpart(jy,i) + rpart(jrpe,i)
+c           if (ry .gt. -0.165) then
+c               rpart(jy,i) = 1E8
 c           endif
 c           enddo
             call update_particle_location   ! move outlier particles
@@ -252,8 +253,6 @@ c----------------------------------------------------------------------
       if (icalld .lt. 0) then
          rdum   = ran2(-nrandseed*np-nid-1) ! initialize random number generator
          icalld = icalld + 1
-
-         icmtp = 1
       endif
 
 c     setup items
@@ -3337,6 +3336,7 @@ c     always output fields if 2 or 4 way coupled
 c     output diagnostics to logfile
       if (npio_method .lt. 0) then
          call output_particle_timers 
+         call output_particle_diagnostics
       endif
 
 c     output particle  information
@@ -3402,6 +3402,7 @@ c----------------------------------------------------------------------
       include 'mpif.h'
 
       common /nekmpi/ mid,np,nekcomm,nekgroup,nekreal
+      common /myparth/ i_fp_hndl, i_cr_hndl
 
       integer icalld
       save    icalld
@@ -4131,8 +4132,8 @@ c----------------------------------------------------------------------
       icm = 1
 
       ! DZ FAKE
-      do while (rys .le. xdrange(2,2))
-c     do while (rys .le. 0.23)
+c     do while (rys .le. xdrange(2,2))
+      do while (rys .le. 0.23)
 
          do i=1,ny1
             rys = ryt + rygls(i)
@@ -4411,6 +4412,79 @@ c - - - - DEM - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       return
       end
 c----------------------------------------------------------------------
+      subroutine output_particle_diagnostics
+      include 'SIZE'
+      include 'CMTTIMERS'
+      include 'TSTEP'
+      include 'PARALLEL'
+      include 'CMTPART'
+
+      real rdiags_part(3,2), rvels(4)
+
+      do i=1,3
+         rdiags_part(i,1) =  1E8
+         rdiags_part(i,2) = -1E8
+      enddo
+      do i=1,4
+         rvels(i) = 0.0
+      enddo
+      
+      do i=1,n
+         rvx = rpart(jv0,i)
+         rvy = rpart(jv0+1,i)
+         rvz = rpart(jv0+2,i)
+         rvmag = sqrt(rvx**2 + rvy**2 + rvz**2)
+
+         rxx = rpart(jx,i)
+         ryy = rpart(jy,i)
+         rzz = rpart(jz,i)
+         rrp = rpart(jrpe,i)
+
+         ! maxes
+         if (rxx + rrp .gt. rdiags_part(1,2)) rdiags_part(1,2) = rxx+rrp
+         if (ryy + rrp .gt. rdiags_part(2,2)) rdiags_part(2,2) = ryy+rrp
+         if (rzz + rrp .gt. rdiags_part(3,2)) rdiags_part(3,2) = rzz+rrp
+
+         ! mins
+         if (rxx - rrp .lt. rdiags_part(1,1)) rdiags_part(1,1) = rxx-rrp
+         if (ryy - rrp .lt. rdiags_part(2,1)) rdiags_part(2,1) = ryy-rrp
+         if (rzz - rrp .lt. rdiags_part(3,1)) rdiags_part(3,1) = rzz-rrp
+
+         ! velocities
+         if ( abs(rvx)   .gt. abs(rvels(1)) )  rvels(1) = rvx
+         if ( abs(rvy)   .gt. abs(rvels(2)) )  rvels(2) = rvy
+         if ( abs(rvz)   .gt. abs(rvels(3)) )  rvels(3) = rvz
+         if ( abs(rvmag) .gt. abs(rvels(4)) )  rvels(4) = rvmag
+      enddo
+
+      ! compute globally now
+      do i=1,3
+         rdum = rdiags_part(i,1)
+         rdiags_part(i,1) =  glmin(rdum,1)
+         rdum = rdiags_part(i,2)
+         rdiags_part(i,2) =  glmax(rdum,1)
+      enddo
+      do i=1,4
+         rdum  = rvels(i)
+         rdum1 = glmin(rdum,1)
+         rdum  = rvels(i)
+         rdum2 = glmax(rdum,1)
+         rvels(i) = rdum1
+         if (abs(rdum1) .lt. abs(rdum2)) rvels(i) = rdum2
+      enddo
+
+      if (nid .eq. 0) then
+       write(6,*)'----- START PARTICLE DIAGNOSTICS: -----'
+       write(6,*)'XMIN,XMAX       :',rdiags_part(1,1),rdiags_part(1,2)
+       write(6,*)'YMIN,YMAX       :',rdiags_part(2,1),rdiags_part(2,2)
+       write(6,*)'ZMIN,ZMAX       :',rdiags_part(3,1),rdiags_part(3,2)
+       write(6,*)'MAX(VX,VY,VZ,|V|:',rvels(1),rvels(2),rvels(3),rvels(4)
+       write(6,*)'----- END PARTICLE DIAGNOSTICS: -----'
+      endif
+
+      return
+      end
+c----------------------------------------------------------------------
       subroutine output_particle_timers
       include 'SIZE'
       include 'CMTTIMERS'
@@ -4418,34 +4492,31 @@ c----------------------------------------------------------------------
       include 'PARALLEL'
       include 'CMTPART'
 
-      if(mod(istep,iostep).eq.0.or. istep.eq.1) then
+      rftime_t = 0.
+      rptime_t = 0.
 
-         rftime_t = 0.
-         rptime_t = 0.
-
-         if(nid.eq.0) then
-            write(6,*) 'TIMER H: ', istep
-         endif
-
-         do i = 1,iptlen
-            rdum  = pttime(i)/istep
-            dtime = glsum(rdum,1)
-            rtime = dtime/np
-            if(nid.eq.0)  write(6,*) 'TIMER #:',i,rtime
-
-            ! fluid and particle total time: note i == iptlen is f_col
-            if (i .eq. 1) rftime_t = rtime
-            if ((i .gt. 1) .and. (i.ne.iptlen)) rptime_t = rptime_t +
-     >                                                     rtime
-         enddo
-
-         
-         if (nid.eq.0) then
-            write (6,*) 'TOTAL F:', rftime_t
-            write (6,*) 'TOTAL P:', rptime_t
-         endif
-
+      if(nid.eq.0) then
+         write(6,*) 'TIMER H: ', istep
       endif
+
+      do i = 1,iptlen
+         rdum  = pttime(i)/istep
+         dtime = glsum(rdum,1)
+         rtime = dtime/np
+         if(nid.eq.0)  write(6,*) 'TIMER #:',i,rtime
+
+         ! fluid and particle total time: note i == iptlen is f_col
+         if (i .eq. 1) rftime_t = rtime
+         if ((i .gt. 1) .and. (i.ne.iptlen)) rptime_t = rptime_t +
+     >                                                  rtime
+      enddo
+
+      
+      if (nid.eq.0) then
+         write (6,*) 'TOTAL F:', rftime_t
+         write (6,*) 'TOTAL P:', rptime_t
+      endif
+
 
       return
       end
@@ -5301,27 +5372,25 @@ c        endif
                if (abs(time_integ).eq.1)
      >            call set_tstep_coef_part(rdt_part)
 
-c              if (mod(istep,ninj_step).eq.0) call place_particles
-
                ! Update coordinates if particle moves outside boundary
                ptdum(2) = dnekclock()
                   call update_particle_location  
                pttime(2) = pttime(2) + dnekclock() - ptdum(2)
 
-               resetFindpts = 0
-               ilbstep = param(78)
-               if ((mod(istep,ilbstep).eq.0)) then
-                  ! Load balance if applicable
-                  resetFindpts = 0
+c              resetFindpts = 0
+c              ilbstep = param(78)
+c              if ((mod(istep,ilbstep).eq.0)) then
+c                 ! Load balance if applicable
+c                 resetFindpts = 0
 c                 call computeRatio
 c                 call reinitialize
-                  !call printVerify
-               else
-                  ! Update where particle is stored at
+c                 !call printVerify
+c              else
+c                 ! Update where particle is stored at
                   ptdum(3) = dnekclock()
                      call move_particles_inproc
                   pttime(3) = pttime(3) + dnekclock() - ptdum(3)
-               endif
+c              endif
 
                if (two_way.gt.1) then
                   ! Create ghost/wall particles
