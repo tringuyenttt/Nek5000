@@ -434,9 +434,6 @@ c     ! particle cfl, particles cant move due to velocity
          rdt_part = dt_part ! don't set if no collisions!
       endif
 
-c     if (nid.eq.0) write(6,*) 'PART DT:', 
-c    >      rdt_part,dt_part,dt_col,rvmag_max,rhmax
-
  1234 continue
 
       return
@@ -938,7 +935,6 @@ c     local mpi rank effects
       ! gaussian spreading
       elseif (abs(npro_method).eq.2) then
 
-
       pi       = 4.0d+0*atan(1.0d+0)
       rbexpi   = 1./(-2.*rsig**2)
 
@@ -946,13 +942,8 @@ c     local mpi rank effects
       multfc   = 1./(sqrt(2.*pi)**3 * rsig**3) ! exponential
       ralph2   = ralph**2
 
-c     local mpi rank effects
+      nxyz = nx1*ny1*nz1
       do ip=1,n
-         e   = ipart(je0,ip) + 1
-         xx  = rpart(jx,ip)
-         yy  = rpart(jy,ip)
-         zz  = rpart(jz,ip)
-
          pfx = -rpart(jf0,ip)*multfc
          pfy = -rpart(jf0+1,ip)*multfc
          pfz = -rpart(jf0+2,ip)*multfc
@@ -962,27 +953,30 @@ c     local mpi rank effects
          rvy = rpart(jv0+1,ip)*vol
          rvz = rpart(jv0+2,ip)*vol
 
-         call local_part_to_grid(ptw(1,1,1,1,1),ptw(1,1,1,1,2),
-     >                           ptw(1,1,1,1,3),ptw(1,1,1,1,4),
-     >                           ptw(1,1,1,1,5),ptw(1,1,1,1,6),
-     >                           ptw(1,1,1,1,7),ptw(1,1,1,1,8),
-     >                           pfx,pfy,pfz,vol,qgqf,rvx,rvy,rvz,
-     >                           xx,yy,zz,rbexpi,
-     >                           ralph,ralph2,e)
+         e   = ipart(je0,ip) + 1
+      do i=1,nxyz
+
+         rx2 = (xm1(i,1,1,e) - rpart(jx,ip))**2
+         ry2 = (ym1(i,1,1,e) - rpart(jy,ip))**2
+         rz2 = (zm1(i,1,1,e) - rpart(jz,ip))**2
+         rtmp2 = rx2 + ry2 + rz2
+         if (rtmp2 .gt. ralph2) goto 1511
+
+         rexp = exp(rtmp2*rbexpi)
+
+         ptw(i,1,1,e,1) = ptw(i,1,1,e,1) + pfx*rexp
+         ptw(i,1,1,e,2) = ptw(i,1,1,e,2) + pfy*rexp
+         ptw(i,1,1,e,3) = ptw(i,1,1,e,3) + pfz*rexp
+         ptw(i,1,1,e,4) = ptw(i,1,1,e,4) + vol*rexp
+         ptw(i,1,1,e,5) = ptw(i,1,1,e,5) + qgqf*rexp
+         ptw(i,1,1,e,6) = ptw(i,1,1,e,6) + rvx*rexp
+         ptw(i,1,1,e,7) = ptw(i,1,1,e,7) + rvy*rexp
+         ptw(i,1,1,e,8) = ptw(i,1,1,e,8) + rvz*rexp
+
+ 1511 continue
       enddo
-
-c     ntmp1 = iglmax(n,1)
-c     ntmp2 = iglmax(nfptsgp,1)
-c     if (nid.eq.0) write(6,*) 'Passed local spreading to grid'
-c    >                                                     ,ntmp1,ntmp2
-
-c     remote mpi rank effects
+      enddo
       do ip=1,nfptsgp
-         e   = iptsgp(jgpes,ip) + 1
-         xx  = rptsgp(jgpx,ip)
-         yy  = rptsgp(jgpy,ip)
-         zz  = rptsgp(jgpz,ip)
-
          pfx = -rptsgp(jgpfh,ip)*multfc
          pfy = -rptsgp(jgpfh+1,ip)*multfc
          pfz = -rptsgp(jgpfh+2,ip)*multfc
@@ -992,59 +986,50 @@ c     remote mpi rank effects
          rvy = rptsgp(jgpv0+1,ip)*vol
          rvz = rptsgp(jgpv0+2,ip)*vol
 
-         if (iptsgp(jgpiic,ip) .ne. 0) then
-            call remote_part_to_grid(ptw(1,1,1,1,1),ptw(1,1,1,1,2),
-     >                               ptw(1,1,1,1,3),ptw(1,1,1,1,4),
-     >                               ptw(1,1,1,1,5),ptw(1,1,1,1,6),
-     >                               ptw(1,1,1,1,7),ptw(1,1,1,1,8),
-     >                               pfx,pfy,pfz,vol,qgqf,rvx,rvy,rvz,
-     >                               xx,yy,zz,rbexpi,
-     >                               ralph,ralph2,e)
-         endif
+         e   = iptsgp(jgpes,ip) + 1
+      do i=1,nxyz
+
+         rx2 = (xm1(i,1,1,e) - rptsgp(jgpx,ip))**2
+         ry2 = (ym1(i,1,1,e) - rptsgp(jgpy,ip))**2
+         rz2 = (zm1(i,1,1,e) - rptsgp(jgpz,ip))**2
+         rtmp2 = rx2 + ry2 + rz2
+         if (rtmp2 .gt. ralph2) goto 1512
+
+         rexp = exp(rtmp2*rbexpi)
+
+         ptw(i,1,1,e,1) = ptw(i,1,1,e,1) + pfx*rexp
+         ptw(i,1,1,e,2) = ptw(i,1,1,e,2) + pfy*rexp
+         ptw(i,1,1,e,3) = ptw(i,1,1,e,3) + pfz*rexp
+         ptw(i,1,1,e,4) = ptw(i,1,1,e,4) + vol*rexp
+         ptw(i,1,1,e,5) = ptw(i,1,1,e,5) + qgqf*rexp
+         ptw(i,1,1,e,6) = ptw(i,1,1,e,6) + rvx*rexp
+         ptw(i,1,1,e,7) = ptw(i,1,1,e,7) + rvy*rexp
+         ptw(i,1,1,e,8) = ptw(i,1,1,e,8) + rvz*rexp
+
+ 1512 continue
+      enddo
       enddo
 
       endif
-
-c     ntmp = iglsum(n,1)
-c     if (nid.eq.0) write(6,*) 'Passed remote spreading to grid'
-
-c     wght = 1.0
-c     ncut = 1
-c     do i=1,8
-c        call filter_s0(ptw(1,1,1,1,i),wght,ncut,'ptw') 
-c     enddo
 
       wght = 1.0
       ncut = 1
       call filter_s0(ptw(1,1,1,1,4),wght,ncut,'phip') 
 
-c     rvfmax = 0.7
+      rvfmax = 0.7
       rvfmin = 0.0
       do ie=1,nelt
       do k=1,nz1
       do j=1,ny1
       do i=1,nx1
-c        if (ptw(i,j,k,ie,4) .gt. rvfmax) ptw(i,j,k,ie,4) = rvfmax
+         if (ptw(i,j,k,ie,4) .gt. rvfmax) ptw(i,j,k,ie,4) = rvfmax
          if (ptw(i,j,k,ie,4) .lt. rvfmin) ptw(i,j,k,ie,4) = rvfmin
          phig(i,j,k,ie) = 1. - ptw(i,j,k,ie,4)
-c        rhs_fluidp(i,j,k,ie,8) = phig(i,j,k,ie)
       enddo
       enddo
       enddo
       enddo
 
-
-c     do ie=1,nelt
-c     do k=1,nz1
-c     do j=1,ny1
-c     do i=1,nx1
-c        if (rhs_fluidp(i,j,k,ie,8) .gt. 1.0) rhs_fluidp(i,j,k,ie,8)=1.0
-c     enddo
-c     enddo
-c     enddo
-c     enddo
-
-      
       return
       end
 c----------------------------------------------------------------------
@@ -1093,218 +1078,6 @@ c
       return
       end
 c----------------------------------------------------------------------
-      subroutine local_part_to_grid(fvalgx,fvalgy,fvalgz,fvalgv,fvalgg,
-     >                              fvalv1,fvalv2,fvalv3,
-     >                              pvalpx,pvalpy,pvalpz,pvalpv,ppg,
-     >                              ppv1,ppv2,ppv3,
-     >                              xx,yy,zz,rbexpi,ralph,ralph2,e)
-c
-c     spread a local particle property to local fluid grid points
-c
-      include 'SIZE'
-      include 'INPUT'
-      include 'GEOM'
-      include 'SOLN'
-      include 'CMTDATA'
-      include 'CMTPART'
-
-      common /gpfix/ ilgp_f(lelt,6),ilgp_e(lelt,12),ilgp_c(lelt,8)
-
-      integer e,er
-      real    fvalgx(lx1,ly1,lz1,lelt),fvalgy(lx1,ly1,lz1,lelt),
-     >        fvalgz(lx1,ly1,lz1,lelt),fvalgv(lx1,ly1,lz1,lelt),
-     >        fvalgg(lx1,ly1,lz1,lelt),fvalv1(lx1,ly1,lz1,lelt),
-     >        fvalv2(lx1,ly1,lz1,lelt),fvalv3(lx1,ly1,lz1,lelt),
-     >        pvalpx,pvalpy,pvalpz,pvalpv,xx,yy,zz,ppg,ppv1,ppv2,ppv3
-
-c     this element
-      call point_to_grid(fvalgx(1,1,1,e),fvalgy(1,1,1,e),
-     >                   fvalgz(1,1,1,e),fvalgv(1,1,1,e),
-     >                   fvalgg(1,1,1,e),fvalv1(1,1,1,e),
-     >                   fvalv2(1,1,1,e),fvalv3(1,1,1,e),
-     >                   xm1(1,1,1,e),ym1(1,1,1,e),zm1(1,1,1,e),
-     >                   pvalpx,pvalpy,pvalpz,pvalpv,ppg,
-     >                   ppv1,ppv2,ppv3,
-     >                   xx,yy,zz,rbexpi,
-     >                   ralph,ralph2)
-
-c     faces
-      do ii=1,nfacegp
-         er=el_face_el_map(e,ii) + 1
-         impi=el_face_proc_map(e,ii)
-         if (ilgp_f(e,ii) .eq. 0) then
-         if (impi .eq. nid) then
-            call point_to_grid(fvalgx(1,1,1,er),fvalgy(1,1,1,er),
-     >                   fvalgz(1,1,1,er),fvalgv(1,1,1,er),
-     >                   fvalgg(1,1,1,er),fvalv1(1,1,1,er),
-     >                   fvalv2(1,1,1,er),fvalv3(1,1,1,er),
-     >                   xm1(1,1,1,er),ym1(1,1,1,er),zm1(1,1,1,er),
-     >                   pvalpx,pvalpy,pvalpz,pvalpv,ppg,
-     >                   ppv1,ppv2,ppv3,
-     >                   xx,yy,zz,rbexpi,
-     >                   ralph,ralph2)
-         endif
-         endif
-      enddo
-
-c     edges
-      do ii=1,nedgegp
-         er=el_edge_el_map(e,ii) + 1
-         impi=el_edge_proc_map(e,ii)
-         if (ilgp_e(e,ii) .eq. 0) then
-         if (impi .eq. nid) then
-            call point_to_grid(fvalgx(1,1,1,er),fvalgy(1,1,1,er),
-     >                   fvalgz(1,1,1,er),fvalgv(1,1,1,er),
-     >                   fvalgg(1,1,1,er),fvalv1(1,1,1,er),
-     >                   fvalv2(1,1,1,er),fvalv3(1,1,1,er),
-     >                   xm1(1,1,1,er),ym1(1,1,1,er),zm1(1,1,1,er),
-     >                   pvalpx,pvalpy,pvalpz,pvalpv,ppg,
-     >                   ppv1,ppv2,ppv3,
-     >                   xx,yy,zz,rbexpi,
-     >                   ralph,ralph2)
-         endif
-         endif
-      enddo
-
-c     corners
-      do ii=1,ncornergp
-         er=el_corner_el_map(e,ii) + 1
-         impi=el_corner_proc_map(e,ii)
-         if (ilgp_c(e,ii) .eq. 0) then
-         if (impi .eq. nid)  then
-            call point_to_grid(fvalgx(1,1,1,er),fvalgy(1,1,1,er),
-     >                   fvalgz(1,1,1,er),fvalgv(1,1,1,er),
-     >                   fvalgg(1,1,1,er),fvalv1(1,1,1,er),
-     >                   fvalv2(1,1,1,er),fvalv3(1,1,1,er),
-     >                   xm1(1,1,1,er),ym1(1,1,1,er),zm1(1,1,1,er),
-     >                   pvalpx,pvalpy,pvalpz,pvalpv,ppg,
-     >                   ppv1,ppv2,ppv3,
-     >                   xx,yy,zz,rbexpi,
-     >                   ralph,ralph2)
-         endif
-         endif
-      enddo
-
-      return
-      end
-c----------------------------------------------------------------------
-      subroutine remote_part_to_grid(fvalgx,fvalgy,fvalgz,fvalgv,fvalgg,
-     >                                fvalv1,fvalv2,fvalv3,
-     >                                pvalpx,pvalpy,pvalpz,pvalpv,ppg,
-     >                                ppv1,ppv2,ppv3,
-     >                                xx,yy,zz,rbexpi,ralph,ralph2,e)
-c
-c     spread a remote particle property to local fluid grid points
-c
-      include 'SIZE'
-      include 'INPUT'
-      include 'GEOM'
-      include 'SOLN'
-      include 'CMTDATA'
-      include 'CMTPART'
-
-      integer e
-      real    fvalgx(lx1,ly1,lz1,lelt),fvalgy(lx1,ly1,lz1,lelt),
-     >        fvalgz(lx1,ly1,lz1,lelt),fvalgv(lx1,ly1,lz1,lelt),
-     >        fvalgg(lx1,ly1,lz1,lelt),fvalv1(lx1,ly1,lz1,lelt),
-     >        fvalv2(lx1,ly1,lz1,lelt),fvalv3(lx1,ly1,lz1,lelt),
-     >        pvalpx,pvalpy,pvalpz,pvalpv,xx,yy,zz,ppg,
-     >        ppv1,ppv2,ppv3
-
-      call point_to_grid(fvalgx(1,1,1,e),fvalgy(1,1,1,e),
-     >                   fvalgz(1,1,1,e),fvalgv(1,1,1,e),
-     >                   fvalgg(1,1,1,e),fvalv1(1,1,1,e),
-     >                   fvalv2(1,1,1,e),fvalv3(1,1,1,e),
-     >                   xm1(1,1,1,e),ym1(1,1,1,e),zm1(1,1,1,e),
-     >                   pvalpx,pvalpy,pvalpz,pvalpv,ppg,
-     >                   ppv1,ppv2,ppv3,
-     >                   xx,yy,zz,rbexpi,
-     >                   ralph,ralph2)
-
-      return
-      end
-c----------------------------------------------------------------------
-      subroutine point_to_grid(gval1,gval2,gval3,gval4,gval5,
-     >                      gval6,gval7,gval8,
-     >                      xgd,ygd,zgd,
-     >                      pvalpx,pvalpy,pvalpz,pvalpv,ppg,
-     >                      ppv1,ppv2,ppv3,
-     >                      xx,yy,zz,rbexpi,
-     >                      ralph,ralph2)
-c
-c     spreads point onto grid in element e
-c       gval: grid value
-c       pval: particle value
-c
-      include 'SIZE'
-      include 'INPUT'
-      include 'GEOM'
-      include 'SOLN'
-      include 'CMTDATA'
-      include 'CMTPART'
-
-      integer i,j,k,e,ip
-      real    gval1(lx1,ly1,lz1),gval2(lx1,ly1,lz1),gval3(lx1,ly1,lz1),
-     >        gval4(lx1,ly1,lz1),gval5(lx1,ly1,lz1),gval6(lx1,ly1,lz1),
-     >        gval7(lx1,ly1,lz1),gval8(lx1,ly1,lz1),
-     >        xgd(lx1,ly1,lz1),ygd(lx1,ly1,lz1),zgd(lx1,ly1,lz1),
-     >        pvalpx,pvalpy,pvalpz,pvalpv,pi,
-     >        distx,disty,distz,xx,yy,zz,distx2,disty2,distz2,multfc,
-     >        ppg,ppv1,ppv2,ppv3
-
-c     optimized code ------------------------------------------------
-c     can we skip this entire element?
-c     rxl      = abs(xx - xgd(1,1,1))
-c     rxr      = abs(xx - xgd(nx1,1,1))
-c     if (rxl.gt.ralph .and. rxr.gt.ralph) goto 1514
-c     rxl      = abs(yy - ygd(1,1,1))
-c     rxr      = abs(yy - ygd(1,ny1,1))
-c     if (rxl.gt.ralph .and. rxr.gt.ralph) goto 1514
-c     rxl      = abs(zz - zgd(1,1,1))
-c     rxr      = abs(zz - zgd(1,1,nz1))
-c     if (rxl.gt.ralph .and. rxr.gt.ralph) goto 1514
-
-      do k=1,nz1
-         rtmp = 0.
-         distz = zz - zgd(1,1,k) ! even element spacing only!
-         distz2 = distz**2
-! DZ
-         if (distz2 .gt. ralph2) goto 1513
-      do j=1,ny1
-         disty = yy - ygd(1,j,1) ! even element spacing only!
-         disty2 = disty**2
-         rtmp1   =  distz2 + disty2
-! DZ
-         if (rtmp1 .gt. ralph2) goto 1512
-      do i=1,nx1
-         distx = xx - xgd(i,1,1) ! even element spacing only!
-         distx2 = distx**2
-         rtmp2 = rtmp1 + distx2
-! DZ
-         if (rtmp2 .gt. ralph2) goto 1511
-
-         rdum = rtmp2*rbexpi
-         rexp = exp(rdum)
-
-         gval1(i,j,k) = gval1(i,j,k) + pvalpx*rexp
-         gval2(i,j,k) = gval2(i,j,k) + pvalpy*rexp
-         gval3(i,j,k) = gval3(i,j,k) + pvalpz*rexp
-         gval4(i,j,k) = gval4(i,j,k) + pvalpv*rexp
-         gval5(i,j,k) = gval5(i,j,k) + ppg   *rexp
-         gval6(i,j,k) = gval6(i,j,k) + ppv1  *rexp
-         gval7(i,j,k) = gval7(i,j,k) + ppv2  *rexp
-         gval8(i,j,k) = gval8(i,j,k) + ppv3  *rexp
- 1511 continue
-      enddo
- 1512 continue
-      enddo
- 1513 continue
-      enddo
- 1514 continue
-
-      return
-      end
-c-----------------------------------------------------------------------
       subroutine rk3_integrate
       include 'SIZE'
       include 'TOTAL'
@@ -1375,24 +1148,6 @@ c     all rk3 stages items --------------------------------------------
          rpart(jtemp,i) = tcoef(1,stage)*kv_stage_p(i,7) +
      >                    tcoef(2,stage)*rpart(jtemp,i)  +
      >                    tcoef(3,stage)*rpart(jq0  ,i)
-
-c     if (i .eq. 1) then
-c     if (nid.eq.700) then
-c        write(6,'(A,10F15.10)')'uu',rpart(jy,i)
-c    >                             ,rpart(jf0+1,i)
-c    >                             ,rpart(ju0+1,i)
-c    >                             ,rpart(jv0+1,i)
-c    >                             ,rpart(jfqs+1,i)
-c    >                             ,rpart(jfcol+1,i)
-c    >                             ,rpart(jfusr+1,i)
-c    >                             ,rpart(jtaup,i)
-c    >                             ,rpart(jvol,i)
-c    >                             ,rpart(jdp,i)
-
-c     endif
-c     endif
-
-c     write(6,*) 'forcing',rpart(jx,i),rpart(jv0,i),rpart(jf0,i)
       enddo
 
       return
@@ -2087,12 +1842,6 @@ c
       rm1   = rrho1*rvol1
       rm2   = rrho2*rvol2
 
-c     rm12 = rm1*rm2/(rm1 + rm2)
-c     eta  = 2.*sqrt(ksp*rm12)*log(e_rest)/sqrt(log(e_rest)**2+pi**2)
-c     rtop  = rm1*rm2
-c     rbot  = rm1 + rm2
-c     rmult = rtop/rbot
-c     rmult = rmult**(0.5)
       rmult = 1./sqrt(1./rm1 + 1./rm2)
       eta  = mcfac*rmult
 
@@ -2154,6 +1903,11 @@ c     send ghost particles
       call fgslib_crystal_tuple_transfer(i_cr_hndl,nfptsgp,llpart_gp
      $           , iptsgp,nigp,partl,0,rptsgp,nrgp,jgpps) ! jgpps is overwri
 
+      ! first, sort by element for ghost particles for projection
+      ! performance
+      call fgslib_crystal_tuple_sort    (i_cr_hndl,nfptsgp
+     $              , iptsgp,nigp,partl,0,rptsgp,nrgp,jgpes,1)
+
 c     sort ghost particles by jgpiic for quick discard in collision
 c     algorithm. Note that jgpiic loc in iptsgp has values of 0 (used
 c     in collisions) or 1 (not used in collisions, but for projection)
@@ -2181,7 +1935,6 @@ c
 
 c     create ghost particles
       call create_ghost_particles_rect
-c     if (nrect_assume .gt. 0) call create_wall_particles_image2
 
       nmax   = iglmax(n,1)
       ngpmax = iglmax(nfptsgp,1)
@@ -2239,23 +1992,10 @@ c
          if (rxdum1 .lt. rxdum2) iip3 = -1
          if (rxdum2 .lt. rxdum1) iip3 =  1
 
-c        if (abs(rpart(jx,i) - xerange(1,1,ie)).lt.d2chk(1)) iip1 = -1
-c        if (abs(rpart(jx,i) - xerange(2,1,ie)).lt.d2chk(1)) iip1 = 1
-c        if (abs(rpart(jy,i) - xerange(1,2,ie)).lt.d2chk(1)) iip2 = -1
-c        if (abs(rpart(jy,i) - xerange(2,2,ie)).lt.d2chk(1)) iip2 = 1
-c        if (abs(rpart(jz,i) - xerange(1,3,ie)).lt.d2chk(1)) iip3 = -1
-c        if (abs(rpart(jz,i) - xerange(2,3,ie)).lt.d2chk(1)) iip3 = 1
-
          ! collisions
          iic1 = 0
          iic2 = 0
          iic3 = 0
-c        if (abs(rpart(jx,i) - xerange(1,1,ie)).lt.d2chk(3)) iic1 = -1
-c        if (abs(rpart(jx,i) - xerange(2,1,ie)).lt.d2chk(3)) iic1 = 1
-c        if (abs(rpart(jy,i) - xerange(1,2,ie)).lt.d2chk(3)) iic2 = -1
-c        if (abs(rpart(jy,i) - xerange(2,2,ie)).lt.d2chk(3)) iic2 = 1
-c        if (abs(rpart(jz,i) - xerange(1,3,ie)).lt.d2chk(3)) iic3 = -1
-c        if (abs(rpart(jz,i) - xerange(2,3,ie)).lt.d2chk(3)) iic3 = 1
 
          if (rxdum .lt. d2chk(3)) iic1 = iip1
          if (rydum .lt. d2chk(3)) iic2 = iip2
@@ -2434,13 +2174,6 @@ c
          if (el_tmp_num(j+1).eq.jj) then
          if (el_tmp_num(j+2).eq.kk) then
 
-c           if (nid .eq. el_tmp_proc_map(ie,ic)) then 
-c           if (ie .eq.  el_tmp_el_map(ie,ic) + 1) then 
-c              goto 1511
-c           endif
-c           endif
-
-
             nfptsgp = nfptsgp + 1
             iitmp1 = 0
             iitmp2 = 0
@@ -2501,15 +2234,13 @@ c           endif
 
             iptsgp(jgpiic,nfptsgp)  = iic            ! use in collisions
 
-               ipdum  = el_tmp_proc_map(ie,ic)
-               iedum  = el_tmp_el_map(ie,ic)
+            ipdum  = el_tmp_proc_map(ie,ic)
+            iedum  = el_tmp_el_map(ie,ic)
 
-! DZ
-               if (ipdum .lt. 0 .or. iedum .lt.0) then
-                  nfptsgp=nfptsgp-1
-                  goto 1511
-               endif
-
+            if (ipdum .lt. 0 .or. iedum .lt.0) then
+               nfptsgp=nfptsgp-1
+               goto 1511
+            endif
 
             iptsgp(jgpps,nfptsgp)   = ipdum  ! overwritten mpi
             iptsgp(jgppt,nfptsgp)   = ipdum  ! dest. mpi rank
@@ -2519,14 +2250,7 @@ c           check if extra particles have been created on the same mpi
 c           rank and also take care of boundary particles
             ibctype = abs(bc_part(1))+abs(bc_part(3))+abs(bc_part(5))
 
-c           if (nid.eq. ipdum) then
-c           if (iic .ne. 0) then
-c              iptsgp(jgpiic,nfptsgp) = 0
-c              goto 1511
-c           endif
-c           endif
 
-! DZ
 c           take care of periodic stuff first
             if (nid.eq.iptsgp(jgppt,nfptsgp)) then ! dont create gp on own rank 
                                                    ! unless moved and periodic
@@ -2582,51 +2306,6 @@ c              nfptsgp=nfptsgp-1
                goto 1511
             endif
             endif ! end if(nid.eq. ...)
-
-
-c           take care of non-periodic stuff second
-c           if (ibctype .gt. 0) then
-c              if (ibctype .eq. 3) then         ! no sides periodic
-c                 if (iitmp1+iitmp2+iitmp3 .gt.0) then
-c                    nfptsgp=nfptsgp-1
-c                    goto 1511
-c                 endif
-c              elseif (ibctype .eq.1) then      ! two sides periodic
-c                 if (abs(bc_part(1)) .eq. 1) then
-c                    if (iitmp1 .gt. 0) then
-c                       nfptsgp=nfptsgp-1
-c                       goto 1511
-c                    endif
-c                 elseif (abs(bc_part(3)) .eq. 1) then
-c                    if (iitmp2 .gt. 0) then
-c                       nfptsgp=nfptsgp-1
-c                       goto 1511
-c                    endif
-c                 elseif (abs(bc_part(5)) .eq. 1) then
-c                    if (iitmp3 .gt. 0) then
-c                       nfptsgp=nfptsgp-1
-c                       goto 1511
-c                    endif
-c                 endif
-c              elseif (ibctype .eq.2) then      ! one side periodic
-c                 if (bc_part(1) .eq. 0) then
-c                    if (iitmp2+iitmp3.gt.0) then
-c                       nfptsgp=nfptsgp-1
-c                       goto 1511
-c                    endif
-c                 elseif (bc_part(3) .eq. 0) then
-c                    if (iitmp1+iitmp3.gt.0) then
-c                       nfptsgp=nfptsgp-1
-c                       goto 1511
-c                    endif
-c                 elseif (bc_part(5) .eq. 0) then
-c                    if (iitmp1+iitmp2.gt.0) then
-c                       nfptsgp=nfptsgp-1
-c                       goto 1511
-c                    endif
-c                 endif
-c              endif
-c           endif
 
             goto 1511
          endif
@@ -2895,15 +2574,11 @@ c
       ifmove = 0
       if (xx .gt. xr) then
          xx = xx - (xr -xl)
-c        xx = abs(xx - xr) + xl
-c        xx = xx - xr
          ifmove = 1
          goto 1511
       endif
       if (xx .lt. xl) then
          xx = xx + (xr -xl)
-c        xx = xr - abs(xx - xl) 
-c        xx = xx + xl
          ifmove = 1
          goto 1511
       endif
@@ -2967,7 +2642,6 @@ c     > if bc_part = -1,1 then particles are killed (outflow)
          in_part(i) = 0
          do j=0,ndim-1
             if (rpart(jx0+j,i).lt.xdrange(1,j+1))then
-c           if (bc_part(1).eq.0) then
                if (((bc_part(1).eq.0) .and. (j.eq.0)) .or.   ! periodic
      >             ((bc_part(3).eq.0) .and. (j.eq.1)) .or.     
      >             ((bc_part(5).eq.0) .and. (j.eq.2)) ) then
@@ -2980,7 +2654,6 @@ c           if (bc_part(1).eq.0) then
                   rpart(jx3+j,i) = xdrange(2,j+1) +
      &                             abs(xdrange(1,j+1) - rpart(jx3+j,i))
                   goto 1512
-c              elseif (bc_part(1).eq. 1) then
                elseif (((bc_part(1).ne.0) .and. (j.eq.0)) .or. ! outflow
      >                 ((bc_part(3).ne.0) .and. (j.eq.1)) .or.     
      >                 ((bc_part(5).ne.0) .and. (j.eq.2)) ) then
@@ -2989,7 +2662,6 @@ c              elseif (bc_part(1).eq. 1) then
                endif
             endif
             if (rpart(jx0+j,i).gt.xdrange(2,j+1))then
-c              if (bc_part(1).eq. 0) then
                if (((bc_part(1).eq.0) .and. (j.eq.0)) .or.   ! periodic
      >             ((bc_part(3).eq.0) .and. (j.eq.1)) .or.     
      >             ((bc_part(5).eq.0) .and. (j.eq.2)) ) then
@@ -3002,7 +2674,6 @@ c              if (bc_part(1).eq. 0) then
                   rpart(jx3+j,i) = xdrange(1,j+1) -
      &                             abs(rpart(jx3+j,i) - xdrange(2,j+1))
                   goto 1512
-c              elseif (bc_part(1).eq. 1) then
                elseif (((bc_part(1).ne.0) .and. (j.eq.0)) .or. ! outflow
      >                 ((bc_part(3).ne.0) .and. (j.eq.1)) .or.     
      >                 ((bc_part(5).ne.0) .and. (j.eq.2)) ) then
@@ -3378,12 +3049,7 @@ c        call output_parallel_lagrangian_parts
       endif
 
       ! Always output restart files
-c     output restart information if needed
-c     if (ipart_restarto .gt. 0) then
-c        if (mod(nistep,ipart_restarto) .eq. 0) then
-            call output_parallel_restart_part
-c        endif
-c     endif
+      call output_parallel_restart_part
 
       pttime(1) = pttime(1) - (dnekclock() - rdumt)
 
@@ -4132,8 +3798,8 @@ c----------------------------------------------------------------------
       icm = 1
 
       ! DZ FAKE
-c     do while (rys .le. xdrange(2,2))
-      do while (rys .le. 0.23)
+      do while (rys .le. xdrange(2,2))
+c     do while (rys .le. 0.23)
 
          do i=1,ny1
             rys = ryt + rygls(i)
@@ -4882,9 +4548,6 @@ c     local mpi rank effects
             yy = ys + (j-1)*ydelta
          do i=1,nx1
             xx = xs + (i-1)*xdelta
-c           p2gc(i,j,k,ie,1) = xx
-c           p2gc(i,j,k,ie,2) = yy 
-c           p2gc(i,j,k,ie,3) = zz 
 
             p2gc(i,j,k,ie,1) = xm1(i,j,k,ie)
             p2gc(i,j,k,ie,2) = ym1(i,j,k,ie) 
@@ -4978,8 +4641,6 @@ c
       multfc   = 1./(sqrt(2.*pi)**3 * rsig**3)
       rbexpi   = 1./(-2.*rsig**2)
 
-c     ralphd   = 1E10   ! dummy so it will spread everywhere
-c     ralphd2   = 1E10  ! dummy so it will spread everywhere
 
       ralphd    = d2chk(2)     ! assume all directions same!
       ralphd2   = ralphd**2
@@ -4998,9 +4659,6 @@ c     ralphd2   = 1E10  ! dummy so it will spread everywhere
          
          rpass = 1.*multfc
 
-c        call point_to_grid(dumval(1,1,1,iie),1.,xx,yy,zz,1.,
-c    >             xgd,ygd,zgd)
-
          call point_to_grid(rdum(1,1,1),rdum(1,1,1),
      >                  rdum(1,1,1),dumval(1,1,1,iie),
      >                  rdum(1,1,1),rdum(1,1,1),rdum(1,1,1),rdum(1,1,1),
@@ -5008,19 +4666,6 @@ c    >             xgd,ygd,zgd)
      >                  1.,1.,1.,rpass,1.,1.,1.,1.,xx,yy,zz,rbexpi,
      >                  ralphd,ralphd2)
 
-c        call point_to_grid(fvalgx(1,1,1,e),fvalgy(1,1,1,e),
-c    >                   fvalgz(1,1,1,e),fvalgv(1,1,1,e),
-c    >                   xm1(1,1,1,e),ym1(1,1,1,e),zm1(1,1,1,e),
-c    >                   pvalpx,pvalpy,pvalpz,pvalpv,xx,yy,zz,rbexpi,
-c    >                   ralph,ralph2)
-c        do k=1,ny1
-c        do j=1,ny1
-c        do i=1,nx1
-c           print *, i,j,k,xgd(i,j,k),ygd(i,j,k),zgd(i,j,k),
-c    >               dumval(i,j,k,iie)
-c        enddo
-c        enddo
-c        enddo
       enddo
 
       msum = 0.
@@ -5033,7 +4678,6 @@ c        enddo
          enddo
          enddo
       enddo
-c     msum_total = glsum(msum,1)
       if (abs(msum) .lt. 1E-16) then
          gam_val = 1.
       else
@@ -5336,19 +4980,6 @@ c
       ! pre simulation iteration for packed bed
       do istep=0,nmax_step
 
-c        if (istep .eq. 0) then
-c        if (ipart_restartr .ne. 0) then
-c            do i=1,n
-c            do j=0,2
-c               rpart(jv0+j,i) = 0.
-c               rpart(jv1+j,i) = 0.
-c               rpart(jv2+j,i) = 0.
-c               rpart(jv3+j,i) = 0.
-c            enddo
-c            enddo
-c        endif
-c        endif
-
          if (istep.eq.0) then
             time = 0
             pttime(1) = 0.
@@ -5377,20 +5008,10 @@ c        endif
                   call update_particle_location  
                pttime(2) = pttime(2) + dnekclock() - ptdum(2)
 
-c              resetFindpts = 0
-c              ilbstep = param(78)
-c              if ((mod(istep,ilbstep).eq.0)) then
-c                 ! Load balance if applicable
-c                 resetFindpts = 0
-c                 call computeRatio
-c                 call reinitialize
-c                 !call printVerify
-c              else
-c                 ! Update where particle is stored at
-                  ptdum(3) = dnekclock()
-                     call move_particles_inproc
-                  pttime(3) = pttime(3) + dnekclock() - ptdum(3)
-c              endif
+c              ! Update where particle is stored at
+               ptdum(3) = dnekclock()
+                  call move_particles_inproc
+               pttime(3) = pttime(3) + dnekclock() - ptdum(3)
 
                if (two_way.gt.1) then
                   ! Create ghost/wall particles
