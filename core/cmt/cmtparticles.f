@@ -1191,6 +1191,10 @@ c        setup values ------------------------------------------------
          vel_diff = sqrt((rpart(ju0  ,i)-rpart(jv0  ,i))**2+
      >                   (rpart(ju0+1,i)-rpart(jv0+1,i))**2+
      >                   (rpart(ju0+2,i)-rpart(jv0+2,i))**2)
+         ! must do this fix so that Re is finite and non-zero singular
+         rth = 1E-6
+         if (abs(vel_diff) .lt. rth) vel_diff=rth
+
          rpart(ja,i)  = MixtPerf_C_GRT_part(gmaref,rgasref,
      >                           rpart(jtempf,i),icmtp)
          rpart(ja,i)  = vel_diff/rpart(ja,i) ! relative mach number
@@ -1608,9 +1612,7 @@ c     cd_std = 24/re_p already taken into account below
 
          rpart(jfqs+j,i) = S_qs*(rpart(ju0+j,i) - rpart(jv0+j,i))
       elseif (part_force(1).eq.3) then
-         vel_diff = sqrt((rpart(ju0  ,i)-rpart(jv0  ,i))**2+
-     >                   (rpart(ju0+1,i)-rpart(jv0+1,i))**2+
-     >                   (rpart(ju0+2,i)-rpart(jv0+2,i))**2)
+         vel_diff = rpart(jre,i)*mu_0/rpart(jrho,i)/rpart(jdp,i)
          
          rphip = rpart(jvol1,i)
          rphig = 1. - rpart(jvol1,i)
@@ -1638,7 +1640,6 @@ c     cd_std = 24/re_p already taken into account below
 
          rpart(jfqs+j,i) = rpart(jvol,i)*rbeta/rphip    
      >              *(rpart(ju0+j,i) - rpart(jv0+j,i))
-
 
       elseif (part_force(1).eq.0) then
          S_qs = 0.
