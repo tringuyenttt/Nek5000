@@ -3999,8 +3999,8 @@ c----------------------------------------------------------------------
       icm = 1
 
       ! DZ FAKE
-c     do while (rys .le. xdrange(2,2))
-      do while (rys .le. 0.096)
+      do while (rys .le. xdrange(2,2))
+c     do while (rys .le. 0.096)
 
          do i=1,ny1
             rys = ryt + rygls(i)
