@@ -3078,6 +3078,206 @@ c----------------------------------------------------------------------
       character*16 locstring, datastring
       integer*8    disp, stride_len 
       integer      status_mpi(MPI_STATUS_SIZE)
+      integer      prevs(0:np-1),npt_total,e,oldfile,count1(0:np-1)
+      integer      color,particle_io_comm,key
+
+      logical partl         ! This is a dummy placeholder, used in cr()
+
+! ----------------------------------------
+! Setup file names to write to mpi
+! ----------------------------------------
+      icalld = icalld+1
+      write(locstring,'(A8,I5.5,A3)') 'rpartxyz', icalld, '.3D' 
+      write(datastring,'(A9,I5.5)')   'rpartdata', icalld
+
+      nptot = iglsum(n,1)
+      if (nid.eq.0) then
+      open(364, file=datastring, action="write")
+         write(364,*) nptot
+      close(364)
+      endif
+
+! ----------------------------------------
+! Calculate how many processors to be used
+! ----------------------------------------
+      npmax_set = int(nptot/llpart) + 1 ! use as few procs as possible
+      npmax = np
+      if (npmax .gt. npmax_set) npmax = npmax_set
+
+! ----------------------------------------
+! Create communicator with that many ranks
+! ----------------------------------------
+      color = MPI_UNDEFINED
+      if (nid.lt.npmax) color = 0
+      key=nid
+      call MPI_Comm_split(nekcomm,color,key,particle_io_comm,ierr)
+
+! ------------------------------------
+! Get a global prefix sum of partilces
+! ------------------------------------
+      call MPI_Send(n, 1, MPI_INTEGER,0,0, nekcomm, ierr)
+      
+      ! keep track of how many particles are on previous procs
+      if (nid.eq. 0) then
+          prevs(0) = n
+          do i=0,np-1
+             call MPI_Recv(prevs(i),1,MPI_INTEGER,i,
+     >                     0,nekcomm,status_mpi,ierr)
+          enddo
+      endif
+      call MPI_BCAST(prevs,np,MPI_INTEGER,0,nekcomm,ierr)
+
+! ------------------------------------------------------
+! Each rank counts how many particles in ranks before it
+! ------------------------------------------------------
+      stride_len = 0
+      if (nid .ne. 0) then
+      do i=1,nid
+         stride_len = stride_len + prevs(i-1)
+      enddo
+      endif
+
+      ! but sort processors by ones that already have most particles
+      call isort(prevs,count1,np)
+
+! -------------------------------------
+! Set new rank to send to and then send
+! -------------------------------------
+      do i = 1,n
+         idum = int((stride_len + i)/llpart)
+         ipart(jps,i) = count1(np-idum-1) -1
+c        ipart(jps,i) = idum
+      enddo
+      nl = 0
+      call fgslib_crystal_tuple_transfer(i_cr_hndl,n,llpart
+     >                  , ipart,ni,partl,nl,rpart,nr,jps)
+
+! -----------------------------------------
+! Only use npmax ranks to read in particles
+! -----------------------------------------
+      if (nid .lt. npmax) then
+
+         do i = 1,n
+            rfpts(1,i) = rpart(jx,i)
+            rfpts(2,i) = rpart(jy,i)
+            rfpts(3,i) = rpart(jz,i)
+            rfpts(4,i) = rpart(jx1+0,i)
+            rfpts(5,i) = rpart(jx1+1,i)
+            rfpts(6,i) = rpart(jx1+2,i)
+            rfpts(7,i) = rpart(jx2+0,i)
+            rfpts(8,i) = rpart(jx2+1,i)
+            rfpts(9,i) = rpart(jx2+2,i)
+            rfpts(10,i) = rpart(jx3+0,i)
+            rfpts(11,i) = rpart(jx3+1,i)
+            rfpts(12,i) = rpart(jx3+2,i)
+         
+            rfpts(13,i) = rpart(jv0,i)
+            rfpts(14,i) = rpart(jv0+1,i)
+            rfpts(15,i) = rpart(jv0+2,i)
+            rfpts(16,i) = rpart(jv1+0,i)
+            rfpts(17,i) = rpart(jv1+1,i)
+            rfpts(18,i) = rpart(jv1+2,i)
+            rfpts(19,i) = rpart(jv2+0,i)
+            rfpts(20,i) = rpart(jv2+1,i)
+            rfpts(21,i) = rpart(jv2+2,i)
+            rfpts(22,i) = rpart(jv3+0,i)
+            rfpts(23,i) = rpart(jv3+1,i)
+            rfpts(24,i) = rpart(jv3+2,i)
+         
+            rfpts(25,i) = rpart(ju0,i)
+            rfpts(26,i) = rpart(ju0+1,i)
+            rfpts(27,i) = rpart(ju0+2,i)
+            rfpts(28,i) = rpart(ju1+0,i)
+            rfpts(29,i) = rpart(ju1+1,i)
+            rfpts(30,i) = rpart(ju1+2,i)
+            rfpts(31,i) = rpart(ju2+0,i)
+            rfpts(32,i) = rpart(ju2+1,i)
+            rfpts(33,i) = rpart(ju2+2,i)
+            rfpts(34,i) = rpart(ju3+0,i)
+            rfpts(35,i) = rpart(ju3+1,i)
+            rfpts(36,i) = rpart(ju3+2,i)
+         
+            rfpts(37,i) = rpart(jdp,i)
+            rfpts(38,i) = rpart(jspl,i)
+            rfpts(39,i) = rpart(jtemp,i)
+            rfpts(40,i) = real(ipart(jpid1,i))
+            rfpts(41,i) = real(ipart(jpid2,i))
+            rfpts(42,i) = real(ipart(jpid3,i))
+         enddo
+
+! -----------------------------------------------
+! Each rank sends how many particles it will read
+! -----------------------------------------------
+         call MPI_Send(n, 1, MPI_INTEGER,0,0, particle_io_comm, ierr)
+         
+         ! keep track of how many particles are on previous procs
+         if (nid.eq. 0) then
+             prevs(0) = n
+             do i=0,npmax-1
+                call MPI_Recv(prevs(i),1,MPI_INTEGER,i,
+     >                        0,particle_io_comm,status_mpi,ierr)
+             enddo
+         endif
+         call MPI_BCAST(prevs,npmax,MPI_INTEGER,0,particle_io_comm,ierr)
+
+! ------------------------------------------------------
+! Each rank counts how many particles in ranks before it
+! ------------------------------------------------------
+         stride_len = 0
+         if (nid .ne. 0) then
+         do i=1,nid
+            stride_len = stride_len + prevs(i-1)
+         enddo
+         endif
+
+! -------------------------
+! Parallel MPI file read in
+! -------------------------
+         call MPI_FILE_OPEN(particle_io_comm, locstring,
+     >                   MPI_MODE_CREATE + MPI_MODE_WRONLY, 
+     >                   MPI_INFO_NULL, oldfile, ierr) 
+   
+         disp = stride_len*lrf*8  ! lrf properties each with 8 bytes
+         call MPI_FILE_SET_VIEW(oldfile, disp, MPI_DOUBLE_PRECISION,
+     >                       MPI_DOUBLE_PRECISION, "native", 
+     >                       MPI_INFO_NULL, ierr) 
+         call MPI_FILE_WRITE(oldfile, rfpts(1,1), n*lrf,
+     >                  MPI_DOUBLE_PRECISION,
+     >                  MPI_STATUS_IGNORE, ierr) 
+
+         call MPI_FILE_CLOSE(oldfile, ierr) 
+
+      endif
+
+! ----------------------------------------
+! Move particles back to where they belong
+! ----------------------------------------
+      call move_particles_inproc
+
+      return
+      end
+c----------------------------------------------------------------------
+      subroutine output_parallel_restart_part_old
+      include 'SIZE'
+      include 'SOLN'
+      include 'INPUT'
+      include 'MASS'
+      include 'GEOM'
+      include 'TSTEP'
+      include 'CMTDATA'
+      include 'CMTPART'
+      include 'mpif.h'
+
+      common /nekmpi/ mid,np,nekcomm,nekgroup,nekreal
+      common /myparth/ i_fp_hndl, i_cr_hndl
+
+      integer icalld
+      save    icalld
+      data    icalld  /0/
+
+      character*16 locstring, datastring
+      integer*8    disp, stride_len 
+      integer      status_mpi(MPI_STATUS_SIZE)
       integer      prevs(0:np-1),npt_total,e,oldfile
       integer      color,particle_io_comm,key
 
@@ -3799,8 +3999,8 @@ c----------------------------------------------------------------------
       icm = 1
 
       ! DZ FAKE
-      do while (rys .le. xdrange(2,2))
-c     do while (rys .le. 0.23)
+c     do while (rys .le. xdrange(2,2))
+      do while (rys .le. 0.096)
 
          do i=1,ny1
             rys = ryt + rygls(i)
