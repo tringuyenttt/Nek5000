@@ -134,10 +134,13 @@ c           set some rpart values for later use
             rpart(jdp,n)   = d_part                              ! particle diameter
             rpart(jtaup,n) = rpart(jdp,n)**2*rho_p/18.0d+0/mu_0  ! particle time scale
             rpart(jrhop,n) = rho_p                               ! particle density 
-            rpart(jvol,n)  = pi*rpart(jdp,n)**3/6.               ! particle volume
+            rpart(jvol,n)  = pi*rpart(jdp,n)**2/4.               ! particle area
+            if (if3d) rpart(jvol,n) = pi*rpart(jdp,n)**3/6.      ! particle volume
             rpart(jspl,n)  = rspl                                ! super particle loading
 
-            rpart(jrpe,n) = rpart(jspl,n)**(1./3.)*rpart(jdp,n)/2.
+            rpart(jrpe,n) = sqrt(rpart(jspl,n))*rpart(jdp,n)/2.
+            if (if3d) rpart(jrpe,n) = rpart(jspl,n)**(1./3.)
+     >                                            *rpart(jdp,n)/2.
             rpart(jvol,n) = rpart(jspl,n)*rpart(jvol,n)
          
             rpart(jtemp,n)  = tp_0                               ! intial particle temp
@@ -177,13 +180,13 @@ c           enddo
          call exitt
       endif
 
+      ! force 2d z to be 1
       if (.not. if3d) then
          do i=1,n
-            if (abs(rpart(jz,i)-1.0) .gt. 1E-16) then
-               if (nid.eq.0)
-     >            write(6,*)'Particle zstart is not right for 2d case'
-               call exitt
-            endif
+            rpart(jx +2,i) = 1.
+            rpart(jx1+2,i) = 1.
+            rpart(jx2+2,i) = 1.
+            rpart(jx3+2,i) = 1.
          enddo
       endif
 
@@ -227,7 +230,8 @@ c     if(istep.eq.0.or.istep.eq.1)then
            xerange(2,3,ie) = vlmax(zm1(1,1,1,ie),nxyz)
 
            rdum1 = min(xerange(2,1,ie) - xerange(1,1,ie),
-     >                 xerange(2,2,ie) - xerange(1,2,ie),
+     >                 xerange(2,2,ie) - xerange(1,2,ie))
+           if (if3d) rdum1 = min(rdum1,
      >                 xerange(2,3,ie) - xerange(1,3,ie))
            if (rdum1 .lt. rdum) rdum = rdum1
         enddo  
@@ -407,12 +411,9 @@ c     ! particle cfl, particles cant move due to velocity
       dt_part = 1000.
       cflp = 0.10
       rvmag_max = 0.
-      rhmax = -1E8 
       do i=1,n
          rvmag  = sqrt(rpart(jv0,i)**2 + rpart(jv0+1,i)**2 
      >                 + rpart(jv0+2,i)**2)
-         if (rpart(jy,i) + rpart(jrpe,i) .gt. rhmax) 
-     >                   rhmax = rpart(jy,i) + rpart(jrpe,i)
 
          cflt = dt_dum*rvmag/rdpe_min
          if (cflt .lt. cflp) dt_part = dt_dum
@@ -422,7 +423,6 @@ c     ! particle cfl, particles cant move due to velocity
       enddo
       rvmag_max = glmax(rvmag_max,1)
       dt_part  = glmin(dt_part,1)
-      rhmax    = glmax(rhmax,1)
 
       ! resolving collisions
       rm1      = rho_p*pi/6.*rdpe_min**3 ! max
@@ -887,7 +887,7 @@ c
       include 'CMTPART'
 
       real    xx,yy,zz,vol,pfx,pfy,pfz,pmass,pmassf,vcell,multfc
-     >       ,qgqf,rvx,rvy,rvz,rcountv(8,nelt)
+     >       ,qgqf,rvx,rvy,rvz,rcountv(8,nelt),rx2(3),rxyzp(6,3)
       integer e
 
       nlxyze = lx1*ly1*lz1*lelt
@@ -942,10 +942,13 @@ c     local mpi rank effects
       rbexpi   = 1./(-2.*rsig**2)
 
       ralph    = dfilt/2.*sqrt(-log(ralphdecay)/log(2.))*rleng
-      multfc   = 1./(sqrt(2.*pi)**3 * rsig**3) ! exponential
+      multfc   = 1./(sqrt(2.*pi)**2 * rsig**2) ! exponential
+      if (if3d) multfc  = multfc**(1.5d+0)
       ralph2   = ralph**2
 
       nxyz = nx1*ny1*nz1
+
+      ! real particles
       do ip=1,n
          pfx = -rpart(jf0,ip)*multfc
          pfy = -rpart(jf0+1,ip)*multfc
@@ -957,15 +960,76 @@ c     local mpi rank effects
          rvz = rpart(jv0+2,ip)*vol
 
          e   = ipart(je0,ip) + 1
+
+         ! adding wall effects
+         ic = 0
+         do j = 1,ndim*2
+            if (bc_part(j) .eq. -1) then
+               nj1 = mod(j,2)
+               if (nj1.ne.0) nj1 = 1
+               if (nj1.eq.0) nj1 = 2
+               nj2 = int((j-1)/2) + 1
+
+               rx2(1) = rpart(jx  ,ip)
+               rx2(2) = rpart(jx+1,ip)
+               rx2(3) = rpart(jx+2,ip)
+               rx2(nj2) = xdrange(nj1,nj2)
+
+               ! compute distance and normal to wall
+               rx2(1) = rx2(1) - rpart(jx,ip)
+               rx2(2) = rx2(2) - rpart(jy,ip)
+               if (if3d) then
+                   rx2(3) = rx2(3) - rpart(jz,ip)
+                   rdist = sqrt(rx2(1)**2 + rx2(2)**2 + rx2(3)**2)
+               else
+                   rdist = sqrt(rx2(1)**2 + rx2(2)**2)
+               endif
+               if (rdist .lt. d2chk(2)) then
+                  ic = ic + 1
+
+                  rnx = rx2(1)/rdist
+                  rxyzp(ic,1) = rpart(jx,ip)
+                  rxyzp(ic,1) = rpart(jx,ip) + rnx*rdist*2.
+
+                  rny = rx2(2)/rdist
+                  rxyzp(ic,2) = rpart(jy,ip)
+                  rxyzp(ic,2) = rpart(jy,ip) + rny*rdist*2.
+
+                  if (if3d) then
+                     rnz = rx2(3)/rdist
+                     rxyzp(ic,3) = rpart(jz,ip)
+                     rxyzp(ic,3) = rpart(jz,ip) + rnz*rdist*2.
+                  endif
+              endif
+            endif
+         enddo
       do i=1,nxyz
 
-         rx2 = (xm1(i,1,1,e) - rpart(jx,ip))**2
-         ry2 = (ym1(i,1,1,e) - rpart(jy,ip))**2
-         rz2 = (zm1(i,1,1,e) - rpart(jz,ip))**2
-         rtmp2 = rx2 + ry2 + rz2
+         rx22 = (xm1(i,1,1,e) - rpart(jx,ip))**2
+         ry22 = (ym1(i,1,1,e) - rpart(jy,ip))**2
+         rtmp2 = rx22 + ry22
+         if (if3d) then
+            rz22 = (zm1(i,1,1,e) - rpart(jz,ip))**2
+            rtmp2 = rtmp2 + rz22
+         endif
          if (rtmp2 .gt. ralph2) goto 1511
 
          rexp = exp(rtmp2*rbexpi)
+
+         if (ic .gt. 0) then
+            do j=1,ic
+               rx22 = (xm1(i,1,1,e) - rxyzp(j,1))**2
+               ry22 = (ym1(i,1,1,e) - rxyzp(j,2))**2
+               rtmp2 = rx22 + ry22
+               if (if3d) then
+                  rz22 = (zm1(i,1,1,e) - rxyzp(j,3))**2
+                  rtmp2 = rtmp2 + rz22
+               endif
+
+               rexp = rexp + exp(rtmp2*rbexpi)
+
+            enddo
+         endif
 
          ptw(i,1,1,e,1) = ptw(i,1,1,e,1) + pfx*rexp
          ptw(i,1,1,e,2) = ptw(i,1,1,e,2) + pfy*rexp
@@ -975,10 +1039,11 @@ c     local mpi rank effects
          ptw(i,1,1,e,6) = ptw(i,1,1,e,6) + rvx*rexp
          ptw(i,1,1,e,7) = ptw(i,1,1,e,7) + rvy*rexp
          ptw(i,1,1,e,8) = ptw(i,1,1,e,8) + rvz*rexp
-
  1511 continue
       enddo
       enddo
+
+      ! Ghost particles
       do ip=1,nfptsgp
          pfx = -rptsgp(jgpfh,ip)*multfc
          pfy = -rptsgp(jgpfh+1,ip)*multfc
@@ -990,15 +1055,76 @@ c     local mpi rank effects
          rvz = rptsgp(jgpv0+2,ip)*vol
 
          e   = iptsgp(jgpes,ip) + 1
+
+         ! adding wall effects
+         ic = 0
+         do j = 1,ndim*2
+            if (bc_part(j) .eq. -1) then
+               nj1 = mod(j,2)
+               if (nj1.ne.0) nj1 = 1
+               if (nj1.eq.0) nj1 = 2
+               nj2 = int((j-1)/2) + 1
+
+               rx2(1) = rptsgp(jgpx,ip)
+               rx2(2) = rptsgp(jgpy,ip)
+               rx2(3) = rptsgp(jgpz,ip)
+               rx2(nj2) = xdrange(nj1,nj2)
+
+               ! compute distance and normal to wall
+               rx2(1) = rx2(1) - rptsgp(jgpx,ip)
+               rx2(2) = rx2(2) - rptsgp(jgpy,ip)
+               if (if3d) then
+                   rx2(3) = rx2(3) - rptsgp(jgpz,ip)
+                   rdist = sqrt(rx2(1)**2 + rx2(2)**2 + rx2(3)**2)
+               else
+                   rdist = sqrt(rx2(1)**2 + rx2(2)**2)
+               endif
+               if (rdist .lt. d2chk(2)) then
+                  ic = ic + 1
+
+                  rnx = rx2(1)/rdist
+                  rxyzp(ic,1) = rptsgp(jgpx,ip)
+                  rxyzp(ic,1) = rptsgp(jgpx,ip) + rnx*rdist*2.
+
+                  rny = rx2(2)/rdist
+                  rxyzp(ic,2) = rptsgp(jgpy,ip)
+                  rxyzp(ic,2) = rptsgp(jgpy,ip) + rny*rdist*2.
+
+                  if (if3d) then
+                     rnz = rx2(3)/rdist
+                     rxyzp(ic,3) = rptsgp(jgpz,ip)
+                     rxyzp(ic,3) = rptsgp(jgpz,ip) + rnz*rdist*2.
+                  endif
+              endif
+            endif
+         enddo
       do i=1,nxyz
 
-         rx2 = (xm1(i,1,1,e) - rptsgp(jgpx,ip))**2
-         ry2 = (ym1(i,1,1,e) - rptsgp(jgpy,ip))**2
-         rz2 = (zm1(i,1,1,e) - rptsgp(jgpz,ip))**2
-         rtmp2 = rx2 + ry2 + rz2
+         rx22 = (xm1(i,1,1,e) - rptsgp(jgpx,ip))**2
+         ry22 = (ym1(i,1,1,e) - rptsgp(jgpy,ip))**2
+         rtmp2 = rx22 + ry22
+         if (if3d) then
+            rz22 = (zm1(i,1,1,e) - rptsgp(jgpz,ip))**2
+            rtmp2 = rtmp2 + rz22
+         endif
          if (rtmp2 .gt. ralph2) goto 1512
 
          rexp = exp(rtmp2*rbexpi)
+
+         if (ic .gt. 0) then
+            do j=1,ic
+               rx22 = (xm1(i,1,1,e) - rxyzp(j,1))**2
+               ry22 = (ym1(i,1,1,e) - rxyzp(j,2))**2
+               rtmp2 = rx22 + ry22
+               if (if3d) then
+                  rz22 = (zm1(i,1,1,e) - rxyzp(j,3))**2
+                  rtmp2 = rtmp2 + rz22
+               endif
+
+               rexp = rexp + exp(rtmp2*rbexpi)
+            
+            enddo
+         endif
 
          ptw(i,1,1,e,1) = ptw(i,1,1,e,1) + pfx*rexp
          ptw(i,1,1,e,2) = ptw(i,1,1,e,2) + pfy*rexp
@@ -1008,7 +1134,6 @@ c     local mpi rank effects
          ptw(i,1,1,e,6) = ptw(i,1,1,e,6) + rvx*rexp
          ptw(i,1,1,e,7) = ptw(i,1,1,e,7) + rvy*rexp
          ptw(i,1,1,e,8) = ptw(i,1,1,e,8) + rvz*rexp
-
  1512 continue
       enddo
       enddo
@@ -1019,7 +1144,8 @@ c     local mpi rank effects
       ncut = 1
       call filter_s0(ptw(1,1,1,1,4),wght,ncut,'phip') 
 
-      rvfmax = 0.7
+      rvfmax = 0.9069
+      if (if3d) rvfmax = 0.7405
       rvfmin = 0.0
       do ie=1,nelt
       do k=1,nz1
@@ -1145,7 +1271,8 @@ c     all rk3 stages items --------------------------------------------
          rpart(jx0+1,i) = tcoef(1,stage)*kv_stage_p(i,2) +
      >                    tcoef(2,stage)*rpart(jx0+1,i)  +
      >                    tcoef(3,stage)*rpart(jv0+1,i)
-         rpart(jx0+2,i) = tcoef(1,stage)*kv_stage_p(i,3) +
+         if (if3d)
+     >   rpart(jx0+2,i) = tcoef(1,stage)*kv_stage_p(i,3) +
      >                    tcoef(2,stage)*rpart(jx0+2,i)  +
      >                    tcoef(3,stage)*rpart(jv0+2,i)
          rpart(jtemp,i) = tcoef(1,stage)*kv_stage_p(i,7) +
@@ -1194,6 +1321,10 @@ c        setup values ------------------------------------------------
          vel_diff = sqrt((rpart(ju0  ,i)-rpart(jv0  ,i))**2+
      >                   (rpart(ju0+1,i)-rpart(jv0+1,i))**2+
      >                   (rpart(ju0+2,i)-rpart(jv0+2,i))**2)
+         ! must do this fix so that Re is finite and non-zero singular
+         rth = 1E-6
+         if (abs(vel_diff) .lt. rth) vel_diff=rth
+
          rpart(ja,i)  = MixtPerf_C_GRT_part(gmaref,rgasref,
      >                           rpart(jtempf,i),icmtp)
          rpart(ja,i)  = vel_diff/rpart(ja,i) ! relative mach number
@@ -1341,7 +1472,7 @@ c     compute grad pr
       do e=1,nelt
         call gradl_rst(ur(1,1,1),us(1,1,1),ut(1,1,1),
      >                                        pm1(1,1,1,e,1),lx1,if3d)
-        if(if3d) then ! 3d
+c       if(if3d) then ! 3d
             do i=1,nxyz
               rhs_fluidp(i,1,1,e,1) = 1.0d+0/JACM1(i,1,1,e)* !d/dx
      >             (ur(i,1,1)*RXM1(i,1,1,e) +
@@ -1362,31 +1493,31 @@ c     compute grad pr
      >              us(i,1,1)*SZM1(i,1,1,e) +
      >              ut(i,1,1)*TZM1(i,1,1,e))
             enddo
-        endif ! end 3d
+c       endif ! end 3d
       enddo
 
       ! div (phi_p * v)
       do e=1,nelt
         do i=1,nxyz
-           udum(i,1,1) = pm1(i,1,1,e,1)*ptw(1,1,1,e,6)
+           udum(i,1,1) = pm1(i,1,1,e,1)*ptw(i,1,1,e,6)
         enddo
         call gradl_rst(ur(1,1,1),us(1,1,1),ut(1,1,1), ! x dir
      >                                        udum(1,1,1),lx1,if3d)
-        if(if3d) then ! 3d
+c       if(if3d) then ! 3d
             do i=1,nxyz
               rhs_fluidp(i,1,1,e,4) = 1.0d+0/JACM1(i,1,1,e)* !d/dx
      >             (ur(i,1,1)*RXM1(i,1,1,e) +
      >              us(i,1,1)*SXM1(i,1,1,e) +
      >              ut(i,1,1)*TXM1(i,1,1,e))
             enddo
-        endif ! end 3d
+c       endif ! end 3d
 
         do i=1,nxyz
-           udum(i,1,1) = pm1(i,1,1,e,1)*ptw(1,1,1,e,7)
+           udum(i,1,1) = pm1(i,1,1,e,1)*ptw(i,1,1,e,7)
         enddo
         call gradl_rst(ur(1,1,1),us(1,1,1),ut(1,1,1), ! y dir
      >                                        udum(1,1,1),lx1,if3d)
-        if(if3d) then ! 3d
+c       if(if3d) then ! 3d
             do i=1,nxyz
               rhs_fluidp(i,1,1,e,4) = rhs_fluidp(i,1,1,e,4) +
      >             1.0d+0/JACM1(i,1,1,e)* !d/dy
@@ -1394,14 +1525,14 @@ c     compute grad pr
      >              us(i,1,1)*SYM1(i,1,1,e) +
      >              ut(i,1,1)*TYM1(i,1,1,e))
             enddo
-         endif
+c        endif
 
         do i=1,nxyz
-           udum(i,1,1) = pm1(i,1,1,e,1)*ptw(1,1,1,e,8)
+           udum(i,1,1) = pm1(i,1,1,e,1)*ptw(i,1,1,e,8)
         enddo
         call gradl_rst(ur(1,1,1),us(1,1,1),ut(1,1,1), ! z dir
      >                                        udum(1,1,1),lx1,if3d)
-        if(if3d) then ! 3d
+c       if(if3d) then ! 3d
             do i=1,nxyz
               rhs_fluidp(i,1,1,e,4) = rhs_fluidp(i,1,1,e,4) +
      >             1.0d+0/JACM1(i,1,1,e)* !d/dz
@@ -1409,7 +1540,7 @@ c     compute grad pr
      >              us(i,1,1)*SZM1(i,1,1,e) +
      >              ut(i,1,1)*TZM1(i,1,1,e))
             enddo
-        endif
+c       endif
       enddo
 
       do e=1,nelt
@@ -1426,7 +1557,7 @@ c     compute grad phi_g
       do e=1,nelt
         call gradl_rst(ur(1,1,1),us(1,1,1),ut(1,1,1),
      >                                        phig(1,1,1,e),lx1,if3d)
-        if(if3d) then ! 3d
+c       if(if3d) then ! 3d
             do i=1,nxyz
               rhs_fluidp(i,1,1,e,5) = 1.0d+0/JACM1(i,1,1,e)*
      >             (ur(i,1,1)*RXM1(i,1,1,e) +
@@ -1447,7 +1578,7 @@ c     compute grad phi_g
      >              us(i,1,1)*SZM1(i,1,1,e) +
      >              ut(i,1,1)*TZM1(i,1,1,e))
             enddo
-        endif ! end 3d
+c       endif ! end 3d
       enddo
 
       do e=1,nelt
@@ -1611,9 +1742,7 @@ c     cd_std = 24/re_p already taken into account below
 
          rpart(jfqs+j,i) = S_qs*(rpart(ju0+j,i) - rpart(jv0+j,i))
       elseif (part_force(1).eq.3) then
-         vel_diff = sqrt((rpart(ju0  ,i)-rpart(jv0  ,i))**2+
-     >                   (rpart(ju0+1,i)-rpart(jv0+1,i))**2+
-     >                   (rpart(ju0+2,i)-rpart(jv0+2,i))**2)
+         vel_diff = rpart(jre,i)*mu_0/rpart(jrho,i)/rpart(jdp,i)
          
          rphip = rpart(jvol1,i)
          rphig = 1. - rpart(jvol1,i)
@@ -1641,7 +1770,6 @@ c     cd_std = 24/re_p already taken into account below
 
          rpart(jfqs+j,i) = rpart(jvol,i)*rbeta/rphip    
      >              *(rpart(ju0+j,i) - rpart(jv0+j,i))
-
 
       elseif (part_force(1).eq.0) then
          S_qs = 0.
@@ -1686,14 +1814,21 @@ c
 
       icx1 = ipart(jicx,i)
       icy1 = ipart(jicy,i)
-      icz1 = ipart(jicz,i)
+      
+      icz1 = 0
+      if (if3d) icz1 = ipart(jicz,i)
 
       icxm = icx1 -1
       icxp = icx1 +1
       icym = icy1 -1
       icyp = icy1 +1
-      iczm = icz1 -1
-      iczp = icz1 +1
+
+      iczm = 0
+      iczp = 0
+      if (if3d) then
+         iczm = icz1 -1
+         iczp = icz1 +1
+      endif
 
 c     let every particle search for itself
 c        particles in local elements
@@ -1755,7 +1890,7 @@ c        search list of ghost particles
  1235 continue
 
 c        collision with 6 walls, but only when specified by .inp file 
-         do j = 1,6
+         do j = 1,2*ndim
             if (bc_part(j) .eq. -1) then
                nj1 = mod(j,2)
                if (nj1.ne.0) nj1 = 1
@@ -1836,10 +1971,12 @@ c
       rsum2 = rsum2 + rydiff2
       if (rsum2 .gt. rthresh2) goto 1511
 
-      rzdiff = rx2(3) - rx1(3)
-      rzdiff2 = rzdiff**2
-      rsum2 = rsum2 + rzdiff2
-      if (rsum2 .gt. rthresh2) goto 1511
+      if (if3d) then
+         rzdiff = rx2(3) - rx1(3)
+         rzdiff2 = rzdiff**2
+         rsum2 = rsum2 + rzdiff2
+         if (rsum2 .gt. rthresh2) goto 1511
+      endif
 
       rdiff = sqrt(rsum2)
       rm1   = rrho1*rvol1
@@ -1937,7 +2074,11 @@ c
       character*132 deathmessage
 
 c     create ghost particles
-      call create_ghost_particles_rect
+      if (if3d) then
+         call create_ghost_particles_rect_3d
+      else
+         call create_ghost_particles_rect_2d
+      endif
 
       nmax   = iglmax(n,1)
       ngpmax = iglmax(nfptsgp,1)
@@ -1957,7 +2098,109 @@ c     create ghost particles
       return
       end
 c----------------------------------------------------------------------
-      subroutine create_ghost_particles_rect
+      subroutine create_ghost_particles_rect_2d
+c
+c     this routine will create ghost particles by checking if particle
+c     is within d2chk of element faces
+c
+c     ghost particle x,y,z list will be in rptsgp(jgpx,j),rptsgp(jgpy,j),
+c     rptsgp(jgpz,j), while processor and local element id are in
+c     iptsgp(jgppt,j) and iptsgp(jgpes,j)
+c
+      include 'SIZE'
+      include 'TOTAL'
+      include 'CMTDATA'
+      include 'CMTPART'
+
+      nfptsgp = 0
+      do i = 1,n
+         ie = ipart(je0,i)+1
+
+         ! projection
+         iip1 = 0
+         iip2 = 0
+         rxdum1 = abs(rpart(jx,i) - xerange(1,1,ie))
+         rxdum2 = abs(rpart(jx,i) - xerange(2,1,ie))
+         rxdum = min(rxdum1,rxdum2)
+         if (rxdum1 .lt. rxdum2) iip1 = -1
+         if (rxdum2 .lt. rxdum1) iip1 =  1
+         rxdum1 = abs(rpart(jy,i) - xerange(1,2,ie))
+         rxdum2 = abs(rpart(jy,i) - xerange(2,2,ie))
+         rydum = min(rxdum1,rxdum2)
+         if (rxdum1 .lt. rxdum2) iip2 = -1
+         if (rxdum2 .lt. rxdum1) iip2 =  1
+
+         ! collisions
+         iic1 = 0
+         iic2 = 0
+
+         if (rxdum .lt. d2chk(3)) iic1 = iip1
+         if (rydum .lt. d2chk(3)) iic2 = iip2
+
+         do j=1,3*nfacegp-2,3   ! faces
+            ii = el_face_num(j) 
+            jj = el_face_num(j+1) 
+            kk = el_face_num(j+2) 
+
+            iip = 0
+            iic = 2
+            if (ii .ne. 0) then
+               if (iip1 .eq. ii) iip = 1
+               if (iic1 .eq. ii) iic = 1
+            endif
+            if (jj .ne. 0) then
+               if (iip2 .eq. jj) iip = 1
+               if (iic2 .eq. jj) iic = 1
+            endif
+            if (kk .ne. 0) then
+               if (iip3 .eq. kk) iip = 1
+               if (iic3 .eq. kk) iic = 1
+            endif
+
+            if (nrect_assume .eq. 2) iip = 1
+            if (iip .eq. 1) then
+            call gp_create(ii,jj,kk,iic,i,
+     >       nfacegp,el_face_num,el_face_proc_map,el_face_el_map)
+            endif
+         enddo
+
+         do j=1,3*nedgegp-2,3   ! edges
+            ii = el_edge_num(j) 
+            jj = el_edge_num(j+1) 
+            kk = el_edge_num(j+2) 
+
+            iip = 0
+            iic = 2
+            if (ii .ne. 0) then
+               if (jj .ne. 0) then
+               ! ii jj
+                  if (iip1 .eq. ii) then
+                  if (iip2 .eq. jj) then
+                     iip = 1
+                  endif
+                  endif
+                  if (iic1 .eq. ii) then
+                  if (iic2 .eq. jj) then
+                     iic = 1
+                  endif
+                  endif
+               endif
+            endif
+
+            if (nrect_assume .eq. 2) iip = 1
+
+            if (iip .eq. 1) then
+            call gp_create(ii,jj,kk,iic,i,
+     >       nedgegp,el_edge_num,el_edge_proc_map,el_edge_el_map)
+            endif
+         enddo
+
+      enddo
+
+      return
+      end
+c----------------------------------------------------------------------
+      subroutine create_ghost_particles_rect_3d
 c
 c     this routine will create ghost particles by checking if particle
 c     is within d2chk of element faces
@@ -2161,21 +2404,23 @@ c
 
       xdlen = xdrange(2,1) - xdrange(1,1)
       ydlen = xdrange(2,2) - xdrange(1,2)
-      zdlen = xdrange(2,3) - xdrange(1,3)
+      zdlen = 0.
+      if (if3d) zdlen = xdrange(2,3) - xdrange(1,3)
 
             ie = ipart(je0,i)+1
 
       xedlen = xerange(2,1,ie) - xerange(1,1,ie)
       yedlen = xerange(2,2,ie) - xerange(1,2,ie)
-      zedlen = xerange(2,3,ie) - xerange(1,3,ie)
-
+      zedlen = 0.
+      if (if3d) zedlen = xerange(2,3,ie) - xerange(1,3,ie)
 
       ic = 0
       do j=1,3*nnl-2,3
          ic = ic + 1
          if (el_tmp_num(j)  .eq.ii) then
          if (el_tmp_num(j+1).eq.jj) then
-         if (el_tmp_num(j+2).eq.kk) then
+             if ((if3d .and. el_tmp_num(j+2).eq.kk) .or. 
+     >           (.not. if3d .and. el_tmp_num(j+2) .eq. 0)) then
 
             nfptsgp = nfptsgp + 1
             iitmp1 = 0
@@ -2208,6 +2453,7 @@ c
             endif
   124 continue
             zloc = rpart(jz,i)
+            if (if3d) then
             if (zloc+zedlen*kk .gt. xdrange(2,3))then
                  zloc = rpart(jz,i) - zdlen
                  iitmp3 = 1
@@ -2217,6 +2463,7 @@ c
                  zloc = rpart(jz,i) + zdlen
                  iitmp3 = 1
                  goto 125
+            endif
             endif
   125 continue
 
@@ -2321,6 +2568,190 @@ c              nfptsgp=nfptsgp-1
       end
 c-----------------------------------------------------------------------
       subroutine compute_neighbor_el_proc
+      include 'SIZE'
+      include 'TOTAL'
+      include 'CMTDATA'
+      include 'CMTPART'
+c
+c     This routine is called once at the beginning of the particle
+c     simulation. At the end of this routine, the common blocks
+c     /neighbor_proc/ & /neighbor_el_number/ are set. The idea behind
+c     this routine is to know what processor owns neighboring spectral
+c     elements and what local element number the neighboring element is.
+c
+c     el_*_proc_map holds: *(face,edge,corner) neighboring element 
+c                           MPI rank number
+c     el_*_el_map holds:   *(face,edge,corner) neighboring element
+c                           local numbers
+c
+c     The ordering of faces, edges, and corners are given in el_*_num
+c
+c     el_*_proc_map(i,j) and el_*_el_map(i,j) are ordered by elements 
+c     1 <= i <= nelt, and 1 <= j <= 26, where j=1,nfacegp are element
+c     faces, j=nfacegp+1,nfacegp+nedgegp are element edges, and 
+c     j = nfacegp+nedgegp+1,nfacegp+nedgegp+ncornergp are corners
+
+      if (if3d) then
+          call compute_neighbor_el_proc_3d
+      else
+          call compute_neighbor_el_proc_2d
+      endif
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine compute_neighbor_el_proc_2d
+      include 'SIZE'
+      include 'TOTAL'
+      include 'CMTDATA'
+      include 'CMTPART'
+c
+c     This routine is called once at the beginning of the particle
+c     simulation. At the end of this routine, the common blocks
+c     /neighbor_proc/ & /neighbor_el_number/ are set. The idea behind
+c     this routine is to know what processor owns neighboring spectral
+c     elements and what local element number the neighboring element is.
+c
+c     el_*_proc_map holds: *(face,edge,corner) neighboring element 
+c                           MPI rank number
+c     el_*_el_map holds:   *(face,edge,corner) neighboring element
+c                           local numbers
+c
+c     The ordering of faces, edges, and corners are given in el_*_num
+c
+c     el_*_proc_map(i,j) and el_*_el_map(i,j) are ordered by elements 
+c     1 <= i <= nelt, and 1 <= j <= 26, where j=1,nfacegp are element
+c     faces, j=nfacegp+1,nfacegp+nedgegp are element edges, and 
+c     j = nfacegp+nedgegp+1,nfacegp+nedgegp+ncornergp are corners
+
+      common /nekmpi/ mid,mp,nekcomm,nekgroup,nekreal
+      common /myparth/ i_fp_hndl, i_cr_hndl
+
+      common /gpfix/ ilgp_f(lelt,6),ilgp_e(lelt,12),ilgp_c(lelt,8)
+
+      real  rimp(7,lelt*26)
+      integer iimp(4,lelt*26)
+
+c     face, edge, and corner number, x,y,z are all inline, so stride=3
+      el_face_num = (/ -1,0,0, 1,0,0, 0,-1,0, 0,1,0,    0,0,0,0,0,0/)
+      el_edge_num = (/ -1,-1,0, 1,-1,0, 1,1,0, -1,1,0,
+     >              0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0/)
+      nfacegp   = 4  ! number of faces
+      nedgegp   = 4  ! number of edges
+      ncornergp = 0  ! number of corners
+      idum      = 0  ! dummy arguement
+
+      rtmult = 1.5
+
+      icount = 0 
+      do i=1,nelt
+         do j=1,3*nfacegp-2,3   ! faces
+            icount = icount + 1
+
+            xlen = xerange(2,1,i)-xerange(1,1,i)
+            ylen = xerange(2,2,i)-xerange(1,2,i)
+
+            xmid = (xerange(2,1,i)+xerange(1,1,i))/2.0
+            ymid = (xerange(2,2,i)+xerange(1,2,i))/2.0
+
+            isignxx = el_face_num(j) 
+            isignyy = el_face_num(j+1) 
+
+            xloc = xmid + (xlen*rtmult)*isignxx/2.0
+            yloc = ymid + (ylen*rtmult)*isignyy/2.0
+            zloc = 1.0
+            iimp(4,icount) = 0
+            idum = 1
+            call bounds_p_check(xloc,xdrange(1,1),xdrange(2,1),idum)
+            if (idum .ne. 0) iimp(4,icount) = -1
+            idum = 2
+            call bounds_p_check(yloc,xdrange(1,2),xdrange(2,2),idum)
+            if (idum .ne. 0) iimp(4,icount) = -1
+
+            rimp(1,icount) = xloc
+            rimp(2,icount) = yloc
+            rimp(3,icount) = zloc
+
+            iimp(1,icount) = nid
+            iimp(2,icount) = 0
+            iimp(3,icount) = i-1
+         enddo
+         do j=1,3*nedgegp-2,3    ! edges
+            icount = icount + 1
+
+            xlen = xerange(2,1,i)-xerange(1,1,i)
+            ylen = xerange(2,2,i)-xerange(1,2,i)
+
+            xmid = (xerange(2,1,i)+xerange(1,1,i))/2.0
+            ymid = (xerange(2,2,i)+xerange(1,2,i))/2.0
+
+            isignxx = el_edge_num(j) 
+            isignyy = el_edge_num(j+1) 
+
+            xloc = xmid + (xlen*rtmult)*isignxx/2.0
+            yloc = ymid + (ylen*rtmult)*isignyy/2.0
+            zloc = 1.0
+            iimp(4,icount) = 0
+            idum = 1
+            call bounds_p_check(xloc,xdrange(1,1),xdrange(2,1),idum)
+            if (idum .ne. 0) iimp(4,icount) = -1
+            idum = 2
+            call bounds_p_check(yloc,xdrange(1,2),xdrange(2,2),idum)
+            if (idum .ne. 0) iimp(4,icount) = -1
+
+            rimp(1,icount) = xloc
+            rimp(2,icount) = yloc
+            rimp(3,icount) = zloc
+
+            iimp(1,icount) = nid
+            iimp(2,icount) = 0
+            iimp(3,icount) = i-1
+         enddo
+      enddo
+
+c     get processor and local element number of neighboring elemetns
+      call findpts(i_fp_hndl !  stride     !   call findpts( ihndl,
+     $           , iimp(2,1),4        !   $             rcode,1,
+     $           , iimp(1,1),4        !   &             proc,1,
+     $           , iimp(3,1),4        !   &             elid,1,
+     $           , rimp(5,1),7        !   &             rst,ndim,
+     $           , rimp(4,1),7        !   &             dist,1,
+     $           , rimp(1,1),7        !   &             pts(    1),1,
+     $           , rimp(2,1),7        !   &             pts(  n+1),1,
+     $           , rimp(3,1),7 ,icount)    !   &             pts(2*n+1),1,n)
+
+c     set common block values to be used later
+      do i = 1,nelt
+         nstride = (i-1)*(nfacegp+nedgegp+ncornergp)
+         do j = 1,nfacegp
+            ijloc = nstride + j
+            if (iimp(2,ijloc) .eq. 0) then
+            el_face_proc_map(i,j) = iimp(1,ijloc)
+            el_face_el_map(i,j) = iimp(3,ijloc)
+            else
+            el_face_proc_map(i,j) = -1
+            el_face_el_map(i,j) = -1
+            endif
+            ilgp_f(i,j) = iimp(4,ijloc)
+         enddo
+         nstride = nstride + nfacegp 
+         do j = 1,nedgegp
+            ijloc = nstride + j
+            if (iimp(2,ijloc) .eq. 0) then
+            el_edge_proc_map(i,j) = iimp(1,ijloc)
+            el_edge_el_map(i,j) = iimp(3,ijloc)
+            else
+            el_edge_proc_map(i,j) = -1
+            el_edge_el_map(i,j) = -1
+            endif
+            ilgp_e(i,j) = iimp(4,ijloc)
+         enddo
+      enddo
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine compute_neighbor_el_proc_3d
       include 'SIZE'
       include 'TOTAL'
       include 'CMTDATA'
@@ -3609,9 +4040,13 @@ c     setup files to write to mpi
             ! extra stuff
             rpart(jtaup,i) = rpart(jdp,i)**2*rho_p/18.0d+0/mu_0
             rpart(jrhop,i) = rho_p      ! material density of particle
-            rpart(jvol,i)  = rpart(jspl,i)*rpi*rpart(jdp,i)**3/6.d+0! particle volume
+            rpart(jvol,i)  = rpart(jspl,i)*rpi*rpart(jdp,i)**2/4.d+0
+            if (if3d) rpart(jvol,i) = rpart(jspl,i)*rpi*
+     >                                        rpart(jdp,i)**3/6.d+0! particle volume
             rpart(jgam,i)  = 1.          ! initial integration correction
-            rpart(jrpe,i)  = rpart(jspl,i)**(1./3.)*rpart(jdp,i)/2.
+            rpart(jrpe,i)  = sqrt(rpart(jspl,i))*rpart(jdp,i)/2.
+            if (if3d) rpart(jrpe,i) = rpart(jspl,i)**(1./3.)
+     >                                              *rpart(jdp,i)/2.
          enddo
          n = i
       endif
@@ -4001,8 +4436,8 @@ c----------------------------------------------------------------------
       icm = 1
 
       ! DZ FAKE
-      do while (rys .le. xdrange(2,2))
-c     do while (rys .le. 0.192)
+c     do while (rys .le. xdrange(2,2))
+      do while (rys .le. 0.192)
 
          do i=1,ny1
             rys = ryt + rygls(i)
