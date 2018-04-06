@@ -156,8 +156,11 @@ c           set global particle id (3 part tag)
          do j=1,nread_part
             call read_parallel_restart_part
 c           do i=1,n
+c           rpart(jv0,i) = 0.
+c           rpart(jv0+1,i) = 0.
+c           rpart(jv0+2,i) = 0.
 c           ry = rpart(jy,i) + rpart(jrpe,i)
-c           if (ry .gt. -0.165) then
+c           if (ry .gt. 0.032) then
 c               rpart(jy,i) = 1E8
 c           endif
 c           enddo
@@ -3145,8 +3148,8 @@ c----------------------------------------------------------------------
 ! -------------------------------------
       do i = 1,n
          idum = int((stride_len + i)/llpart)
-         ipart(jps,i) = count1(np-idum-1) -1
-c        ipart(jps,i) = idum
+c        ipart(jps,i) = count1(np-idum-1) -1
+         ipart(jps,i) = idum
       enddo
       nl = 0
       call fgslib_crystal_tuple_transfer(i_cr_hndl,n,llpart
@@ -4423,12 +4426,12 @@ c     if (icalld1.eq.0) then
          call intpts_setup  (tolin,i_fp_hndl)
          call fgslib_crystal_setup (i_cr_hndl,nekcomm,np)
 
-         if (resetFindpts .eq. 1) icalld = 0
+         if (resetFindpts .eq. 1) icalld1 = 0
       endif
 
       icalld1 = icalld1 + 1
 
-      if (icalld .le. 2 .or. (resetFindpts .eq. 1)) then
+c     if (icalld1 .le. 2 .or. (resetFindpts .eq. 1)) then
          call particles_in_nid
          call fgslib_findpts(i_fp_hndl !  stride     !   call fgslib_findpts( ihndl,
      $           , ifpts(jrc,1),lif        !   $             rcode,1,
@@ -4440,9 +4443,9 @@ c     if (icalld1.eq.0) then
      $           , rfpts(jy ,1),lrf        !   &             pts(  n+1),1,
      $           , rfpts(jz ,1),lrf ,nfpts)    !   &             pts(2*n+1),1,n)
          call update_findpts_info
-      else
-         call findpts_box
-      endif
+c     else
+c        call findpts_box
+c     endif
 
       nmax = iglmax(n,1)
       if (nmax.gt.llpart) then
@@ -4463,7 +4466,7 @@ c        Sort by element number - for improved local-eval performance
          call fgslib_crystal_tuple_sort    (i_cr_hndl,n 
      $              , ipart,ni,partl,nl,rpart,nr,je0,1)
       endif
-         call reset_rst_part
+c        call reset_rst_part
 
       return
       end
