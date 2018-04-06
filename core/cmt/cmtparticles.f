@@ -3148,8 +3148,8 @@ c----------------------------------------------------------------------
 ! -------------------------------------
       do i = 1,n
          idum = int((stride_len + i)/llpart)
-c        ipart(jps,i) = count1(np-idum-1) -1
-         ipart(jps,i) = idum
+         ipart(jps,i) = count1(np-idum-1) -1
+c        ipart(jps,i) = idum
       enddo
       nl = 0
       call fgslib_crystal_tuple_transfer(i_cr_hndl,n,llpart
@@ -4003,7 +4003,7 @@ c----------------------------------------------------------------------
 
       ! DZ FAKE
       do while (rys .le. xdrange(2,2))
-c     do while (rys .le. 0.096)
+c     do while (rys .le. 0.192)
 
          do i=1,ny1
             rys = ryt + rygls(i)
