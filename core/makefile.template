@@ -4,10 +4,12 @@ CASENAME=
 CASEDIR=
 S=
 SCMT=
+SCMTPRT=
 OPT_INCDIR=./
 OBJDIR=obj
 MPI=0 
 CMT=0 
+CMTPRT=0
 NEKNEK=
 FC=
 CC=
@@ -71,6 +73,11 @@ else
    bc.o inflow_bc.o outflow_bc.o wall_bc.o step.o \
    filters_cmt.o diagnostics.o artvisc.o
 endif
+ifeq ($(CMTPRT),0)
+  CMTPRTCORE := 
+else
+  CMTPRTCORE := cmtparticles.f
+endif
 # VISIT ########################################################################
 ifneq ($(VISIT),0)
   VISITNEK_INCLUDES:=-I$S/3rd_party
@@ -89,6 +96,10 @@ TMP1 = $(CORE) $(MXM) $(USR) $(COMM_MPI) $(NEKNEKO) $(VISITO) $(BLAS)
 ifeq ($(CMT),1)
 TMP1 += $(CMTCORE)
 OPT_INCDIR += -I $(SCMT)
+endif
+ifeq ($(CMTPRT),1)
+TMP1 += $(CMTPRTCORE)
+OPT_INCDIR += -I $(SCMTPRT)
 endif
 
 NOBJS = $(patsubst %,$(OBJDIR)/%,$(TMP1))
@@ -233,6 +244,9 @@ $(OBJDIR)/outflow_bc.o	:$(SCMT)/outflow_bc.f;		$(FC) -c $(FL2) $< -o $@
 $(OBJDIR)/wall_bc.o	:$(SCMT)/wall_bc.f;		$(FC) -c $(FL2) $< -o $@
 $(OBJDIR)/filters_cmt.o	:$(SCMT)/filters_cmt.f;		$(FC) -c $(FL2) $< -o $@
 $(OBJDIR)/diagnostics.o	:$(SCMT)/diagnostics.f;		$(FC) -c $(FL2) $< -o $@
+
+# CMTPRT CORE     ##################################################################
+$(OBJDIR)/cmtparticles.o	:$(SCMTPRT)/cmtparticles.f $(SCMTPRT)/CMTPART;       	$(FC) -c $(FL2) $< -o $@
 
 # MXM       ############################################################################
 $(OBJDIR)/mxm_wrapper.o	  :$S/mxm_wrapper.f;		$(FC) -c $(FL2) $< -o $@ 
