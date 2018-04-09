@@ -44,7 +44,7 @@ c----------------------------------------------------------------------
       icmtp = idum
 
       call set_part_pointers
-      if (llpart .ne. 1) call read_particle_input
+      call read_particle_input
       call set_bounds_box
       call set_part_params ! n initialized here
       call place_particles

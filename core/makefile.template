@@ -76,7 +76,7 @@ endif
 ifeq ($(CMTPRT),0)
   CMTPRTCORE := 
 else
-  CMTPRTCORE := cmtparticles.f
+  CMTPRTCORE := cmtparticles.o
 endif
 # VISIT ########################################################################
 ifneq ($(VISIT),0)
@@ -99,6 +99,8 @@ OPT_INCDIR += -I $(SCMT)
 endif
 ifeq ($(CMTPRT),1)
 TMP1 += $(CMTPRTCORE)
+OPT_INCDIR += -I $(SCMTPRT)
+endif
 
 NOBJS = $(patsubst %,$(OBJDIR)/%,$(TMP1))
 

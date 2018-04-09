@@ -532,12 +532,19 @@ c-----------------------------------------------------------------------
             do i=1,lx1
                call NEKASGN(i,j,k,e)
                call userf(i,j,k,eg)
+               rdum4 = 0.
+#ifdef CMTPART
+               call userf_particles(I,J,K,e,rdum1,rdum2,rdum3,rdum4)
+               FFX  = FFX + rdum1
+               FFY  = FFY + rdum2
+               FFZ  = FFZ + rdum3
+#endif
                ! note fx,fy,fz multiply by density to stay 
                ! consistent with nek5000 units. Same for phig (cancels)
                usrf(i,j,k,2) = FFX*u(i,j,k,1,e)*phig(i,j,k,e)
                usrf(i,j,k,3) = FFY*u(i,j,k,1,e)*phig(i,j,k,e)
                usrf(i,j,k,4) = FFZ*u(i,j,k,1,e)*phig(i,j,k,e)
-               usrf(i,j,k,5) = qvol
+               usrf(i,j,k,5) = rdum4
 c              usrf(i,j,k,5) = (U(i,j,k,2,e)*FFX + U(i,j,k,3,e)*FFY
 c    &                       +  U(i,j,k,4,e)*FFZ)/ U(i,j,k,1,e)
             enddo

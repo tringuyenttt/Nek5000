@@ -401,17 +401,6 @@ if ! cat SIZE | grep -q 'SIZE.inc' ; then
   fi
   fi
 fi
-  if [ $CMT -ne 0 ]; then
-      if [ -e "cmtparticles.usrp" ]; then
-         echo 'Particles found CMT'
-      else
-         if ! cat SIZE | grep -q 'llpart' ; then
-            echo >>SIZE
-            echo 'c automatically added by makenek' >>SIZE
-            echo '      parameter(llpart = 1  ) ! Allocation for particles '  >>SIZE
-         fi
-      fi
-  fi
 
 # tweak all SIZE file versions
 if ! cat SIZE | grep -qi 'ldimt_proj' ; then
@@ -419,6 +408,15 @@ if ! cat SIZE | grep -qi 'ldimt_proj' ; then
      echo 'c automatically added by makenek' >>SIZE
      echo '      integer ldimt_proj' >>SIZE
      echo '      parameter(ldimt_proj = 1) ! max auxiliary fields residual projection ' >>SIZE
+fi
+
+if ! cat SIZE | grep -qi 'llpart' ; then
+if [ $CMTPRT -ne 0 ]; then
+    echo >>SIZE
+    echo 'c automatically added by makenek' >>SIZE
+    echo '      integer llpart' >> SIZE
+    echo '      parameter(llpart = 10000 ) ! Allocation for particles '  >>SIZE
+fi
 fi
 
 export FC
