@@ -4,10 +4,12 @@ CASENAME=
 CASEDIR=
 S=
 SCMT=
+SCMTPRT=
 OPT_INCDIR=./
 OBJDIR=obj
 MPI=0 
 CMT=0 
+CMTPRT=0
 NEKNEK=
 FC=
 CC=
@@ -42,7 +44,7 @@ vprops.o makeq_aux.o \
 papi.o nek_in_situ.o \
 reader_rea.o reader_par.o reader_re2.o \
 finiparser.o iniparser.o dictionary.o \
-hpf.o cmtparticles.o
+hpf.o
 ################################################################################
 # MXM 
 MXM =  
@@ -71,6 +73,11 @@ else
    bc.o inflow_bc.o outflow_bc.o wall_bc.o step.o \
    filters_cmt.o diagnostics.o artvisc.o 
 endif
+ifeq ($(CMTPRT),0)
+  CMTPRTCORE := 
+else
+  CMTPRTCORE := cmtparticles.f
+endif
 # VISIT ########################################################################
 ifneq ($(VISIT),0)
   VISITNEK_INCLUDES:=-I$S/3rd_party
@@ -86,10 +93,12 @@ endif
 
 TMP1 = $(CORE) $(MXM) $(USR) $(COMM_MPI) $(NEKNEKO) $(VISITO) $(BLAS)
 
-#ifeq ($(CMT),1)
+ifeq ($(CMT),1)
 TMP1 += $(CMTCORE)
 OPT_INCDIR += -I $(SCMT)
-#endif
+endif
+ifeq ($(CMTPRT),1)
+TMP1 += $(CMTPRTCORE)
 
 NOBJS = $(patsubst %,$(OBJDIR)/%,$(TMP1))
 
@@ -212,7 +221,7 @@ $(OBJDIR)/reader_rea.o	:$S/reader_rea.f;	 	$(FC) -c $(FL2) $< -o $@
 $(OBJDIR)/reader_par.o	:$S/reader_par.f $S/PARDICT;	$(FC) -c $(FL2) $< -o $@
 $(OBJDIR)/reader_re2.o	:$S/reader_re2.f;		$(FC) -c $(FL2) $< -o $@
 $(OBJDIR)/hpf.o	       	:$S/hpf.f;         		$(F77) -c $(FL2) $< -o $@
-$(OBJDIR)/cmtparticles.o	:$(SCMT)/cmtparticles.f;		$(FC) -c $(FL2) $< -o $@
+
 
 # CMT CORE     ##################################################################
 $(OBJDIR)/step.o	:$(SCMT)/step.f;        	$(FC) -c $(FL2) $< -o $@
@@ -234,6 +243,9 @@ $(OBJDIR)/outflow_bc.o	:$(SCMT)/outflow_bc.f;		$(FC) -c $(FL2) $< -o $@
 $(OBJDIR)/wall_bc.o	:$(SCMT)/wall_bc.f;		$(FC) -c $(FL2) $< -o $@
 $(OBJDIR)/filters_cmt.o	:$(SCMT)/filters_cmt.f;		$(FC) -c $(FL2) $< -o $@
 $(OBJDIR)/diagnostics.o	:$(SCMT)/diagnostics.f;		$(FC) -c $(FL2) $< -o $@
+
+# CMTPRT CORE     ##################################################################
+$(OBJDIR)/cmtparticles.o	:$(SCMTPRT)/cmtparticles.f $(SCMTPRT)/CMTPART;       	$(FC) -c $(FL2) $< -o $@
 
 # MXM       ############################################################################
 $(OBJDIR)/mxm_wrapper.o	  :$S/mxm_wrapper.f;		$(FC) -c $(FL2) $< -o $@ 
