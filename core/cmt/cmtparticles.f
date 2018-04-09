@@ -1498,11 +1498,8 @@ c       endif ! end 3d
 
       ! div (phi_p * v)
       do e=1,nelt
-        do i=1,nxyz
-           udum(i,1,1) = pm1(i,1,1,e,1)*ptw(i,1,1,e,6)
-        enddo
         call gradl_rst(ur(1,1,1),us(1,1,1),ut(1,1,1), ! x dir
-     >                                        udum(1,1,1),lx1,if3d)
+     >                                        ptw(1,1,1,e,6),lx1,if3d)
 c       if(if3d) then ! 3d
             do i=1,nxyz
               rhs_fluidp(i,1,1,e,4) = 1.0d+0/JACM1(i,1,1,e)* !d/dx
@@ -1512,11 +1509,8 @@ c       if(if3d) then ! 3d
             enddo
 c       endif ! end 3d
 
-        do i=1,nxyz
-           udum(i,1,1) = pm1(i,1,1,e,1)*ptw(i,1,1,e,7)
-        enddo
         call gradl_rst(ur(1,1,1),us(1,1,1),ut(1,1,1), ! y dir
-     >                                        udum(1,1,1),lx1,if3d)
+     >                                        ptw(1,1,1,e,7),lx1,if3d)
 c       if(if3d) then ! 3d
             do i=1,nxyz
               rhs_fluidp(i,1,1,e,4) = rhs_fluidp(i,1,1,e,4) +
@@ -1527,12 +1521,9 @@ c       if(if3d) then ! 3d
             enddo
 c        endif
 
-        do i=1,nxyz
-           udum(i,1,1) = pm1(i,1,1,e,1)*ptw(i,1,1,e,8)
-        enddo
         call gradl_rst(ur(1,1,1),us(1,1,1),ut(1,1,1), ! z dir
-     >                                        udum(1,1,1),lx1,if3d)
-c       if(if3d) then ! 3d
+     >                                        ptw(1,1,1,e,8),lx1,if3d)
+        if(if3d) then ! 3d
             do i=1,nxyz
               rhs_fluidp(i,1,1,e,4) = rhs_fluidp(i,1,1,e,4) +
      >             1.0d+0/JACM1(i,1,1,e)* !d/dz
@@ -1540,14 +1531,14 @@ c       if(if3d) then ! 3d
      >              us(i,1,1)*SZM1(i,1,1,e) +
      >              ut(i,1,1)*TZM1(i,1,1,e))
             enddo
-c       endif
+        endif
       enddo
 
       do e=1,nelt
       do k=1,nz1
       do j=1,ny1
       do i=1,nx1
-         rhs_fluidp(i,j,k,e,4) = -rhs_fluidp(i,j,k,e,4)
+         rhs_fluidp(i,j,k,e,4) = -pm1(i,j,k,e,1)*rhs_fluidp(i,j,k,e,4)
       enddo
       enddo
       enddo
@@ -2710,7 +2701,7 @@ c     face, edge, and corner number, x,y,z are all inline, so stride=3
       enddo
 
 c     get processor and local element number of neighboring elemetns
-      call findpts(i_fp_hndl !  stride     !   call findpts( ihndl,
+      call fgslib_findpts(i_fp_hndl !  stride     !   call fgslib_findpts( ihndl,
      $           , iimp(2,1),4        !   $             rcode,1,
      $           , iimp(1,1),4        !   &             proc,1,
      $           , iimp(3,1),4        !   &             elid,1,
@@ -3573,13 +3564,17 @@ c----------------------------------------------------------------------
       ! but sort processors by ones that already have most particles
       call isort(prevs,count1,np)
 
+      do i=1,np
+         if (nid.eq.0) write(6,*) 'sorted', count1(i-1) - 1
+      enddo
+
 ! -------------------------------------
 ! Set new rank to send to and then send
 ! -------------------------------------
       do i = 1,n
          idum = int((stride_len + i)/llpart)
-         ipart(jps,i) = count1(np-idum-1) -1
-c        ipart(jps,i) = idum
+c        ipart(jps,i) = count1(np-idum-1) -1
+         ipart(jps,i) = idum
       enddo
       nl = 0
       call fgslib_crystal_tuple_transfer(i_cr_hndl,n,llpart
