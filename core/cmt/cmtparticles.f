@@ -1142,9 +1142,9 @@ c     local mpi rank effects
 
       endif
 
-      wght = 1.0
-      ncut = 1
-      call filter_s0(ptw(1,1,1,1,4),wght,ncut,'phip') 
+c     wght = 1.0
+c     ncut = 1
+c     call filter_s0(ptw(1,1,1,1,4),wght,ncut,'phip') 
 
       rvfmax = 0.7405
       rvfmin = 0.0
@@ -1768,6 +1768,9 @@ c     cd_std = 24/re_p already taken into account below
 
          rpart(jfqs+j,i) = rpart(jvol,i)*rbeta/rphip    
      >              *(rpart(ju0+j,i) - rpart(jv0+j,i))
+
+         if (abs(rphip) .lt. 1E-12) write(6,*)
+     >    'Use different drag model without volume fraction-divide by 0'
 
       elseif (part_force(1).eq.0) then
          S_qs = 0.
