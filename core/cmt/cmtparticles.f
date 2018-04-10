@@ -58,7 +58,7 @@ c----------------------------------------------------------------------
          call send_ghost_particles
 c        call point_to_grid_corr_init    ! for gamma correction integrat
          call spread_props_grid           ! put particle props on grid
-
+   
 c        do i = 1,nitspl
 c           call interp_props_part_location ! interpolate
 c           call correct_spl
@@ -74,16 +74,16 @@ c        enddo
          call spread_props_grid           ! put particle props on grid
       endif
       call interp_props_part_location ! interpolate again for two-way
-
+   
       if (time_integ .lt. 0) call pre_sim_collisions ! e.g., settling p
-
+   
       resetFindpts = 0
 c     call computeRatio
 c     call reinitialize
 c     call printVerify
 
       ntmp  = iglsum(n,1)
-      if (nid.eq.0) write(6,*) 'Passed usr_particles_init'
+      if (nid.eq.0) write(6,*) 'Passed usr_particles_init', ntmp, n
 
       return
       end
@@ -134,13 +134,9 @@ c           set some rpart values for later use
             rpart(jdp,n)   = d_part                              ! particle diameter
             rpart(jtaup,n) = rpart(jdp,n)**2*rho_p/18.0d+0/mu_0  ! particle time scale
             rpart(jrhop,n) = rho_p                               ! particle density 
-            rpart(jvol,n)  = pi*rpart(jdp,n)**2/4.               ! particle area
-            if (if3d) rpart(jvol,n) = pi*rpart(jdp,n)**3/6.      ! particle volume
+            rpart(jvol,n) = pi*rpart(jdp,n)**3/6.      ! particle volume
             rpart(jspl,n)  = rspl                                ! super particle loading
-
-            rpart(jrpe,n) = sqrt(rpart(jspl,n))*rpart(jdp,n)/2.
-            if (if3d) rpart(jrpe,n) = rpart(jspl,n)**(1./3.)
-     >                                            *rpart(jdp,n)/2.
+            rpart(jrpe,n) = rpart(jspl,n)**(1./3.)*rpart(jdp,n)/2.
             rpart(jvol,n) = rpart(jspl,n)*rpart(jvol,n)
          
             rpart(jtemp,n)  = tp_0                               ! intial particle temp
@@ -163,7 +159,7 @@ c           rpart(jv0,i) = 0.
 c           rpart(jv0+1,i) = 0.
 c           rpart(jv0+2,i) = 0.
 c           ry = rpart(jy,i) + rpart(jrpe,i)
-c           if (ry .gt. 0.032) then
+c           if (ry .gt. 0.016) then
 c               rpart(jy,i) = 1E8
 c           endif
 c           enddo
@@ -886,7 +882,7 @@ c
       include 'TSTEP'
       include 'CMTPART'
 
-      real    xx,yy,zz,vol,pfx,pfy,pfz,pmass,pmassf,vcell,multfc
+      real    xx,yy,zz,vol,pfx,pfy,pfz,pmass,pmassf,vcell,multfc,multfci
      >       ,qgqf,rvx,rvy,rvz,rcountv(8,nelt),rx2(3),rxyzp(6,3)
       integer e
 
@@ -942,14 +938,17 @@ c     local mpi rank effects
       rbexpi   = 1./(-2.*rsig**2)
 
       ralph    = dfilt/2.*sqrt(-log(ralphdecay)/log(2.))*rleng
-      multfc   = 1./(sqrt(2.*pi)**2 * rsig**2) ! exponential
-      if (if3d) multfc  = multfc**(1.5d+0)
+      multfci  = 1./(sqrt(2.*pi)**2 * rsig**2) ! exponential
+      if (if3d) multfci = multfci**(1.5d+0)
       ralph2   = ralph**2
 
       nxyz = nx1*ny1*nz1
 
       ! real particles
       do ip=1,n
+         multfc = multfci
+         if (.not. if3d) multfc = multfc/(2.*rpart(jrpe,ip))
+
          pfx = -rpart(jf0,ip)*multfc
          pfy = -rpart(jf0+1,ip)*multfc
          pfz = -rpart(jf0+2,ip)*multfc
@@ -1045,6 +1044,9 @@ c     local mpi rank effects
 
       ! Ghost particles
       do ip=1,nfptsgp
+         multfc = multfci
+         if (.not. if3d) multfc = multfc/(2.*rptsgp(jgprpe,ip))
+
          pfx = -rptsgp(jgpfh,ip)*multfc
          pfy = -rptsgp(jgpfh+1,ip)*multfc
          pfz = -rptsgp(jgpfh+2,ip)*multfc
@@ -1144,8 +1146,7 @@ c     local mpi rank effects
       ncut = 1
       call filter_s0(ptw(1,1,1,1,4),wght,ncut,'phip') 
 
-      rvfmax = 0.9069
-      if (if3d) rvfmax = 0.7405
+      rvfmax = 0.7405
       rvfmin = 0.0
       do ie=1,nelt
       do k=1,nz1
@@ -3151,43 +3152,32 @@ c     set all weights to ones first
       call rone(wygll,ly1)
       call rone(wzgll,lz1)
 c
-c     copy for reduced interpolation
-      nx1r = nx1
-      if (red_interp.eq.1) then
-         nx1r = (nx1+1)/2
-         ic = 0
-         do j=1,lx1,2
-            ic = ic + 1
-            xgll(ic) = xgll(j)
-            ygll(ic) = ygll(j)
-            zgll(ic) = zgll(j)
-         enddo
-      endif
-
 c     calc x bary weights
-      do j=1,nx1r
-         do k=1,nx1r
+      do j=1,nx1
+         do k=1,nx1
             if (j .NE. k) then
                wxgll(j) = wxgll(j)/(xgll(j) - xgll(k))
             endif
          enddo
       enddo
 c     calc y bary weights
-      do j=1,nx1r
-         do k=1,nx1r
+      do j=1,nx1
+         do k=1,nx1
             if (j .NE. k) then
                wygll(j) = wygll(j)/(ygll(j) - ygll(k))
             endif
          enddo
       enddo
 c     calc z bary weights
-      do j=1,nx1r
-         do k=1,nx1r
+      if (if3d) then
+      do j=1,nx1
+         do k=1,nx1
             if (j .NE. k) then
                wzgll(j) = wzgll(j)/(zgll(j) - zgll(k))
             endif
          enddo
       enddo
+      endif
 
       return 
       end
@@ -3203,35 +3193,35 @@ c     used for 3d interpolation only
       real bwgtx(lx1),bwgty(ly1),bwgtz(lz1)
 
       bot= 0.00
-      do k=1,nx1r
+      do k=1,nx1
          diff = z - zgll(k)
            if (abs(diff) .le. 1E-16) diff = sign(1E-16,diff)
          bwgtz(k) = wzgll(k)/diff
       enddo
-      do i=1,nx1r
+      do i=1,nx1
          diff = x - xgll(i)
            if (abs(diff) .le. 1E-16) diff = sign(1E-16,diff)
          bwgtx(i) = wxgll(i)/diff
       enddo 
-      do j=1,nx1r
+      do j=1,nx1
          diff = y-ygll(j)
            if (abs(diff) .le. 1E-16) diff = sign(1E-16,diff)
          bwgty(j) = wygll(j)/diff
       enddo
 
-      do k=1,nx1r
-      do j=1,nx1r
+      do k=1,nx1
+      do j=1,nx1
          repdum = bwgty(j)*bwgtz(k)
-      do i=1,nx1r
+      do i=1,nx1
          rep(i,j,k) =  repdum* bwgtx(i)
          bot        =  bot + rep(i,j,k)
       enddo
       enddo
       enddo 
 
-      do k=1,nx1r
-      do j=1,nx1r
-      do i=1,nx1r
+      do k=1,nx1
+      do j=1,nx1
+      do i=1,nx1
          rep(i,j,k) =  rep(i,j,k)/bot
       enddo
       enddo
@@ -3249,29 +3239,9 @@ c     used for 3d interpolation only
       real field(1),pofx,top
 
       pofx = 0.00
-      if (nx1r.eq.lx1) then ! full interpolation
       do i=1,nxyz
          pofx =  pofx + rep(i,1,1)*field(i)
       enddo
-      else                  ! reduced interpolation
-
-      kk = 0 
-      do k=1,nx1,2
-         kk = kk + 1
-         jj = 0
-         ijk3 = (k-1)*nx1**2
-      do j=1,nx1,2
-         jj = jj + 1
-         ii = 0
-         ijk2 = ijk3+(j-1)*nx1
-      do i=1,nx1,2
-         ii   = ii + 1
-         ijk1 = ijk2 + i
-         pofx =  pofx + rep(ii,jj,kk)*field(ijk1)
-      enddo
-      enddo
-      enddo
-      endif
 
       return
       end
@@ -3564,9 +3534,9 @@ c----------------------------------------------------------------------
       ! but sort processors by ones that already have most particles
       call isort(prevs,count1,np)
 
-      do i=1,np
-         if (nid.eq.0) write(6,*) 'sorted', count1(i-1) - 1
-      enddo
+c     do i=1,np
+c        if (nid.eq.0) write(6,*) 'sorted', count1(i-1) - 1
+c     enddo
 
 ! -------------------------------------
 ! Set new rank to send to and then send
@@ -4035,13 +4005,9 @@ c     setup files to write to mpi
             ! extra stuff
             rpart(jtaup,i) = rpart(jdp,i)**2*rho_p/18.0d+0/mu_0
             rpart(jrhop,i) = rho_p      ! material density of particle
-            rpart(jvol,i)  = rpart(jspl,i)*rpi*rpart(jdp,i)**2/4.d+0
-            if (if3d) rpart(jvol,i) = rpart(jspl,i)*rpi*
-     >                                        rpart(jdp,i)**3/6.d+0! particle volume
+            rpart(jvol,i) = rpart(jspl,i)*rpi*rpart(jdp,i)**3/6.d+0! particle volume
             rpart(jgam,i)  = 1.          ! initial integration correction
-            rpart(jrpe,i)  = sqrt(rpart(jspl,i))*rpart(jdp,i)/2.
-            if (if3d) rpart(jrpe,i) = rpart(jspl,i)**(1./3.)
-     >                                              *rpart(jdp,i)/2.
+            rpart(jrpe,i) = rpart(jspl,i)**(1./3.)*rpart(jdp,i)/2.
          enddo
          n = i
       endif

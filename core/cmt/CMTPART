@@ -39,10 +39,9 @@ c     particle parameters -------------------------------------------
       integer nw,nrandseed,nwe
 
 c     barycentric interpolation -------------------------------------
-      common /BARYPARAMS/ xgll, ygll, zgll, wxgll, wygll, wzgll,nx1r
+      common /BARYPARAMS/ xgll, ygll, zgll, wxgll, wygll, wzgll
       real xgll(lx1), ygll(ly1), zgll(lz1),
      >     wxgll(lx1), wygll(ly1), wzgll(lz1)
-      integer nx1r
 
 c     initialize particles ------------------------------------------
       real x_part(0:2),v_part(0:2),f_part(0:2),d_part
