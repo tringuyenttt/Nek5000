@@ -154,15 +154,15 @@ c           set global particle id (3 part tag)
          nread_part = 1
          do j=1,nread_part
             call read_parallel_restart_part
-c           do i=1,n
-c           rpart(jv0,i) = 0.
-c           rpart(jv0+1,i) = 0.
-c           rpart(jv0+2,i) = 0.
-c           ry = rpart(jy,i) + rpart(jrpe,i)
-c           if (ry .gt. 0.016) then
-c               rpart(jy,i) = 1E8
-c           endif
-c           enddo
+            do i=1,n
+           !rpart(jv0,i) = 0.
+           !rpart(jv0+1,i) = 0.
+           !rpart(jv0+2,i) = 0.
+            ry = rpart(jy,i) + rpart(jrpe,i)
+            if (ry .gt. 0.025) then
+c               rpart(jy,i) = -1E8
+            endif
+            enddo
             call update_particle_location   ! move outlier particles
             call move_particles_inproc
          enddo
@@ -4210,8 +4210,8 @@ c----------------------------------------------------------------------
       icm = 1
 
       ! DZ FAKE
-c     do while (rys .le. xdrange(2,2))
-      do while (rys .le. 0.192)
+      do while (rys .le. xdrange(2,2))
+c     do while (rys .le. 0.192)
 
          do i=1,ny1
             rys = ryt + rygls(i)
@@ -4496,8 +4496,24 @@ c----------------------------------------------------------------------
       include 'TSTEP'
       include 'PARALLEL'
       include 'CMTPART'
+      include 'CMTDATA'
+
+      integer icalld
+      save icalld
+      data icalld /0/
+
+      real rtpart
+      save rtpart
 
       real rdiags_part(3,2), rvels(4)
+
+      if (icalld .eq. 0) then
+         rtpart = time_cmt
+         if (icmtp .eq. 0) rtpart = time
+         icalld = icalld + 1
+      endif
+      rtdum  = time_cmt - rtpart
+      if (icmtp .eq. 0) rtdum = time - rtpart
 
       do i=1,3
          rdiags_part(i,1) =  1E8
@@ -4552,12 +4568,13 @@ c----------------------------------------------------------------------
       enddo
 
       if (nid .eq. 0) then
-       write(6,*)'----- START PARTICLE DIAGNOSTICS: -----'
-       write(6,*)'XMIN,XMAX       :',rdiags_part(1,1),rdiags_part(1,2)
-       write(6,*)'YMIN,YMAX       :',rdiags_part(2,1),rdiags_part(2,2)
-       write(6,*)'ZMIN,ZMAX       :',rdiags_part(3,1),rdiags_part(3,2)
-       write(6,*)'MAX(VX,VY,VZ,|V|:',rvels(1),rvels(2),rvels(3),rvels(4)
-       write(6,*)'----- END PARTICLE DIAGNOSTICS: -----'
+      write(6,*)'----- START PARTICLE DIAGNOSTICS: -----'
+      write(6,*)'XMIN,XMAX        :',rdiags_part(1,1),rdiags_part(1,2)
+      write(6,*)'YMIN,YMAX        :',rdiags_part(2,1),rdiags_part(2,2)
+      write(6,*)'ZMIN,ZMAX        :',rdiags_part(3,1),rdiags_part(3,2)
+      write(6,*)'MAX(VX,VY,VZ,|V|):',rvels(1),rvels(2),rvels(3),rvels(4)
+      write(6,*)'PTIME            :',rtdum
+      write(6,*)'----- END PARTICLE DIAGNOSTICS: -----'
       endif
 
       return
