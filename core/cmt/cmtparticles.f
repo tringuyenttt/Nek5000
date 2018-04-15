@@ -154,15 +154,15 @@ c           set global particle id (3 part tag)
          nread_part = 1
          do j=1,nread_part
             call read_parallel_restart_part
-c           do i=1,n
-c           rpart(jv0,i) = 0.
-c           rpart(jv0+1,i) = 0.
-c           rpart(jv0+2,i) = 0.
-c           ry = rpart(jy,i) + rpart(jrpe,i)
-c           if (ry .gt. 0.020) then
+            do i=1,n
+           !rpart(jv0,i) = 0.
+           !rpart(jv0+1,i) = 0.
+           !rpart(jv0+2,i) = 0.
+            ry = rpart(jy,i) + rpart(jrpe,i)
+            if (ry .gt. 0.025) then
 c               rpart(jy,i) = -1E8
-c           endif
-c           enddo
+            endif
+            enddo
             call update_particle_location   ! move outlier particles
             call move_particles_inproc
          enddo
@@ -4210,8 +4210,8 @@ c----------------------------------------------------------------------
       icm = 1
 
       ! DZ FAKE
-c     do while (rys .le. xdrange(2,2))
-      do while (rys .le. 0.192)
+      do while (rys .le. xdrange(2,2))
+c     do while (rys .le. 0.192)
 
          do i=1,ny1
             rys = ryt + rygls(i)
