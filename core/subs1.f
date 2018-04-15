@@ -670,6 +670,17 @@ c 939 format(' d5',4f9.5,4f10.6)
 C
       endif
 C
+#ifdef CMTPART
+#ifdef CMTNEK
+      dt = dt_cmt
+#else
+      rdt_part = dt 
+      call set_dt_particles(rdt_part)
+      dt = min(dt,rdt_part)
+      dt_cmt = dt
+#endif
+#endif
+C
       return
       end
 C
