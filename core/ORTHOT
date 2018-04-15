@@ -5,10 +5,10 @@ c
 c     parameter (ktott = 1)
 c     parameter (laxtt = 1)
 c
-      integer         napproxt(2,ldimt_proj)
+      integer         napproxt(2)
       common /trthoi/ napproxt
 
-      real            approxt(ktott,0:laxtt,ldimt_proj)
+      real            approxt(ktott,0:laxtt)
       common /trthov/ approxt
 
       character*4     name4t

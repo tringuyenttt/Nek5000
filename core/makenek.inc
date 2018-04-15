@@ -1,28 +1,3 @@
-function make_3rd_party() {
-  if [ $NOCOMPILE -ne 0 ]; then
-    return 0
-  fi
-  echo "build 3rd-party software ..."
-
-  cd $SOURCE_ROOT/3rd_party/gslib
-  ./install
-  cd $CASEDIR 
-
-  if [ $CVODE -ne 0 ]; then
-     cd $SOURCE_ROOT/3rd_party/cvode
-     ./install
-  fi
-  cd $CASEDIR
-}
-
-function clean_3rd_party() {
-  echo "cleaning 3rd-party software ..."
-  cd $SOURCE_ROOT/3rd_party/gslib; ./install clean 2>/dev/null
-  cd $CASEDIR
-  cd $SOURCE_ROOT/3rd_party/cvode; ./install clean 2>/dev/null
-  cd $CASEDIR
-}
-
 # This include file is used by the makenek script
 # to automatically create a makefile for Nek5000 
 # ------------------------------------------------
@@ -31,7 +6,8 @@ echo "makenek - automatic build tool for Nek5000"
 
 if [ "$PPLIST" == "?" ]; then
   echo "available pre-processor symbols:" 
-  echo "  NOMPIIO     deactivate MPI-IO support"
+  echo "  AMG         use AMG instead of XXT solver"
+  echo "  MPIIO       use MPI-IO for I/O"
   echo "  BGQ         use BGQ optimized mxm"
   echo "  XSMM        use libxsmm for mxm"
   echo "  CVODE       compile with CVODE support for scalars"
@@ -44,60 +20,45 @@ if [ "$PPLIST" == "?" ]; then
 fi
 
 # first do some checks ...
-if [ "$1" == "-h" ]; then
+if [ $# -eq 0 ]; then
   echo ""
   echo "usage: makenek [.usr filename | clean] < -nocompile >"
   echo ""
   exit 1
 fi
 
-CASEDIR=`pwd`
-CASENAME=$1
-if [ $# -eq 0 ]; then
-   NCASEFILES=`find *.usr | wc -l`
-   if [ $NCASEFILES != "1" ]; then
-     echo "FATAL ERROR: Found multiple .usr files!"
-     echo "Please use makenek [.usr filename]"
-     exit 1
-   else
-     CASENAME=`find *.usr | sed 's/\.usr$//g'`
-   fi
-fi
-
-if [ "$mver" != "17.0.4" ]; then
-  echo "FATAL ERROR: Your makenek is incompatible!"
+if [ "$mver" != "17.0.0" ]; then
+  echo "ERROR: Your makenek is incompatible!"
   echo "Please upgrade to the version shipped with your Nek source."
   exit 1
 fi
 
-if [ ! "$SOURCE_ROOT_GSLIB" ]; then
-  SOURCE_ROOT_GSLIB="$SOURCE_ROOT/3rd_party/gslib/lib"
-  export SOURCE_ROOT_GSLIB
-fi
-
-if [[ $1 = "clean" ]]; then
-  while true; do
-    read -p "do you want to clean all 3rd party software? [N]" yn
-    case $yn in
-      [Yy]* )
-        clean_3rd_party; 
-        make clean;
-        break ;;
-      * ) 
-        make clean;
-        break ;;
-    esac
-  done
-  rm -rf compiler.out
-  rm -rf makefile
-  rm -rf .state
+if [ $1 = "clean" ]; then
+  make clean
   exit 0
 fi
 
 NOCOMPILE=0
-if [[ "$2" == "-nocompile" ]]; then
+if [ "$2" == "-nocompile" ]; then
   NOCOMPILE=1
 fi 
+
+CASENAME=$1
+CASEDIR=`pwd`
+APATH_SRC=`cd $SOURCE_ROOT_CORE; pwd`
+SOURCE_ROOT_CORE=$APATH_SRC
+APATH_SRC=`cd $SOURCE_ROOT_JL; pwd`
+SOURCE_ROOT_JL=$APATH_SRC
+APATH_SRC=`cd $SOURCE_ROOT_CMT; pwd`
+SOURCE_ROOT_CMT=$APATH_SRC
+
+IFNEKNEK=false
+
+# do some basic checks
+if [ "$CASEDIR" == "$SOURCE_ROOT_CORE" ]; then
+   echo "FATAL ERROR: Working directory has to be different from the source!"
+   exit 1
+fi
 
 if [ ! -f ${CASENAME}'.usr' ]; then
    echo "FATAL ERROR: Cannot find $1.usr!"
@@ -110,6 +71,7 @@ if [ -f SIZEu ]; then
       exit 1
    fi
    NEK_WARN="WARNING: SIZEu will be deprecated in a future release. Please rename to SIZE!"
+   export NEK_WARN 
    mv -v SIZEu SIZE
 fi
 
@@ -118,14 +80,14 @@ if [ ! -f SIZE ]; then
    exit 1
 fi
 
-if [ ! -f $SOURCE_ROOT/core/makefile.template ]; then
-  echo "FATAL ERROR: Cannot find $SOURCE_ROOT/core/makefile.template!"
+if [ ! -f $SOURCE_ROOT_CORE/makefile.template ]; then
+  echo "FATAL ERROR: Cannot find $SOURCE_ROOT_CORE/makefile.template!"
   exit 1
 fi
 
-# test if FC compiler exists
-if ! which `echo $FC | awk '{print $1}'` 1>/dev/null ; then
-  echo "FATAL ERROR: Cannot find `echo $FC | awk '{print $1}'`!"
+# test if F77 compiler exists
+if ! which `echo $F77 | awk '{print $1}'` 1>/dev/null ; then
+  echo "FATAL ERROR: Cannot find `echo $F77 | awk '{print $1}'`!"
   exit 1
 fi
 
@@ -135,134 +97,138 @@ if ! which `echo $CC | awk '{print $1}'` 1>/dev/null ; then
   exit 1
 fi
 
-# trying to figure which compiler the wrapper is using 
-FCok=0
-
-FCcomp_=`$FC -showme 2>/dev/null | head -1 2>/dev/null 1>.tmp || true`
-FCcomp=`cat .tmp | awk '{print $1}' | awk -F/ '{print $NF}' || true`
-if [ -f "`which $FCcomp 2>/dev/null`" ]; then
-  FCok=1
-fi
-
-if [ $FCok -eq 0 ]; then
-  FCcomp_=`$FC -show 2>/dev/null | head -1 2>/dev/null 1>.tmp || true`
-  FCcomp=`cat .tmp | awk '{print $1}' | awk -F/ '{print $NF}' || true`
-  if [ -f "`which $FCcomp 2>/dev/null`" ]; then
-    FCok=1
-  fi
-fi
-
-if [ $FCok -eq 0 ]; then
-  FCcomp_=`$FC -craype-verbose 2>/dev/null 1>.tmp || true`
-  FCcomp=`cat .tmp | awk '{print $1}' | awk -F/ '{print $NF}' || true`
-  if [ -f "`which $FCcomp 2>/dev/null`" ]; then
-    FCok=1
-  fi
-fi
-
-if [ $FCok -eq 0 ]; then
-  FCcomp=`echo $FC | awk '{print $1}'`
-  if [ -f "`which $FCcomp 2>/dev/null`" ]; then
-    FCok=1
-  fi
-fi
-
-\rm -f .tmp
-if [ $FCok -eq 0 ]; then
-  FCcomp="unknown"
-fi
-
-# assign FC compiler specific flags
-case $FCcomp in
-  *pgf*)        FFLAGS+=" -r8 -Mpreprocess"
-               ;;
-  *gfortran*)   FFLAGS+=" -fdefault-real-8 -fdefault-double-8 -cpp"
-               ;;
-  *ifort*)      FFLAGS+=" -r8 -fpconstant -fpp"
-               ;;
-  *xlf*)        FFLAGS+=" -qrealsize=8 -qdpc=e -qsuffix=cpp=f -qsuppress=cmpmsg"
-               PPPO="-WF,"
-               ;;
-  *)  echo "ERROR: Cannot find a supported compiler!"
-      echo ""
-      NOCOMPILE=1
-      read;;
-esac
-
 # initial clean-up
-rm -f $CASENAME.f nek5000 2>/dev/null
-rm -f ./obj/subuser.o 2>/dev/null
+rm -f nek5000 2>/dev/null
+rm -f ./obj/subuser.o        2>/dev/null
 
 # Check if the compiler adds an underscore to external functions
-UNDERSCORE=0
+UNDERSCORE=false
 cat > test_underscore.f << _ACEOF
       subroutine underscore_test
         call test
       end
 _ACEOF
-$FCcomp -c test_underscore.f 2>&1 >/dev/null 
+$F77 -c test_underscore.f 2>&1 >/dev/null 
 if nm test_underscore.o | grep -q test_ ; then
-  UNDERSCORE=1
+  UNDERSCORE=true
 fi
 \rm test_underscore.* 2>/dev/null
 
-# set preprocessor symbols
-if [ $MPI -eq 0 ]; then
-  PPLIST="${PPLIST} NOMPIIO"
-else
-  MPI=1
-  PPLIST="${PPLIST} MPI"
+
+# trying to figure which compiler the wrapper is using 
+F77ok=0
+
+F77comp_=`$F77 -showme 2>/dev/null 1>.tmp || true`
+F77comp=`cat .tmp | awk '{print $1}' | awk -F/ '{print $NF}' || true`
+if [ -f "`which $F77comp 2>/dev/null`" ]; then
+  F77ok=1
 fi
 
-if [ $UNDERSCORE -ne 0 ]; then
+if [ $F77ok -eq 0 ]; then
+  F77comp_=`$F77 -show 2>/dev/null 1>.tmp || true`
+  F77comp=`cat .tmp | awk '{print $1}' | awk -F/ '{print $NF}' || true`
+  if [ -f "`which $F77comp 2>/dev/null`" ]; then
+    F77ok=1
+  fi
+fi
+
+if [ $F77ok -eq 0 ]; then
+  F77comp_=`$F77 -craype-verbose 2>/dev/null 1>.tmp || true`
+  F77comp=`cat .tmp | awk '{print $1}' | awk -F/ '{print $NF}' || true`
+  if [ -f "`which $F77comp 2>/dev/null`" ]; then
+    F77ok=1
+  fi
+fi
+
+if [ $F77ok -eq 0 ]; then
+  F77comp=`echo $F77 | awk '{print $1}'`
+  if [ -f "`which $F77comp 2>/dev/null`" ]; then
+    F77ok=1
+  fi
+fi
+
+\rm -f .tmp
+if [ $F77ok -eq 0 ]; then
+  F77comp="unknown"
+fi
+
+# assign F77 compiler specific flags
+case $F77comp in
+  *pgf*)        FFLAGS="-r8 -Mpreprocess"
+               ;;
+  *gfortran*)   FFLAGS="-fdefault-real-8 -fdefault-double-8 -cpp"
+               ;;
+  *ifort*)      FFLAGS="-r8 -fpconstant -fpp"
+               ;;
+  *pathf*)      FFLAGS="-r8 -cpp -fno-second-underscore"
+               ;;
+  *ftn*)        FFLAGS="-s default64 -eF"
+               ;;
+  *xlf*)       FFLAGS="-qrealsize=8 -qdpc=e -qsuffix=cpp=f"
+               PPPO="-WF,"
+               F77="${F77} -qsuppress=cmpmsg"
+               ;;
+  *)  echo "ERROR: Unable to detect compiler!"
+      echo "       Please edit the makefile and specify FFLAGS and CFLAGS"
+      echo ""
+      NOCOMPILE=1
+      read;;
+esac
+export PPPO
+
+# set preprocessor symbols
+if [ "$IFMPI" == "false" -o "$IFMPI" == "no" ]; then
+  IFMPI=false
+else
+  # default
+  IFMPI=true
+  PPLIST="${PPLIST} MPI"
+fi
+export IFMPI
+
+if [ "$UNDERSCORE" == "true" ]; then
   PPLIST="${PPLIST} UNDERSCORE"
 fi 
 
-if [ $PROFILING -ne 0 ]; then
-  if [ $MPI -ne 0 ]; then
-    PPLIST="${PPLIST} TIMER"
+if [ "$IFPROFILING" == "true" -o "$IFPROFILING" == "yes" ]; then
+  if [ "$IFMPI" == "true" -o "IFMPI" == "yes" ]; then
+    PPLIST="${PPLIST} TIMER MPITIMER"
   else
     PPLIST="${PPLIST} TIMER"
   fi
 fi
 
-PPLIST="${PPLIST}"
+PPLIST="${PPLIST} GLOBAL_LONG_LONG"
 
 # add user defined preprocessor symbols
-CMT=0
-CMTPRT=0
-NEKNEK=0
-MPIIO=1
+IFCMT=false
+IFCMTPRT=false
 for i in $PPLIST
 do
    if [ "$i" == "NEKNEK" ]; then
-     NEKNEK=1
+     IFNEKNEK=true
    fi
    if [ "$i" == "CMTNEK" ]; then
-     CMT=1
+     IFCMT=true
    fi
    if [ "$i" == "CMTPART" ]; then
-     CMTPRT=1
-   fi
-   if [ "$i" == "NOMPIIO" ]; then
-     MPIIO=0
+     IFCMTPRT=true
    fi
 done
+export IFCMT
+export IFCMTPRT
 
 if echo $PPLIST | grep -q 'CVODE' ; then 
-   CVODE=1
-   if [ ! "$LIBPATH_CVODE" ]; then
-     LIBPATH_CVODE=$SOURCE_ROOT/3rd_party/cvode/lib 
-   fi
-   if [ $MPI -eq 1 ]; then
-     USR_LFLAGS+=" -L$LIBPATH_CVODE -lsundials_fcvode -lsundials_cvode"
-     USR_LFLAGS+=" -lsundials_fnvecparallel -lsundials_nvecparallel" 
-   else
-     USR_LFLAGS+=" -L$LIBPATH_CVODE -lsundials_fcvode -lsundials_cvode"
-     USR_LFLAGS+=" -lsundials_fnvecserial -lsundials_nvecserial" 
-   fi
+   IFCVODE=true 
 else
-   CVODE=0
+   IFCVODE=false
+fi
+
+# AMG setup
+if echo $PPLIST | grep -q 'AMG' ; then 
+   IFAMG=true 
+else
+   IFAMG=false
 fi
 
 MXM_USER="mxm_std.o"
@@ -270,45 +236,44 @@ if echo $PPLIST | grep -q 'BGQ' ; then
    MXM_USER+=" mxm_bgq.o" 
 fi
 
-BLAS="blas.o dsygv.o"
+BLAS="blas.o dsygv.o ssygv.o"
 if echo $PPLIST | grep -q 'VENDOR_BLAS' ; then 
    BLAS=" "
 fi
 
-# gslib build options
-GSLIB_OPT+=" MPI=$MPI MPIIO=$MPIIO"
-GSLIB_OPT+=" ADDUS=$UNDERSCORE USREXIT=1 BLAS=2"
-GSLIB_OPT+=" PREFIX=gslib_ FPREFIX=fgslib_"
-USR_LFLAGS+=" -L$SOURCE_ROOT_GSLIB -lgs"
+if [ "$USR_LIB" != "" ]; then
+    USR_LFLAGS="${USR_LFLAGS} ${USR_LIB}"
+fi
 
 # tweak makefile template 
 echo "generating makefile ..."
 rm -rf makefile 2>/dev/null
 
-sed -e "s:^FC[ ]*=.*:FC\:=$FC:" \
+sed -e "s:^FC[ ]*=.*:FC\:=$F77:" \
 -e "s:^CC[ ]*=.*:CC\:=$CC:" \
--e "s:^FFLAGS[ ]*=.*:FFLAGS\:=$FFLAGS:" \
--e "s:^CFLAGS[ ]*=.*:CFLAGS\:=$CFLAGS:" \
+-e "s:^G[ ]*=.*:G\:=$G:" \
+-e "s/^FFLAGS[ ]*=.*/FFLAGS:=$FFLAGS/" \
+-e "s/^CFLAGS[ ]*=.*/CFLAGS:=$CFLAGS/" \
 -e "s/^PPPO[ ]*=.*/PPPO=$PPPO/" \
 -e "s/^PPS[ ]*=.*/PPS=$PPLIST/" \
 -e "s:^MXM[ ]*=.*:MXM=$MXM_USER:" \
 -e "s:^BLAS[ ]*=.*:BLAS=$BLAS:" \
--e "s/^MPI[ ]*=.*/MPI:=$MPI/" \
--e "s/^CVODE[ ]*=.*/CVODE:=$CVODE/" \
--e "s/^CMT[ ]*=.*/CMT:=$CMT/" \
--e "s/^CMTPRT[ ]*=.*/CMTPRT:=$CMTPRT/" \
--e "s/^NEKNEK[ ]*=.*/NEKNEK:=$NEKNEK/" \
--e "s/^VISIT[ ]*=.*/VISIT:=${VISIT}/" \
+-e "s/^IFAMG[ ]*=.*/IFAMG:=$IFAMG/" \
+-e "s/^IFMPI[ ]*=.*/IFMPI:=$IFMPI/" \
+-e "s/^IFCMT[ ]*=.*/IFCMT:=$IFCMT/" \
+-e "s/^IFCMTPRT[ ]*=.*/IFCMTPRT:=$IFCMTPRT/" \
+-e "s/^IFNEKNEK[ ]*=.*/IFNEKNEK:=$IFNEKNEK/" \
 -e "s:^USR[ ]*=.*:USR\:=$USR:" \
 -e "s:^USR_LFLAGS[ ]*=.*:USR_LFLAGS\:=$USR_LFLAGS:" \
--e "s:^S[ ]*=.*:S\:=${SOURCE_ROOT}/core:" \
--e "s:^SCMT[ ]*=.*:SCMT\:=${SOURCE_ROOT}/core/cmt:" \
--e "s:^SCMTPRT[ ]*=.*:SCMTPRT\:=${SOURCE_ROOT}/core/cmt:" \
-$SOURCE_ROOT/core/makefile.template >.makefile
+-e "s:^S[ ]*=.*:S\:=${SOURCE_ROOT_CORE}:" \
+-e "s:^SCMT[ ]*=.*:SCMT\:=${SOURCE_ROOT_CMT}:" \
+-e "s:^SCMTPRT[ ]*=.*:SCMTPRT\:=${SOURCE_ROOT_CMT}:" \
+-e "s:^J[ ]*=.*:J\:=${SOURCE_ROOT_JL}:" $SOURCE_ROOT_CORE/makefile.template >.makefile
 
-if [ $VISIT -ne 0 ]; then
+if [ "$IFVISIT" == "true" -o "$IFVISIT" == "yes" ]; then
   echo ""
   echo "Activate VisIt Sim Mode"
+  IFVISIT=true
 
   if [ -z "$VISIT_INC" ]; then
     VISIT_INC=${VISIT_INSTALL}/libsim/V2/include
@@ -323,7 +288,7 @@ if [ $VISIT -ne 0 ]; then
     echo "  VISIT_STOP is defined. Nek5000 will wait for VisIt to Connect."
   fi
 
-  sed -e "s/^VISIT[ ]*=.*/VISIT:=${VISIT}/" \
+  sed -e "s/^IFVISIT[ ]*=.*/IFVISIT:=${IFVISIT}/" \
       -e "s:^VISIT_IFLAGS[ ]*=.*:VISIT_IFLAGS\:=-I${VISIT_INC}:" \
       -e "s:^VISIT_LFLAGS[ ]*=.*:VISIT_LFLAGS\:=-L${VISIT_LIB} -lsimV2 -lsimV2f -ldl -lstdc++:" \
       -e "s/^PPS[ ]*=.*/PPS=${PPLIST} VISIT ${VISIT_STOP}/" \
@@ -349,7 +314,32 @@ else
 fi
 \rm .makefile 2>/dev/null
 
-# tweak leagacy SIZE file
+# add plugins
+for i in $PLUGIN_LIST
+do
+  if [ ! -f makenek_plugin_$i ]; then
+     echo "ABORT: cannot find plug-in config file" makenek_plugin_$i
+     exit 1
+  fi
+  source makenek_plugin_$i
+
+  plugindir="SRC_PLUGIN"
+  plugindir=`echo ${!plugindir}`
+
+  if [ ! -f $plugindir/makenek.inc ]; then
+     echo "ABORT: Cannot find plug-in include file file" $plugindir/makenek.inc
+     exit 1
+  fi
+  source $plugindir/makenek.inc
+  if [ $ierr -ne 0 ]; then
+     echo "ABORT: plug-in config failed!"
+     exit 1
+  else
+    echo "found plug-in" $i in $plugindir
+  fi
+done
+
+# tweak SIZE file
 if ! cat SIZE | grep -q 'SIZE.inc' ; then
   if ! cat SIZE | grep -qi 'optlevel' ; then
      echo >>SIZE
@@ -393,7 +383,7 @@ if ! cat SIZE | grep -q 'SIZE.inc' ; then
   fi
 
   if ! cat SIZE | grep -qi 'toteq' ; then
-  if [ $CMT -ne 0 ]; then
+  if [ "$IFCMT" == "true" ]; then
       echo >>SIZE
       echo 'c automatically added by makenek' >>SIZE
       echo '      integer toteq' >> SIZE
@@ -402,16 +392,8 @@ if ! cat SIZE | grep -q 'SIZE.inc' ; then
   fi
 fi
 
-# tweak all SIZE file versions
-if ! cat SIZE | grep -qi 'ldimt_proj' ; then
-     echo >>SIZE
-     echo 'c automatically added by makenek' >>SIZE
-     echo '      integer ldimt_proj' >>SIZE
-     echo '      parameter(ldimt_proj = 1) ! max auxiliary fields residual projection ' >>SIZE
-fi
-
 if ! cat SIZE | grep -qi 'llpart' ; then
-if [ $CMTPRT -ne 0 ]; then
+if [ "$IFCMTPRT" == "true" ]; then
     echo >>SIZE
     echo 'c automatically added by makenek' >>SIZE
     echo '      integer llpart' >> SIZE
@@ -419,53 +401,152 @@ if [ $CMTPRT -ne 0 ]; then
 fi
 fi
 
-export FC
-export CC
-export NEK_WARN 
-export MPI
-export MPIO
-export FFLAGS
-export CFLAGS
-export UNDERSCORE
-export GSLIB_OPT
+# tweak .usr (actually, .f ) file
+rm -f $CASENAME.f
+cp -pv $CASENAME.usr $CASENAME.f
+
+if ! cat $CASENAME.f | grep -qi "subroutine.*usrsetvert" ; then
+cat >> $CASENAME.f << _ACEOF
+
+c automatically added by makenek
+      subroutine usrsetvert(glo_num,nel,nx,ny,nz) ! to modify glo_num
+      integer*8 glo_num(1)
+
+      return
+      end
+_ACEOF
+fi
+
+if ! cat $CASENAME.f | grep -qi "subroutine.*userqtl" ; then
+cat >> $CASENAME.f << _ACEOF
+
+c automatically added by makenek
+      subroutine userqtl
+
+      call userqtl_scig
+
+      return
+      end
+_ACEOF
+fi
+
+if [ "$IFCVODE" == "true" -o "$IFCVODE" == "yes" ]; then
+
+if ! cat $CASENAME.f | grep -qi "^#include.*cvode_aux.*\.h" ; then
+cat >> $CASENAME.f << _ACEOF
+
+c automatically added by makenek
+#include "cvode_aux.h"
+_ACEOF
+fi
+
+if ! cat $CASENAME.f | grep -qi "^#include.*cvode_preco.*\.h" ; then
+cat >> $CASENAME.f << _ACEOF
+
+c automatically added by makenek
+#include "cvode_preco_dummy.h"
+_ACEOF
+fi
+
+fi
+
+if [ "$IFCMT" == "true" -o "$IFCMT" == "yes" ]; then
+if ! cat $CASENAME.f | grep -qi "subroutine.*cmt_usrflt" ; then
+cat >> $CASENAME.f << _ACEOF
+
+c automatically added by makenek
+      subroutine cmt_usrflt(rmult) ! user defined filter
+      include 'SIZE'
+      real rmult(lx1)
+      call rone(rmult,lx1)
+      return
+      end
+_ACEOF
+fi
+
+if ! cat $CASENAME.f | grep -qi "subroutine.*cmt_userflux" ; then
+cat >> $CASENAME.f << _ACEOF
+
+c automatically added by makenek
+      subroutine cmt_userflux ! user defined flux
+      include 'SIZE'
+      include 'TOTAL'
+      include 'NEKUSE'
+      include 'CMTDATA'
+      real fluxout(lx1*lz1)
+      return
+      end
+_ACEOF
+fi
+
+if ! cat $CASENAME.f | grep -qi "subroutine.*cmt_userEOS" ; then
+cat >> $CASENAME.f << _ACEOF
+
+c automatically added by makenek
+      subroutine cmt_userEOS ! user defined EOS 
+      include 'SIZE'
+      include 'TOTAL'
+      include 'NEKUSE'
+      include 'CMTDATA'
+
+      return
+      end
+_ACEOF
+fi
+fi
+
+if [ "$IFCMTPRT" == "true" -o "$IFCMTPRT" == "yes" ]; then
+if ! cat $CASENAME.f | grep -qi "subroutine.*place_particles_user" ; then
+cat >> $CASENAME.f << _ACEOF
+
+c automatically added by makenek
+      subroutine place_particles_user 
+      include 'SIZE'
+      include 'TOTAL'
+      include 'CMTPART'
+      real unif_random,unif_random_norm
+      external unif_random,unif_random_norm
+c     USER SET BOUNDS TO DISTRIBUTION PARTICLES IN
+      rxbo(1,1) = xdrange(1,1) + rspl**(1./3.)*dp(2)     ! X-Left
+      rxbo(2,1) = xdrange(2,1) - rspl**(1./3.)*dp(2)     ! X-Right
+      rxbo(1,2) = xdrange(1,2) + rspl**(1./3.)*dp(2)     ! Y-Left
+      rxbo(2,2) = xdrange(2,2) - rspl**(1./3.)*dp(2)     ! Y-Right
+      rxbo(1,3) = xdrange(1,3) + rspl**(1./3.)*dp(2)     ! Z-Left
+      rxbo(2,3) = xdrange(2,3) - rspl**(1./3.)*dp(2)     ! Z-Right
+      if (ipart_restartr .eq. 0) then
+c        USER PLACE X,Y,Z PARTICLES COORDS IF DISTRIBUTING PARTICLES
+         x_part(0) = unif_random(rxbo(1,1),rxbo(2,1)) ! X-COORD
+         x_part(1) = unif_random(rxbo(1,2),rxbo(2,2)) ! Y-COORD
+         x_part(2) = unif_random(rxbo(1,3),rxbo(2,3)) ! Z-COORD
+c        USER SET PARTICLE DIAMETERS IF DISTRIBUTING PARTICLES
+         d_part    = unif_random(dp(1),dp(2))              ! UR
+c        d_part    = unif_random_norm(dp(1),dp(2),STD_DEV) ! URN
+      endif
+      return
+      end
+_ACEOF
+fi
+if ! cat $CASENAME.f | grep -qi "subroutine.*usr_particles_f_user" ; then
+cat >> $CASENAME.f << _ACEOF
+
+c automatically added by makenek
+      subroutine usr_particles_f_user(i) 
+      include 'SIZE'
+      include 'TOTAL'
+      include 'CMTPART'
+      parameter(rgrav = 9.8)
+c     USER SET BODY FORCES 
+      f_part(0) = 0.0
+c     f_part(1) = -rgrav*rpart(jvol,i)*(rpart(jrhop,i)-rpart(jrho,i))
+      f_part(1) = 0.0
+      f_part(2) = 0.0
+      return
+      end
+_ACEOF
+fi
+fi
 
 
-if [ $NOCOMPILE -ne 0 ]; then
+if [ $NOCOMPILE -eq 1 ]; then
   exit 0
-fi
-
-declare -a varlist=(
-"SOURCE_ROOT"
-"FC"
-"FFLAGS"
-"CC"
-"CFLAGS"
-"PPLIST"
-)
-if [ -f .state ]; then
-  for i in "${varlist[@]}"
-  do
-    if ! cat .state | grep -q "$i=${!i}" ; then
-      echo "configuration change detected, forcing full rebuild"
-      rm -rf .state
-      while true; do
-        read -p "do you want to rebuild all 3rd party software? [N]" yn
-        case $yn in
-          [Yy]* )
-            clean_3rd_party;
-            break ;;
-          * )
-           break ;;
-        esac
-      done  
-      make clean;
-      break
-    fi
-  done ;
-fi
-
-rm -rf .state
-for i in "${varlist[@]}"
-do
-  echo "$i=${!i}" >> .state
-done ;
+fi 

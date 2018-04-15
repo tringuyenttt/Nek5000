@@ -18,7 +18,7 @@ c     an ascii rea file for just the parameters
       equivalence (fbout1,fbout)
       equivalence (string,string1)
 
-      parameter(lelt=MAXNEL)
+      parameter(lelt=1000000)
       common /array/ x(8),y(8),z(8),bc(5,6,lelt),curve(6,8)
       common /arrai/ nel,ncurve
       common /arrac/ cbc

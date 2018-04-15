@@ -1,21 +1,17 @@
 #!/bin/bash
 
-# maximum number of elements
-#MAXNEL=150000
-
 # binary path
-#bin_nek_tools=`cd ../bin && pwd`
+bin_nek_tools=`cd ../bin && pwd`
 
-# Fortran compiler
-#FC="gfortran"
-#FFLAGS=""
-
-# C compiler
-#CC="gcc"
-#CFLAGS=""
+# specify your compilers here
+F77="gfortran"
+CC="gcc"
 
 # linking flags
-#LDFLAGS="-L$HOME/lib -lm"
+#USR_LFLAGS="-L$HOME/lib"
+
+# enable BIG MEMORY suuport
+#BIGMEM="true"
 
 
 
@@ -48,17 +44,12 @@
 
 ### don't touch this section ###############################
 
-: ${FC:="gfortran"}
-: ${CC:="gcc"}
-: ${bin_nek_tools:=`cd ../bin && pwd`}
-: ${MAXNEL:=150000}
-
 if [ $# -eq 0 ]; then
    echo "Usage: maketools [clean|all|tool(s)]"
    exit 1
 fi
 
-if [ "$FC" == "" ]; then
+if [ "$F77" == "" ]; then
   echo "FATAL ERROR: Specify your Fortran compiler in maketools!"
   exit 1
 fi
@@ -68,9 +59,17 @@ if [ "$CC" == "" ]; then
   exit 1
 fi
 
-which `echo $FC | awk '{print $1}'` 1>/dev/null
+# overwrite source path with optional 2nd argument
+if [ $# -eq 2 ]; then
+  bin_nek_tools="$2"
+fi
+
+
+
+
+which `echo $F77 | awk '{print $1}'` 1>/dev/null
 if [ $? -ne 0 ]; then
-  echo "FATAL ERROR: Cannot find $FC!"
+  echo "FATAL ERROR: Cannot find $F77!"
   exit 1
 fi
 
@@ -85,63 +84,26 @@ if [ ! -d $bin_nek_tools  ]; then
   exit 1
 fi
 
-# trying to figure which compiler the wrapper is using
-FCok=0
 
-FCcomp_=`$FC -showme 2>/dev/null | head -1 2>/dev/null 1>.tmp || true`
-FCcomp=`cat .tmp | awk '{print $1}' | awk -F/ '{print $NF}' || true`
-if [ -f "`which $FCcomp 2>/dev/null`" ]; then
-  FCok=1
-fi
-
-if [ $FCok -eq 0 ]; then
-  FCcomp_=`$FC -show 2>/dev/null | head -1 2>/dev/null 1>.tmp || true`
-  FCcomp=`cat .tmp | awk '{print $1}' | awk -F/ '{print $NF}' || true`
-  if [ -f "`which $FCcomp 2>/dev/null`" ]; then
-    FCok=1
-  fi
-fi
-
-if [ $FCok -eq 0 ]; then
-  FCcomp_=`$FC -craype-verbose 2>/dev/null 1>.tmp || true`
-  FCcomp=`cat .tmp | awk '{print $1}' | awk -F/ '{print $NF}' || true`
-  if [ -f "`which $FCcomp 2>/dev/null`" ]; then
-    FCok=1
-  fi
-fi
-
-if [ $FCok -eq 0 ]; then
-  FCcomp=`echo $FC | awk '{print $1}'`
-  if [ -f "`which $FCcomp 2>/dev/null`" ]; then
-    FCok=1
-  fi
-fi
-
-\rm -f .tmp
-if [ $FCok -eq 0 ]; then
-  FCcomp="unknown"
-fi
-
-PPPO=""
-case $FCcomp in
+case $F77 in
   *pgf*)       R8="-r8"
-               CPPF="-Mpreprocess"
-               BIGMEM="-mcmodel=medium"
+               BIGMEM_FLAG="-mcmodel=medium"
                ;;
   *gfortran*)  R8="-fdefault-real-8"
-               CPPF="-cpp"
-               BIGMEM="-mcmodel=medium"
+               BIGMEM_FLAG="-mcmodel=medium"
                ;;
   *ifort*)     R8="-r8"
-               CPPF="-fpp"
-               BIGMEM="-mcmodel=medium -shared-intel"
+               BIGMEM_FLAG="-mcmodel=medium -shared-intel"
+               ;;
+  *pathf*)     R8="-r8"
                ;;
   *xlf*)       R8="-qrealsize=8"
-               CPPF="-qsuffix=cpp=f"
-               BIGMEM="-q64"
-               PPPO="-WF,"
+               BIGMEM_FLAG="-q64"
                ;;
-  *)           echo "ERROR: Cannot find a supported compiler!"
+  *ftn*)       R8="-r8"
+               BIGMEM_FLAG="-mcmodel=medium"
+               ;;
+  *)           echo "Error: Unable to detect compiler!"
                exit 1
                ;;
 esac
@@ -153,31 +115,28 @@ cat > test_underscore.f << _ACEOF
       end
 _ACEOF
 
-$FC -c test_underscore.f 2>&1 >/dev/null 
+$F77 -c test_underscore.f 2>&1 >/dev/null 
 nm test_underscore.o | grep byte_write_ 1>/dev/null
 if [ $? -eq 0 ]; then 
   US="-DUNDERSCORE"
 fi
 \rm test_underscore.* 2>/dev/null
 
-if [[ $OSTYPE == darwin* ]]; then
-  BIGMEM="" 
+
+F77="$F77" 
+CC="$CC" 
+if [ "$BIGMEM" == "true" ] || [ "$BIGMEM" == "TRUE" ]; then
+  F77="$F77 $BIGMEM_FLAG" 
+  CC="$CC $BIGMEM_FLAG" 
 fi
 
-FFLAGS+=" -DMAXNEL=$MAXNEL"
-FFLAGS=`echo $FFLAGS | sed -e "s/-D/$PPPO-D/g"`
-
-export FC=`which $FC`
-export NEK_FFLAGS="$FFLAGS"
-export FFLAGS_
-export CC=`which $CC`
-export NEK_CFLAGS="$CFLAGS"
+export F77
+export CC
 export bin_nek_tools
 export US
 export R8
-export CPPF
-export BIGMEM
-export LDFLAGS
+LFLAGS_IN=$USR_LFLAGS 
+export LFLAGS_IN  
 
 LIST=`ls -Cd */ | sed 's:\/::g'`
 MODULES=`echo $LIST`

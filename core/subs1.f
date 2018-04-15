@@ -40,20 +40,21 @@ c     ifcrsl = .true.
       ifcrsl = .false.
 
       nel   = nelfld(ifield)
-      nxyz  = lx1*ly1*lz1
+      nxyz  = nx1*ny1*nz1
       n     = nxyz*nel
 
       if (istep.le.1.and.iffdm) call set_fdm_prec_h1A
 
-      tol  = tin
-
-c     overrule input tolerance
-      if (restol(ifield).ne.0) tol=restol(ifield)
+      tol=tin
+      if (param(22).ne.0) tol=abs(param(22))
+      if (matmod.lt.0) tol = 1.e-4
+c     if (matmod.lt.0) tol = tin
+c     tol = 1.e-10
 
       if (ifcrsl) call set_up_h1_crs_strs(h1,h2,ifield,matmod)
 
-c      if (nio.eq.0.and.istep.eq.1) write(6,6) ifield,tol,tin
-c   6  format(i3,1p2e12.4,' ifield, tol, tol_in')
+      if (nio.eq.0.and.istep.eq.1) write(6,6) matmod,tol,tin,param(22)
+   6  format(i3,1p3e12.4,' tol,matmod')
 
       if ( .not.ifsolv ) then           !     Set logical flags
          call setfast (h1,h2,imesh)
@@ -64,13 +65,9 @@ c   6  format(i3,1p2e12.4,' ifield, tol, tol_in')
       rbnorm = glsc3(wa,binv,rmult,n)
       rbnorm = sqrt ( rbnorm / vol )
       if (rbnorm .lt. tol**2) then
-         iter = 0
-         r0 = rbnorm
 c        if ( .not.ifprint )  goto 9999
-         if (matmod.ge.0.and.nio.eq.0) write (6,3000) 
-     $                                 istep,iter,rbnorm,r0,tol
-         if (matmod.lt.0.and.nio.eq.0) write (6,3010) 
-     $                                 istep,iter,rbnorm,r0,tol
+         if (matmod.ge.0.and.nio.eq.0) write (6,2000) istep,rbnorm,tol
+         if (matmod.lt.0.and.nio.eq.0) write (6,2010) istep,rbnorm,tol
          goto 9999
       endif
 
@@ -78,7 +75,7 @@ C     Evaluate diagional pre-conidtioner for fluid solve
       call setprec (dpc,h1,h2,imesh,1)
       call setprec (wa ,h1,h2,imesh,2)
       call add2    (dpc,wa,n)
-      if (ldim.eq.3) then
+      if (ndim.eq.3) then
          call setprec (wa,h1,h2,imesh,3)
          call add2    (dpc,wa,n)
       endif
@@ -158,19 +155,20 @@ c     call copy (dpc,binv,n)
          call opadds (p1,p2,p3,pp1,pp2,pp3,beta,n,1)
 
  1000 continue
-      if (matmod.ge.0.and.nio.eq.0) write (6,3001) 
-     $                              istep,iter,rbnorm,r0,tol
-      if (matmod.lt.0.and.nio.eq.0) write (6,3011) 
-     $                              istep,iter,rbnorm,r0,tol
+ 
+      if (matmod.ge.0.and.nio.eq.0) write (6,3001) istep,iter,rbnorm,tol
+      if (matmod.lt.0.and.nio.eq.0) write (6,3011) istep,iter,rbnorm,tol
 
  9999 continue
       ifsolv = .false.
 
 
- 3000 format(i11,'  Helmh3 fluid  ',I6,1p3E13.4)
- 3010 format(i11,'  Helmh3 mesh   ',I6,1p3E13.4)
- 3001 format(i11,'  Helmh3 fluid unconverged! ',I6,1p3E13.4)
- 3011 format(i11,'  Helmh3 mesh unconverged! ',I6,1p3E13.4)
+ 2000 format(i11,1x,' Helmh3 fluid no iteration - rbnorm =',2E13.4)
+ 2010 format(i11,1x,' Helmh3 mesh  no iteration - rbnorm =',2E13.4)
+ 3000 format(i11,1x,' Helmh3 fluid ',I7,1p4E13.4)
+ 3010 format(i11,1x,' Helmh3 mesh ' ,I7,1p4E13.4)
+ 3001 format(2i6,' Unconverged Helmh3 fluid rbnorm =',2E13.6)
+ 3011 format(2i6,' Unconverged Helmh3 mesh  rbnorm =',2E13.6)
 
       return
       end
@@ -417,10 +415,10 @@ C
 C
       IF (IMESH.EQ.1) NL = NELV
       IF (IMESH.EQ.2) NL = NELT
-      NTOT1 = lx1*ly1*lz1*NL
+      NTOT1 = NX1*NY1*NZ1*NL
       CALL COPY (W1,RES,NTOT1)
 C
-      CALL DSSUM (W1,lx1,ly1,lz1)
+      CALL DSSUM (W1,NX1,NY1,NZ1)
 C
       IF (IMESH.EQ.1) THEN
          CALL COL3 (W2,BINVM1,W1,NTOT1)
@@ -538,9 +536,9 @@ C
 C     Find Courant and Umax
 C
 C
-      NTOT   = lx1*ly1*lz1*NELV
+      NTOT   = NX1*NY1*NZ1*NELV
       NTOTL  = LX1*LY1*LZ1*LELV
-      NTOTD  = NTOTL*ldim
+      NTOTD  = NTOTL*NDIM
       COLD   = COURNO
       CMAX   = 1.2*CTARG
       CMIN   = 0.8*CTARG
@@ -630,8 +628,9 @@ C           -C IS Target Courant number
             DISCR=B**2-4*A*C
             DTOLD=DT
             IF(DISCR.LE.0.0)THEN
-c               if (nio.eq.0) 
-c     $         PRINT*,'Problem calculating new DT Discriminant=',discr
+               if (nio.eq.0) 
+     $         PRINT*,'Problem calculating new DT Discriminant=',discr
+c              PRINT*,"Problem Details",nid, DT, CTARG, COURNO, A, B, C
                DT=DT*(CTARG/COURNO)
 C               IF(DT.GT.DTOLD) DT=DTOLD
             ELSE IF(ABS((VCOUR-VOLD)/VCOUR).LT.0.001)THEN
@@ -704,9 +703,9 @@ C
       SAVE    ICALLD
       DATA    ICALLD /0/
 C
-      NTOT  = lx1*ly1*lz1*NELV
+      NTOT  = NX1*NY1*NZ1*NELV
       NTOTL = LX1*LY1*LZ1*LELV
-      NTOTD = NTOTL*ldim
+      NTOTD = NTOTL*NDIM
 C
 C     Compute isoparametric partials.
 C
@@ -719,19 +718,19 @@ C
          ICALLD=1
          DRST (1)=ABS(ZGM1(2,1)-ZGM1(1,1))
          DRSTI(1)=1.0/DRST(1)
-         DO 400 I=2,lx1-1
+         DO 400 I=2,NX1-1
             DRST (I)=ABS(ZGM1(I+1,1)-ZGM1(I-1,1))/2.0
             DRSTI(I)=1.0/DRST(I)
  400     CONTINUE
-         DRST (lx1)=DRST(1)
-         DRSTI(lx1)=1.0/DRST(lx1)
+         DRST (NX1)=DRST(1)
+         DRSTI(NX1)=1.0/DRST(NX1)
       endif
 C
 C     Zero out scratch arrays U,V,W for ALL declared elements...
 C
       CALL RZERO3 (U,V,W,NTOTL)
 C
-      IF (ldim.EQ.2) THEN
+      IF (NDIM.EQ.2) THEN
 
       CALL VDOT2  (U,V1  ,V2  ,RXM1,RYM1,NTOT)
       CALL VDOT2  (R,RXM1,RYM1,RXM1,RYM1,NTOT)
@@ -773,9 +772,9 @@ C
       endif
 C
       DO 500 IE=1,NELV
-      DO 500 IX=1,lx1
-      DO 500 IY=1,ly1
-      DO 500 IZ=1,lz1
+      DO 500 IX=1,NX1
+      DO 500 IY=1,NY1
+      DO 500 IZ=1,NZ1
             U(IX,IY,IZ,IE)=ABS( U(IX,IY,IZ,IE)*DRSTI(IX) )
             V(IX,IY,IZ,IE)=ABS( V(IX,IY,IZ,IE)*DRSTI(IY) )
             W(IX,IY,IZ,IE)=ABS( W(IX,IY,IZ,IE)*DRSTI(IZ) )
@@ -806,9 +805,9 @@ C
          return
       endif
 C
-      NFACE  = 2*ldim
-      NXZ1   = lx1*lz1
-      NTOT1  = lx1*ly1*lz1*NELV
+      NFACE  = 2*NDIM
+      NXZ1   = NX1*NZ1
+      NTOT1  = NX1*NY1*NZ1*NELV
       DTFS   = 1.1E+10
 C
 C     Kludge : for debugging purpose Fudge Factor comes in
@@ -832,13 +831,13 @@ C
                 BC4 = BC(4,IFC,IEL,IFIELD)
                 CALL CFILL  (SIGST,BC4,NXZ1)
              ELSE
-                CALL FACEIS (CB,STC,IEL,IFC,lx1,ly1,lz1)
+                CALL FACEIS (CB,STC,IEL,IFC,NX1,NY1,NZ1)
                 CALL FACEXS (SIGST,STC,IFC,0)
              endif
              SIGMAX = VLMAX (SIGST,NXZ1)
              IF (SIGMAX.LE.0.0) GOTO 100
              RHOSIG = SQRT( RHOMIN/SIGMAX )
-             IF (ldim.EQ.2) THEN
+             IF (NDIM.EQ.2) THEN
                 CALL CDXMIN2 (DTST,RHOSIG,IEL,IFC,IFAXIS)
              ELSE
                 CALL CDXMIN3 (DTST,RHOSIG,IEL,IFC)
@@ -880,16 +879,16 @@ C
       CALL FACEC2 (XFM1,YFM1,XM1(1,1,1,IEL),YM1(1,1,1,IEL),IFC)
 C
       IF (IFC.EQ.1 .OR. IFC.EQ.3) THEN
-         CALL MXM (DXM1,lx1,XFM1,lx1,T1XF,1)
-         CALL MXM (DXM1,lx1,YFM1,lx1,T1YF,1)
+         CALL MXM (DXM1,NX1,XFM1,NX1,T1XF,1)
+         CALL MXM (DXM1,NX1,YFM1,NX1,T1YF,1)
       ELSE
          IF (IFAXIS) CALL SETAXDY ( IFRZER(IEL) )
-         CALL MXM (DYM1,ly1,XFM1,ly1,T1XF,1)
-         CALL MXM (DYM1,ly1,YFM1,ly1,T1YF,1)
+         CALL MXM (DYM1,NY1,XFM1,NY1,T1XF,1)
+         CALL MXM (DYM1,NY1,YFM1,NY1,T1YF,1)
       endif
 C
       IF (IFAXIS) THEN
-         DO 100 IX=1,lx1
+         DO 100 IX=1,NX1
             IF (YFM1(IX) .LT. EPS) THEN
                DTST(IX,1) = 1.e+10
             ELSE
@@ -898,7 +897,7 @@ C
             endif
   100    CONTINUE
       ELSE
-         DO 200 IX=1,lx1
+         DO 200 IX=1,NX1
             XJ = SQRT( T1XF(IX)**2 + T1YF(IX)**2 )*DRST(IX)
             DTST(IX,1) = RHOSIG * SQRT( XJ**3 )
   200    CONTINUE
@@ -923,15 +922,15 @@ C
      $             zm1(1,1,1,iel),ifc,0)
       call setdrs (drm1,drtm1,dsm1,dstm1,ifc)
 C
-      CALL MXM (DRM1,lx1, XFM1,lx1,XRM1,ly1)
-      CALL MXM (DRM1,lx1, YFM1,lx1,YRM1,ly1)
-      CALL MXM (DRM1,lx1, ZFM1,lx1,ZRM1,ly1)
-      CALL MXM (XFM1,lx1,DSTM1,ly1,XSM1,ly1)
-      CALL MXM (YFM1,lx1,DSTM1,ly1,YSM1,ly1)
-      CALL MXM (ZFM1,lx1,DSTM1,ly1,ZSM1,ly1)
+      CALL MXM (DRM1,NX1, XFM1,NX1,XRM1,NY1)
+      CALL MXM (DRM1,NX1, YFM1,NX1,YRM1,NY1)
+      CALL MXM (DRM1,NX1, ZFM1,NX1,ZRM1,NY1)
+      CALL MXM (XFM1,NX1,DSTM1,NY1,XSM1,NY1)
+      CALL MXM (YFM1,NX1,DSTM1,NY1,YSM1,NY1)
+      CALL MXM (ZFM1,NX1,DSTM1,NY1,ZSM1,NY1)
 C
-      DO 100 IX=1,lx1
-      DO 100 IY=1,ly1
+      DO 100 IX=1,NX1
+      DO 100 IY=1,NY1
          DELR = XRM1(IX,IY)**2 + YRM1(IX,IY)**2 + ZRM1(IX,IY)**2
          DELS = XSM1(IX,IY)**2 + YSM1(IX,IY)**2 + ZSM1(IX,IY)**2
          DELR = SQRT( DELR )*DRST(IX)
@@ -957,7 +956,7 @@ C
 C
 C     Set up counters
 C
-      CALL DSSET(lx1,ly1,lz1)
+      CALL DSSET(NX1,NY1,NZ1)
       IFACE  = EFACE1(IFACE1)
       JS1    = SKPDAT(1,IFACE)
       JF1    = SKPDAT(2,IFACE)
@@ -998,7 +997,7 @@ C
 C
 C     Set up counters
 C
-      CALL DSSET(lx1,ly1,lz1)
+      CALL DSSET(NX1,NY1,NZ1)
       IFACE  = EFACE1(IFACE1)
       JS1    = SKPDAT(1,IFACE)
       JF1    = SKPDAT(2,IFACE)
@@ -1034,7 +1033,7 @@ C
 C
 C     Set up counters
 C
-      CALL DSSET(lx1,ly1,lz1)
+      CALL DSSET(NX1,NY1,NZ1)
       IFACE  = EFACE1(IFACE1)
       JS1    = SKPDAT(1,IFACE)
       JF1    = SKPDAT(2,IFACE)
@@ -1069,7 +1068,7 @@ C
 C
 C     Set up counters
 C
-      CALL DSSET(lx1,ly1,lz1)
+      CALL DSSET(NX1,NY1,NZ1)
       IFACE  = EFACE1(IFACE1)
       JS1    = SKPDAT(1,IFACE)
       JF1    = SKPDAT(2,IFACE)
@@ -1104,7 +1103,7 @@ C
 C
 C     Set up counters
 C
-      CALL DSSET(lx1,ly1,lz1)
+      CALL DSSET(NX1,NY1,NZ1)
       IFACE  = EFACE1(IFACE1)
       JS1    = SKPDAT(1,IFACE)
       JF1    = SKPDAT(2,IFACE)
@@ -1138,7 +1137,7 @@ c     INTLOC =      integration type
       real h1(1),h2(1)
 
       nel   = nelfld(ifield)
-      ntot1 = lx1*ly1*lz1*nel
+      ntot1 = nx1*ny1*nz1*nel
 
       if (iftran) then
          dtbd = bd(1)/dt
@@ -1192,9 +1191,9 @@ C------------------------------------------------------------------
       include 'NEKUSE'
       ielg = lglel(iel)
 c     IF (IFSTRS .AND. IFIELD.EQ.1) CALL STNRINV ! don't call! pff, 2007
-      DO 10 K=1,lz1
-      DO 10 J=1,ly1
-      DO 10 I=1,lx1
+      DO 10 K=1,NZ1
+      DO 10 J=1,NY1
+      DO 10 I=1,NX1
          if (optlevel.le.2) CALL NEKASGN (I,J,K,IEL)
          CALL USERVP  (I,J,K,IELG)
          VDIFF (I,J,K,IEL,IFIELD) = UDIFF
@@ -1206,84 +1205,110 @@ C
       subroutine diagnos
       return
       end
-
-c-----------------------------------------------------------------------
+C
       subroutine setsolv
       include 'SIZE'
-
       common /fastmd/ ifdfrm(lelt), iffast(lelt), ifh2, ifsolv
-      logical ifdfrm, iffast, ifh2, ifsolv
-
-      ifsolv = .false.
-
+      LOGICAL IFDFRM, IFFAST, IFH2, IFSOLV
+      IFSOLV = .FALSE.
       return
       end
-c-----------------------------------------------------------------------
+
+      subroutine mggo
+      return
+      end
+      subroutine mginit
+      return
+      end
+C-----------------------------------------------------------------------
+C
+C     New files from LH on stress formulation (SFSUBS.FOR)
+C
+C-----------------------------------------------------------------------
       subroutine hmhzsf (name,u1,u2,u3,r1,r2,r3,h1,h2,
      $                   rmask1,rmask2,rmask3,rmult,
      $                   tol,maxit,matmod)
-
-c     Solve coupled Helmholtz equations (stress formulation)
-
-
+C-----------------------------------------------------------------------
+C
+C     Compute solution to coupled Helmholtz equations 
+C     (stress formulation)
+C
+C-----------------------------------------------------------------------
       include 'SIZE'
       include 'INPUT'
       include 'MASS'
       include 'SOLN'   ! For outpost diagnostic call
       include 'TSTEP'
       include 'ORTHOSTRS'
-      include 'CTIMER'
 
-      real u1(1),u2(1),u3(1),r1(1),r2(1),r3(1),h1(1),h2(1)
-      real rmask1(1),rmask2(1),rmask3(1),rmult(1)
-      character name*4
+      DIMENSION U1(LX1,LY1,LZ1,1)
+     $        , U2(LX1,LY1,LZ1,1)
+     $        , U3(LX1,LY1,LZ1,1)
+     $        , R1(LX1,LY1,LZ1,1)
+     $        , R2(LX1,LY1,LZ1,1)
+     $        , R3(LX1,LY1,LZ1,1)
+     $        , H1(LX1,LY1,LZ1,1)
+     $        , H2(LX1,LY1,LZ1,1)
+     $        , RMASK1(LX1,LY1,LZ1,1)
+     $        , RMASK2(LX1,LY1,LZ1,1)
+     $        , RMASK3(LX1,LY1,LZ1,1)
+     $        , RMULT (LX1,LY1,LZ1,1)
+      CHARACTER NAME*4
 
-#ifdef TIMER
-      nhmhz = nhmhz + 1
-      etime1 = dnekclock()
-#endif
+      common /cpfjunk/ y(lx1*ly1*lz1*lelt,3)
+      common /cpfjun2/ v(lx1*ly1*lz1*lelt,3)
 
       nel = nelfld(ifield)
       vol = volfld(ifield)
-      n   = lx1*ly1*lz1*nel
-
-      napproxstrs(1) = 0
-      iproj = 0
-      if (ifprojfld(ifield)) iproj = param(94)
-      if (iproj.gt.0.and.istep.ge.iproj) napproxstrs(1)=param(93)
-      napproxstrs(1)=min(napproxstrs(1),mxprev)
+      n   = nx1*ny1*nz1*nel
 
       call rmask   (r1,r2,r3,nel)
       call opdssum (r1,r2,r3)
       call rzero3  (u1,u2,u3,n)
 
+c     call set_up_h1_crs_strs(h1,h2,ifield,matmod)
+
       if (imesh.eq.1) then
          call chktcgs (r1,r2,r3,rmask1,rmask2,rmask3,rmult,binvm1
      $                ,vol,tol,nel)
 
-         call strs_project_a(r1,r2,r3,h1,h2,rmult,ifield,ierr,matmod)
+         if (matmod.lt.0) then
+          napproxstrs(1) = 0
+          iproj      = param(94)
+          if (iproj.gt.0.and.istep.gt.iproj) napproxstrs(1)=param(93)
+          napproxstrs(1)=min(napproxstrs(1),istep/3)
+          call strs_project_a(r1,r2,r3,h1,h2,rmult,ifield,ierr,matmod)
+
+c         call opcopy(y(1,1),y(1,2),y(1,3),xstrs(1),xstrs(1+n),xstrs(1+2*n))
+
+         endif
 
          call cggosf  (u1,u2,u3,r1,r2,r3,h1,h2,rmult,binvm1
      $                ,vol,tol,maxit,matmod)
 
-         call strs_project_b(u1,u2,u3,h1,h2,rmult,ifield,ierr)
+c        if (matmod.lt.0.and.istep.ge.11)
+c    $    call opcopy(v(1,1),v(1,2),v(1,3),u1,u2,u3)
+
+         if (matmod.lt.0)
+     $    call strs_project_b(u1,u2,u3,h1,h2,rmult,ifield,ierr)
+
+c        if (matmod.lt.0.and.istep.ge.11) then
+c         ifxyo = .true.
+c         call outpost(y(1,1),y(1,2),y(1,3),pr,t,'   ')
+c         call outpost(v(1,1),v(1,2),v(1,3),pr,t,'   ')
+c         call outpost(u1    ,u2    ,u3    ,pr,t,'   ')
+c         call exitti('quit$',matmod)
+c        endif
 
       else
-
          call chktcgs (r1,r2,r3,rmask1,rmask2,rmask3,rmult,bintm1
      $                ,vol,tol,nel)
          call cggosf  (u1,u2,u3,r1,r2,r3,h1,h2,rmult,bintm1
      $                ,vol,tol,maxit,matmod)
-
       endif
-
-#ifdef TIMER
-      thmhz=thmhz+(dnekclock()-etime1)
-#endif
 
       return
       end
-
       subroutine chktcgs (r1,r2,r3,rmask1,rmask2,rmask3,rmult,binv,
      $                    vol,tol,nel)
 C-------------------------------------------------------------------
@@ -1310,7 +1335,7 @@ C
      $        , rmult (lx1,ly1,lz1,1)
      $        , binv  (lx1,ly1,lz1,1)
 C
-      NTOT1 = lx1*ly1*lz1*NEL
+      NTOT1 = NX1*NY1*NZ1*NEL
 C
       IF (EIGAA .NE. 0.0) THEN
          ACONDNO = EIGGA/EIGAA
@@ -1335,31 +1360,31 @@ C
       IF (TOL.LT.RMIN) THEN
        TOLOLD = TOL
        TOL = RMIN
-c       IF (NIO.EQ.0 .AND. IFPRINT)
-c     $ WRITE(6,*)'New CG1(stress)-tolerance (RINIT*epsm) = ',TOL,TOLOLD
+       IF (NIO.EQ.0 .AND. IFPRINT)
+     $ WRITE(6,*)'New CG1(stress)-tolerance (RINIT*epsm) = ',TOL,TOLOLD
       endif
 C
-      IF (ldim.EQ.2) THEN
+      IF (NDIM.EQ.2) THEN
          CALL ADD3 (WA,RMASK1,RMASK2,NTOT1)
       ELSE
          CALL ADD4 (WA,RMASK1,RMASK2,RMASK3,NTOT1)
       endif
       BCNEU1 = GLSC2 (WA,RMULT,NTOT1)
-      BCNEU2 = (ldim) * GLSUM(RMULT,NTOT1)
+      BCNEU2 = (NDIM) * GLSUM(RMULT,NTOT1)
       BCTEST = ABS(BCNEU1 - BCNEU2)
       IF (BCTEST .LT. 0.1) THEN
-         IF (ldim.EQ.2) THEN
+         IF (NDIM.EQ.2) THEN
             CALL ADD3 (WA,R1,R2,NTOT1)
          ELSE
             CALL ADD4 (WA,R1,R2,R3,NTOT1)
          endif
-         OTR    = GLSC2(WA,RMULT,NTOT1) / ( ldim )
+         OTR    = GLSC2(WA,RMULT,NTOT1) / ( NDIM )
          TOLMIN = ABS(OTR) * ACONDNO
          IF (TOL .LT. TOLMIN) THEN
             TOLOLD = TOL
             TOL = TOLMIN
-c            IF (NIO.EQ.0)
-c     $      WRITE (6,*) 'New CG1(stress)-tolerance (OTR) = ',TOL,TOLOLD
+            IF (NIO.EQ.0)
+     $      WRITE (6,*) 'New CG1(stress)-tolerance (OTR) = ',TOL,TOLOLD
          endif
       endif
 C
@@ -1379,8 +1404,6 @@ C-----------------------------------------------------------------------
       include 'GEOM'
       include 'MASS'
       include 'TSTEP'
-      include 'CTIMER'
-
       common /fastmd/ ifdfrm(lelt), iffast(lelt), ifh2, ifsolv
       logical ifdfrm, iffast, ifh2, ifsolv
 C
@@ -1393,11 +1416,8 @@ C
      $        , h1 (lx1,ly1,lz1,1)
      $        , h2 (lx1,ly1,lz1,1)
 
-      naxhm = naxhm + 1
-      etime1 = dnekclock()
-
       nel   = nelfld(ifield)
-      ntot1 = lx1*ly1*lz1*nel
+      ntot1 = nx1*ny1*nz1*nel
 
       if (ifaxis.and.ifsplit) call exitti(
      $'Axisymmetric stress w/PnPn not yet supported.$',istep)
@@ -1409,8 +1429,6 @@ c     icase = 3 --- 3 separate axhelm calls
       icase = 1                ! Fast mode for stress
       if (ifaxis)      icase=2 ! Slow for stress, but supports axisymmetry
       if (matmod.lt.0) icase=2 ! Elasticity case
-c     if (matmod.lt.0) icase=3 ! Block-diagonal Axhelm
-      if (matmod.lt.0) icase=1 ! Elasticity case (faster, 7/28/17,pff)
       if (.not.ifstrs) icase=3 ! Block-diagonal Axhelm
 
       if (icase.eq.1) then
@@ -1434,12 +1452,10 @@ c     if (matmod.lt.0) icase=3 ! Block-diagonal Axhelm
         if (ifh2 .and. matmod.ge.0) then ! add Helmholtz contributions
            call addcol4 (au1,bm1,h2,u1,ntot1)
            call addcol4 (au2,bm1,h2,u2,ntot1)
-           if (ldim.eq.3) call addcol4 (au3,bm1,h2,u3,ntot1)
+           if (ndim.eq.3) call addcol4 (au3,bm1,h2,u3,ntot1)
         endif
 
       endif
-
-      taxhm=taxhm+(dnekclock()-etime1)
 
       return
       end
@@ -1466,14 +1482,14 @@ c
      $        , u2(lx1,ly1,lz1,1)
      $        , u3(lx1,ly1,lz1,1)
 C
-      NTOT1 = lx1*ly1*lz1*NEL
+      NTOT1 = NX1*NY1*NZ1*NEL
 
       CALL RZERO3 (EXX,EYY,EZZ,NTOT1)
       CALL RZERO3 (EXY,EXZ,EYZ,NTOT1)
 
       CALL UXYZ  (U1,EXX,EXY,EXZ,NEL)
       CALL UXYZ  (U2,EXY,EYY,EYZ,NEL)
-      IF (ldim.EQ.3) CALL UXYZ   (U3,EXZ,EYZ,EZZ,NEL)
+      IF (NDIM.EQ.3) CALL UXYZ   (U3,EXZ,EYZ,EZZ,NEL)
 
       CALL INVCOL2 (EXX,JACM1,NTOT1)
       CALL INVCOL2 (EXY,JACM1,NTOT1)
@@ -1481,7 +1497,7 @@ C
  
       IF (IFAXIS) CALL AXIEZZ (U2,EYY,EZZ,NEL)
 C
-      IF (ldim.EQ.3) THEN
+      IF (NDIM.EQ.3) THEN
          CALL INVCOL2 (EXZ,JACM1,NTOT1)
          CALL INVCOL2 (EYZ,JACM1,NTOT1)
          CALL INVCOL2 (EZZ,JACM1,NTOT1)
@@ -1512,7 +1528,7 @@ C
       DIMENSION H1(LX1,LY1,LZ1,1),H2(LX1,LY1,LZ1,1)
       LOGICAL IFAXIS
 
-      NTOT1 = lx1*ly1*lz1*NEL
+      NTOT1 = NX1*NY1*NZ1*NEL
 
       IF (MATMOD.EQ.0) THEN
 
@@ -1523,8 +1539,8 @@ C        Newtonian fluids
          CALL COL2   (TXX,HII,NTOT1)
          CALL COL2   (TXY,H1 ,NTOT1)
          CALL COL2   (TYY,HII,NTOT1)
-         IF (IFAXIS .OR. ldim.EQ.3) CALL COL2 (TZZ,HII,NTOT1)
-         IF (ldim.EQ.3) THEN
+         IF (IFAXIS .OR. NDIM.EQ.3) CALL COL2 (TZZ,HII,NTOT1)
+         IF (NDIM.EQ.3) THEN
             CALL COL2 (TXZ,H1 ,NTOT1)
             CALL COL2 (TYZ,H1 ,NTOT1)
          endif
@@ -1542,7 +1558,7 @@ C
          CALL COL3    (TYY,H1 ,T11,NTOT1)
          CALL ADDCOL3 (TYY,HII,T22,NTOT1)
          CALL COL2    (TXY,H2     ,NTOT1)
-         IF (IFAXIS .OR. ldim.EQ.3) THEN
+         IF (IFAXIS .OR. NDIM.EQ.3) THEN
             CALL COPY (T33,TZZ,NTOT1)
             CALL COL3    (TZZ,H1 ,T11,NTOT1)
             CALL ADDCOL3 (TZZ,H1 ,T22,NTOT1)
@@ -1550,7 +1566,7 @@ C
             CALL ADDCOL3 (TXX,H1 ,T33,NTOT1)
             CALL ADDCOL3 (TYY,H1 ,T33,NTOT1)
          endif
-         IF (ldim.EQ.3) THEN
+         IF (NDIM.EQ.3) THEN
             CALL COL2 (TXZ,H2     ,NTOT1)
             CALL COL2 (TYZ,H2     ,NTOT1)
          endif
@@ -1578,7 +1594,7 @@ C
       CALL TTXYZ (AU1,TXX,TXY,TXZ,NEL)
       CALL TTXYZ (AU2,TXY,TYY,TYZ,NEL)
       IF (IFAXIS)    CALL AXITZZ (AU2,TZZ,NEL)
-      IF (ldim.EQ.3) CALL TTXYZ  (AU3,TXZ,TYZ,TZZ,NEL)
+      IF (NDIM.EQ.3) CALL TTXYZ  (AU3,TXZ,TYZ,TZZ,NEL)
 C
       return
       end
@@ -1596,7 +1612,7 @@ c
      $        , ey(lx1,ly1,lz1,1)
      $        , ez(lx1,ly1,lz1,1)
 C
-      NTOT1 = lx1*ly1*lz1*NEL
+      NTOT1 = NX1*NY1*NZ1*NEL
 C
       CALL URST (U,UR,US,UT,NEL)
 C
@@ -1605,7 +1621,7 @@ C
       CALL ADDCOL3 (EY,RYM1,UR,NTOT1)
       CALL ADDCOL3 (EY,SYM1,US,NTOT1)
 C
-      IF (ldim.EQ.3) THEN
+      IF (NDIM.EQ.3) THEN
          CALL ADDCOL3 (EZ,RZM1,UR,NTOT1)
          CALL ADDCOL3 (EZ,SZM1,US,NTOT1)
          CALL ADDCOL3 (EZ,TZM1,UT,NTOT1)
@@ -1644,17 +1660,17 @@ C
      $        , US(LX1,LY1,LZ1)
      $        , UT(LX1,LY1,LZ1)
 C
-      NXY1 = lx1*ly1
-      NYZ1 = ly1*lz1
+      NXY1 = NX1*NY1
+      NYZ1 = NY1*NZ1
 C
-      CALL MXM (DXM1,lx1,U,lx1,UR,NYZ1)
-      IF (ldim.EQ.2) THEN
-         CALL MXM (U,lx1,DYTM1,ly1,US,ly1)
+      CALL MXM (DXM1,NX1,U,NX1,UR,NYZ1)
+      IF (NDIM.EQ.2) THEN
+         CALL MXM (U,NX1,DYTM1,NY1,US,NY1)
       ELSE
-         DO 10 IZ=1,lz1
-         CALL MXM (U(1,1,IZ),lx1,DYTM1,ly1,US(1,1,IZ),ly1)
+         DO 10 IZ=1,NZ1
+         CALL MXM (U(1,1,IZ),NX1,DYTM1,NY1,US(1,1,IZ),NY1)
    10    CONTINUE
-         CALL MXM (U,NXY1,DZTM1,lz1,UT,lz1)
+         CALL MXM (U,NXY1,DZTM1,NZ1,UT,NZ1)
       endif
 C
       return
@@ -1668,13 +1684,13 @@ C
      $        , EYY(LX1,LY1,LZ1,1)
      $        , EZZ(LX1,LY1,LZ1,1)
 C
-      NXYZ1  = lx1*ly1*lz1
+      NXYZ1  = NX1*NY1*NZ1
 C
       DO 100 IEL=1,NEL
          IF ( IFRZER(IEL) ) THEN
-            DO 200 IX=1,lx1
+            DO 200 IX=1,NX1
                EZZ(IX, 1,1,IEL) = EYY(IX,1,1,IEL)
-            DO 200 IY=2,ly1
+            DO 200 IY=2,NY1
                EZZ(IX,IY,1,IEL) = U2(IX,IY,1,IEL) / YM1(IX,IY,1,IEL)
   200       CONTINUE
          ELSE
@@ -1711,7 +1727,7 @@ c     asum is sum (area)
       xsum = 0.
 
 c     Set up counters ;  fd is the dssum notation.
-      call dsset(lx1,ly1,lz1)
+      call dsset(nx1,ny1,nz1)
       fd     = eface1(f)
       js1    = skpdat(1,fd)
       jf1    = skpdat(2,fd)
@@ -1745,8 +1761,8 @@ c-----------------------------------------------------------------------
       usum = 0
       asum = 0
 
-      nface = 2*ldim
-      do e=1,nelfld(ifld)
+      nface = 2*ndim
+      do e=1,nelv
       do f=1,nface
          if (cbc(f,e,ifld).eq.bc_in) then
             call fcsum2(usum_f,asum_f,u,e,f)
@@ -1778,10 +1794,10 @@ c
 c
 c     Overlapping Schwarz, FDM based
 c
-      real z(lx1,ly1,lz1,1)
-      real r(lx1,ly1,lz1,1)
-      real d(lx1,ly1,lz1,1)
-      real rr(lx1,ly1,lz1,1)
+      real z(nx1,ny1,nz1,1)
+      real r(nx1,ny1,nz1,1)
+      real d(nx1,ny1,nz1,1)
+      real rr(nx1,ny1,nz1,1)
 
       integer kt(lelt,3)
 
@@ -1789,10 +1805,10 @@ c
       save    icalld
       data    icalld /0/
 
-      n1 = lx1
-      n2 = lx1*lx1
-      n3 = lx1*lx1*lx1
-      n  = lx1*ly1*lz1*nel
+      n1 = nx1
+      n2 = nx1*nx1
+      n3 = nx1*nx1*nx1
+      n  = nx1*ny1*nz1*nel
 
       if (ifbhalf) then
          call col3(rr,r,bhalf,n)
@@ -1842,7 +1858,7 @@ c
 
       if (ifbhalf) call col2(z,bhalf,n)
 
-      call dssum(z,lx1,ly1,lz1)
+      call dssum(z,nx1,ny1,nz1)
 
       return
       end
@@ -1850,7 +1866,7 @@ c-----------------------------------------------------------------------
       subroutine set_vert_strs(glo_num,ngv,nx,nel,vertex,ifcenter)
 
 c     Given global array, vertex, pointing to hex vertices, set up
-c     a new array of global pointers for an nx^ldim set of elements.
+c     a new array of global pointers for an nx^ndim set of elements.
 
       include 'SIZE'
       include 'INPUT'
@@ -1872,10 +1888,10 @@ c     Pack vertex ids component-wise (u,v,w_1; u,v,w_2; etc.)
       k=0
       do i=1,n
 
-         do j=1,ldim
-            glo_num(k+j) = ldim*(gnum(i)-1) + j
+         do j=1,ndim
+            glo_num(k+j) = ndim*(gnum(i)-1) + j
          enddo
-         k=k+ldim
+         k=k+ndim
 
       enddo
 
@@ -1887,7 +1903,7 @@ c-----------------------------------------------------------------------
       include 'INPUT'
       include 'SOLN'
 
-      real mask(ldim,nxc,nxc,nzc,nel)
+      real mask(ndim,nxc,nxc,nzc,nel)
       integer e
 
 
@@ -1896,9 +1912,9 @@ c-----------------------------------------------------------------------
          do kc=1,nxc
          do jc=1,nxc
          do ic=1,nxc
-            k = 1 + ((lx1-1)*(kc-1))/(nxc-1)
-            j = 1 + ((lx1-1)*(jc-1))/(nxc-1)
-            i = 1 + ((lx1-1)*(ic-1))/(nxc-1)
+            k = 1 + ((nx1-1)*(kc-1))/(nxc-1)
+            j = 1 + ((nx1-1)*(jc-1))/(nxc-1)
+            i = 1 + ((nx1-1)*(ic-1))/(nxc-1)
             mask(1,ic,jc,kc,e) = v1mask(i,j,k,e)
             mask(2,ic,jc,kc,e) = v2mask(i,j,k,e)
             mask(3,ic,jc,kc,e) = v3mask(i,j,k,e)
@@ -1910,8 +1926,8 @@ c-----------------------------------------------------------------------
          do e=1,nel
          do jc=1,nxc
          do ic=1,nxc
-            j = 1 + ((lx1-1)*(jc-1))/(nxc-1)
-            i = 1 + ((lx1-1)*(ic-1))/(nxc-1)
+            j = 1 + ((nx1-1)*(jc-1))/(nxc-1)
+            i = 1 + ((nx1-1)*(ic-1))/(nxc-1)
             mask(1,ic,jc,1,e) = v1mask(i,j,1,e)
             mask(2,ic,jc,1,e) = v2mask(i,j,1,e)
          enddo
@@ -1953,8 +1969,8 @@ c     Galerkin projection
       include 'TSTEP'
 
 
-      real    a(ldim,ncl,ldim,ncl,1),h1(1),h2(1)
-c     real    a(ncl,ldim,ncl,ldim,1),h1(1),h2(1)
+      real    a(ndim,ncl,ndim,ncl,1),h1(1),h2(1)
+c     real    a(ncl,ndim,ncl,ndim,1),h1(1),h2(1)
 
       common /scrcr2/ a1(lx1*ly1*lz1,lelt),w1(lx1*ly1*lz1,lelt)
      $              , a2(lx1*ly1*lz1,lelt),w2(lx1*ly1*lz1,lelt)
@@ -1969,8 +1985,8 @@ c     real    a(ncl,ldim,ncl,ldim,1),h1(1),h2(1)
          call gen_crs_basis(b(1,j),j)
       enddo
 
-      nxyz = lx1*ly1*lz1
-      do k = 1,ldim
+      nxyz = nx1*ny1*nz1
+      do k = 1,ndim
        call opzero(w1,w2,w3)
        call opzero(a1,a2,a3)
 
@@ -2029,7 +2045,7 @@ c     Given an input vector v, this generates the H1 coarse-grid solution
       endif
       ncrsl  = ncrsl  + 1
 
-      n = nelv*lx1*ly1*lz1
+      n = nelv*nx1*ny1*nz1
       m = nelv*lcr
 
       call map_f_to_c_h1_bilin(uc1,v1)   ! additive Schwarz
@@ -2053,8 +2069,20 @@ c     Given an input vector v, this generates the H1 coarse-grid solution
       endif
 
       etime1=dnekclock()
-      call fgslib_crs_solve(xxth_strs,uc1,vc1)
+      call crs_solve(xxth_strs,uc1,vc1)
       tcrsl=tcrsl+dnekclock()-etime1
+
+c     mm=m*ndim
+c     do j=1,mm
+c        call rzero(vc1,mm)
+c        vc1(j)=1
+c        call crs_solve(xxth_strs,uc1,vc1)
+c        write(55,55) (uc1(i),i=1,mm)
+c  55    format(1p1e22.13)
+c     enddo
+c     write(6,*) 'QUIT after io 55 write'
+c     stop
+
 
       k=0
       if (if3d) then
@@ -2112,8 +2140,8 @@ c-----------------------------------------------------------------------
       nzc = 1
       if (if3d) nzc=nxc
 
-      ncr = nxc**ldim
-      mcr = ldim*ncr  ! Dimension of unassembled sub-block
+      ncr = nxc**ndim
+      mcr = ndim*ncr  ! Dimension of unassembled sub-block
       n   = mcr*nel
 
 c     Set SEM_to_GLOB index
@@ -2144,14 +2172,8 @@ c     Setup local SEM-based Neumann operators (for now, just full...)
    44 format(2i9,1pe22.13)
 c     stop
 
-      imode = param(40)
-
-      ! dz comment
-c     if (imode.eq.0 .and. nelgt.gt.350000) call exitti(
-c    $ 'Problem size requires AMG solver$',1)
-
-      call fgslib_crs_setup(xxth_strs,imode,nekcomm,mp,n,se_to_gcrs,
-     $                      nnz,ia,ja,a,null_space)
+      call crs_setup(xxth_strs,nekcomm,mp,n,se_to_gcrs,
+     $               nnz,ia,ja,a,null_space)
 
       t0 = dnekclock()-t0
       if (nio.eq.0) then
@@ -2174,12 +2196,12 @@ c
       real au(1),av(1),aw(1),u(1),v(1),w(1),h1(1),h2(1)
 
       parameter (l=lx1*ly1*lz1)
-      real ur(l,ldim,ldim)
+      real ur(l,ndim,ndim)
 
       integer e,p
 
-      p = lx1-1      ! Polynomial degree
-      n = lx1*ly1*lz1
+      p = nx1-1      ! Polynomial degree
+      n = nx1*ny1*nz1
 
 
       call local_grad3(ur(1,1,1),ur(1,2,1),ur(1,3,1),u,p,1,dxm1,dxtm1)
@@ -2263,12 +2285,12 @@ c
       real au(1),av(1),u(1),v(1),h1(1),h2(1)
 
       parameter (l=lx1*ly1*lz1)
-      real ur(l,ldim,ldim)
+      real ur(l,ndim,ndim)
 
       integer e,p
 
-      p = lx1-1      ! Polynomial degree
-      n = lx1*ly1*lz1
+      p = nx1-1      ! Polynomial degree
+      n = nx1*ny1*nz1
 
 
       call local_grad2(ur(1,1,1),ur(1,2,1),u,p,1,dxm1,dxtm1)
@@ -2357,7 +2379,7 @@ C
       equivalence   (wa,ft)
       real ys(lx1)
 
-      NXYZ1 = lx1*ly1*lz1
+      NXYZ1 = NX1*NY1*NZ1
       NTOT1 = NXYZ1*NEL
 
       CALL COL3    (FR,RXM1,TX,NTOT1)
@@ -2365,7 +2387,7 @@ C
       CALL COL3    (FS,SXM1,TX,NTOT1)
       CALL ADDCOL3 (FS,SYM1,TY,NTOT1)
 
-      IF (ldim.EQ.3) THEN
+      IF (NDIM.EQ.3) THEN
          CALL ADDCOL3 (FR,RZM1,TZ,NTOT1)
          CALL ADDCOL3 (FS,SZM1,TZ,NTOT1)
          CALL COL3    (FT,TXM1,TX,NTOT1)
@@ -2376,11 +2398,11 @@ C
       IF (IFAXIS) THEN
          DO 100 IEL=1,NEL
          IF ( IFRZER(IEL) ) THEN
-            CALL MXM (YM1(1,1,1,IEL),lx1,DATM1,ly1,YS,1)
-            DO 120 IX=1,lx1
+            CALL MXM (YM1(1,1,1,IEL),NX1,DATM1,NY1,YS,1)
+            DO 120 IX=1,NX1
                IY = 1
                WA(IX,IY,1,IEL)=YS(IX)*W2AM1(IX,IY)
-            DO 120 IY=2,ly1
+            DO 120 IY=2,NY1
                DNR = 1.0 + ZAM1(IY)
                WA(IX,IY,1,IEL)=YM1(IX,IY,1,IEL)*W2AM1(IX,IY)/DNR
   120       CONTINUE
@@ -2420,20 +2442,20 @@ c-----------------------------------------------------------------------
      $        , FT(LX1,LY1,LZ1)
      $        , TA(LX1,LY1,LZ1)
 
-      NXY1  = lx1*ly1
-      NYZ1  = ly1*lz1
-      NXYZ1 = NXY1*lz1
+      NXY1  = NX1*NY1
+      NYZ1  = NY1*NZ1
+      NXYZ1 = NXY1*NZ1
 
-      CALL MXM (DXTM1,lx1,FR,lx1,FF,NYZ1)
-      IF (ldim.EQ.2) THEN
-         CALL MXM  (FS,lx1,DYM1,ly1,TA,ly1)
+      CALL MXM (DXTM1,NX1,FR,NX1,FF,NYZ1)
+      IF (NDIM.EQ.2) THEN
+         CALL MXM  (FS,NX1,DYM1,NY1,TA,NY1)
          CALL ADD2 (FF,TA,NXYZ1)
       ELSE
-         DO 10 IZ=1,lz1
-         CALL MXM  (FS(1,1,IZ),lx1,DYM1,ly1,TA(1,1,IZ),ly1)
+         DO 10 IZ=1,NZ1
+         CALL MXM  (FS(1,1,IZ),NX1,DYM1,NY1,TA(1,1,IZ),NY1)
    10    CONTINUE
          CALL ADD2 (FF,TA,NXYZ1)
-         CALL MXM  (FT,NXY1,DZM1,lz1,TA,lz1)
+         CALL MXM  (FT,NXY1,DZM1,NZ1,TA,NZ1)
          CALL ADD2 (FF,TA,NXYZ1)
       endif
 
@@ -2451,14 +2473,14 @@ C
       DIMENSION VFY(LX1,LY1,LZ1,1)
      $        , TZZ(LX1,LY1,LZ1,1)
 C
-      NXYZ1 = lx1*ly1*lz1
+      NXYZ1 = NX1*NY1*NZ1
 C
       DO 100 IEL=1,NEL
          CALL SETAXW1 ( IFRZER(IEL) )
          CALL COL4 (PHI,TZZ(1,1,1,IEL),JACM1(1,1,1,IEL),W3M1,NXYZ1)
          IF ( IFRZER(IEL) ) THEN
-            DO 120 IX=1,lx1
-            DO 120 IY=2,ly1
+            DO 120 IX=1,NX1
+            DO 120 IY=2,NY1
                DNR = PHI(IX,IY)/( 1.0 + ZAM1(IY) )
                DDS = WXM1(IX) * WAM1(1) * DATM1(IY,1) *
      $               JACM1(IX,1,1,IEL) * TZZ(IX,1,1,IEL)
@@ -2480,11 +2502,11 @@ C
       LOGICAL IFAXDY
 C
       IF (IFAXDY) THEN
-         CALL COPY (DYM1 ,DAM1 ,ly1*ly1)
-         CALL COPY (DYTM1,DATM1,ly1*ly1)
+         CALL COPY (DYM1 ,DAM1 ,NY1*NY1)
+         CALL COPY (DYTM1,DATM1,NY1*NY1)
       ELSE
-         CALL COPY (DYM1 ,DCM1 ,ly1*ly1)
-         CALL COPY (DYTM1,DCTM1,ly1*ly1)
+         CALL COPY (DYM1 ,DCM1 ,NY1*NY1)
+         CALL COPY (DYTM1,DCTM1,NY1*NY1)
       endif
 C
       return
@@ -2496,7 +2518,7 @@ c-----------------------------------------------------------------------
 c
       real v1(1) , v2(1), v3(1), w(1)
 
-      n=lx1*ly1*lz1*nelv
+      n=nx1*ny1*nz1*nelv
       s=vlsc3(v1,w,v1,n)+vlsc3(v2,w,v2,n)
       if(if3d) s=s+vlsc3(v3,w,v3,n)
       s=glsum(s,1)
@@ -2514,7 +2536,6 @@ c     Assumes if uservp is true and thus reorthogonalizes every step
       include 'SIZE'
       include 'TOTAL'
       include 'ORTHOSTRS'  ! Storage of approximation space
-      include 'CTIMER'
 
       real b1(1),b2(1),b3(1),h1(1),h2(1),wt(1)
       common /ctmp1/ w(lx1*ly1*lz1*lelt,ldim)
@@ -2522,28 +2543,17 @@ c     Assumes if uservp is true and thus reorthogonalizes every step
 
       kmax = napproxstrs(1)
       k    = napproxstrs(2)
-      n    = lx1*ly1*lz1*nelv
-      m    = n*ldim
+      n    = nx1*ny1*nz1*nelv
+      m    = n*ndim
+
+      l2a=opnorm2w(b1,b2,b3,binvm1)
+
 
       if (k.eq.0.or.kmax.eq.0) return
 
-      etime0 = dnekclock()
-
-      l2b=opnorm2w(b1,b2,b3,binvm1)
-
 c     Reorthogonalize basis
-
-      dh1max=difmax(bstrs(1  ),h1,n)
-      dh2max=difmax(bstrs(1+n),h2,n)
-
-      if (dh1max.gt.0.or.dh2max.gt.0) then
-        call strs_ortho_all(xstrs(1+m),bstrs(1+m),n,k,h1,h2,wt,ifld,w
+      call strs_ortho_all(xstrs(1+m),bstrs(1+m),n,k,h1,h2,wt,ifld,w
      $                   ,ierr,matmod)
-      else
-        call strs_ortho_one(xstrs(1+m),bstrs(1+m),n,k,h1,h2,wt,ifld,w
-     $                   ,ierr,matmod)
-      endif
-
       napproxstrs(2) = k
 
       call opcopy(bstrs(1),bstrs(1+n),bstrs(1+2*n),b1,b2,b3)
@@ -2555,31 +2565,18 @@ c     Reorthogonalize basis
          i3 = 1 + 2*n + (i-1)*m + m
          alpha=op_glsc2_wt(bstrs(1),bstrs(1+n),bstrs(1+2*n)
      $                    ,xstrs(i1),xstrs(i2),xstrs(i3),wt)
-
          alphm=-alpha
          call opadds(bstrs(1),bstrs(1+n),bstrs(1+2*n)
      $              ,bstrs(i1),bstrs(i2),bstrs(i3),alphm,n,2)
-
          call opadds(xstrs(1),xstrs(1+n),xstrs(1+2*n)
      $              ,xstrs(i1),xstrs(i2),xstrs(i3),alpha,n,2)
-
-
       enddo
 
       call opcopy(b1,b2,b3,bstrs(1),bstrs(1+n),bstrs(1+2*n))
-      l2a=opnorm2w(b1,b2,b3,binvm1)
+      l2b=opnorm2w(b1,b2,b3,binvm1)
 
-      call copy(bstrs(1  ),h1,n)  ! Save h1 and h2 for comparison
-      call copy(bstrs(1+n),h2,n)
-
-      ratio=l2b/l2a
-      if (nio.eq.0) write(6,1) istep,'  Project ' // 'Helm3 ',
-     $              l2a,l2b,ratio,k,kmax
-    1 format(i11,a,6x,1p3e13.4,i4,i4)
-
-c     if (ierr.ne.0) call exitti(' h3proj quit$',ierr)
-
-      tproj = tproj + dnekclock() - etime0
+      if (nio.eq.0) write(6,6) istep,k,ierr,l2a,l2b
+    6 format(i9,2i3,1p2e12.4,' h3proj')
 
       return
       end
@@ -2591,19 +2588,22 @@ c     Reconstruct solution; don't bother to orthonomalize bases
       include 'SIZE'
       include 'TOTAL'
       include 'ORTHOSTRS'  ! Storage of approximation space
-      include 'CTIMER'
 
       real x1(1),x2(1),x3(1),h1(1),h2(1),wt(1)
       common /cptst/ xs(lx1*ly1*lz1*lelt*ldim)
 
       kmax = napproxstrs(1)
       k    = napproxstrs(2)
-      n    = lx1*ly1*lz1*nelv
-      m    = n*ldim
+      n    = nx1*ny1*nz1*nelv
+      m    = n*ndim
 
       if (kmax.eq.0) return
 
-      etime0 = dnekclock()
+c     if (936.le.istep.and.istep.le.948) then
+c     if (16.le.istep.and.istep.le.18) then
+c        call outpost(x1,x2,x3,pr,vdiff,'tst')
+c        call outpost(xstrs(1),xstrs(1+3*n),xstrs(1+2*n),pr,t,'tst')
+c     endif
 
       if (k.eq.0) then                                          !      _
          call opadd2(x1,x2,x3,xstrs(1),xstrs(1+n),xstrs(1+2*n)) ! x=dx+x
@@ -2637,8 +2637,6 @@ c     if (k.eq.kmax) call opcopy(xs(1),xs(1+n),xs(1+2*n),x1,x2,x3) ! presave
 
       napproxstrs(2)=k
 
-      tproj = tproj + dnekclock() - etime0
-
       return
       end
 c-----------------------------------------------------------------------
@@ -2649,10 +2647,10 @@ c     Orthonormalize the kth element of X against x_j, j < k.
       include 'SIZE'
       include 'TOTAL'
 
-      real x(n,ldim,k),b(n,ldim,k),h1(n),h2(n),wt(n),w(n,ldim)
+      real x(n,ndim,k),b(n,ndim,k),h1(n),h2(n),wt(n),w(n,ndim)
       real al(mxprev),bt(mxprev)
 
-      m   = n*ldim ! vector length
+      m   = n*ndim ! vector length
       nel = nelfld(ifld)
 
       call axhmsf   (b(1,1,k),b(1,2,k),b(1,3,k)
@@ -2662,10 +2660,6 @@ c     Orthonormalize the kth element of X against x_j, j < k.
 
       xax0 = op_glsc2_wt(b(1,1,k),b(1,2,k),b(1,3,k)
      $                  ,x(1,1,k),x(1,2,k),x(1,3,k),wt)
-      ierr = 3
-
-      if (xax0.le.0.and.nio.eq.0)write(6,*)istep,ierr,k,xax0,'Proj3 ERR'
-      if (xax0.le.0) return
 
       s = 0.
       do j=1,k-1! Modifed Gram-Schmidt
@@ -2685,16 +2679,16 @@ c     Orthonormalize the kth element of X against x_j, j < k.
       xax1 = xax0-s
       xax2 = op_glsc2_wt(b(1,1,k),b(1,2,k),b(1,3,k)
      $                  ,x(1,1,k),x(1,2,k),x(1,3,k),wt)
+      xax2 = glsum(xax2,1)
       scale = xax2
 
       eps  = 1.e-8
       ierr = 0
       if (scale/xax0.lt.eps) ierr=1
 
-c      if(nio.eq.0) write(6,*) istep,ierr,k,scale,xax0,' SCALE'
-c      if(nio.eq.0.and.(istep.lt.10.or.mod(istep,100).eq.0.or.ierr.gt.0))
-c     $write(6,3) istep,k,ierr,xax1/xax0,xax2/xax0
-c    3 format(i9,2i3,1p2e12.4,' scale ortho')
+      if(nio.eq.0.and.(istep.lt.10.or.mod(istep,100).eq.0.or.ierr.gt.0))
+     $write(6,3) istep,k,ierr,xax1/xax0,xax2/xax0
+    3 format(i9,2i3,1p2e12.4,' scale ortho')
 
       if (scale.gt.0) then
          scale = 1./sqrt(scale)     
@@ -2707,34 +2701,14 @@ c    3 format(i9,2i3,1p2e12.4,' scale ortho')
       return
       end
 c-----------------------------------------------------------------------
-      subroutine strs_ortho_one(x,b,n,k,h1,h2,wt,ifld,w,ierr,matmod)
-
-      include 'SIZE'
-      include 'TOTAL'
-
-      real x(n,ldim,k),b(n,ldim,k),h1(n),h2(n),wt(n),w(n,ldim)
-
-      m = n*ldim
-
-      js=k
-      do j=k,k
-         if (js.lt.j) call copy(x(1,1,js),x(1,1,j),m)
-         call strs_orthok(x,b,n,js,h1,h2,wt,ifld,w,ierr,matmod)
-         if (ierr.eq.0) js=js+1
-      enddo
-      k = js-1
-
-      return
-      end
-c-----------------------------------------------------------------------
       subroutine strs_ortho_all(x,b,n,k,h1,h2,wt,ifld,w,ierr,matmod)
 
       include 'SIZE'
       include 'TOTAL'
 
-      real x(n,ldim,k),b(n,ldim,k),h1(n),h2(n),wt(n),w(n,ldim)
+      real x(n,ndim,k),b(n,ndim,k),h1(n),h2(n),wt(n),w(n,ndim)
 
-      m = n*ldim
+      m = n*ndim
 
       js=1
       do j=1,k
@@ -2762,9 +2736,6 @@ C              common /SCREV/ are used in STNRINV and NEKASGN
 C
       common /screv/ sii (lx1,ly1,lz1,lelt),siii(lx1,ly1,lz1,lelt)
 
-      if (nio.eq.0.and.loglevel.gt.2)
-     $   write(6,*) 'setprop'
-
 #ifdef TIMER
       if (icalld.eq.0) tspro=0.0
       icalld=icalld+1
@@ -2772,7 +2743,7 @@ C
       etime1=dnekclock()
 #endif
 
-      NXYZ1 = lx1*ly1*lz1
+      NXYZ1 = NX1*NY1*NZ1
       MFIELD=2
       IF (IFFLOW) MFIELD=1
       nfldt = nfield
@@ -2800,6 +2771,7 @@ csk         avtran(ifield) = glsc2 (bm1,vtrans(1,1,1,1,ifield),ntot1)/vol
       tspro=tspro+(dnekclock()-etime1)
 #endif
 
-      return
-      end
-c-----------------------------------------------------------------------
+C
+      RETURN
+      END
+C-----------------------------------------------------------------------

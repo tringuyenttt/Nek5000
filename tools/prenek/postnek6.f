@@ -8,7 +8,7 @@ C     (Note: this algorithm is inherently CONFORMING, as constant r-s-t
 C            planes have little significance in a non-conforming
 C            discretization where the continuum assumption is not honored.)
 C
-#     include "basics.inc"
+      INCLUDE 'basics.inc'
 C
 C     Algorithm:  Set up indices, e.g:
 C                                                     ^ s
@@ -230,7 +230,7 @@ C
       RETURN
       END
       SUBROUTINE DRQUAD
-#     include "basics.inc"
+      INCLUDE 'basics.inc'
 C
       NFACES=6
       DO 600 IE=1,NEL
@@ -247,7 +247,7 @@ C
       END
       SUBROUTINE XDIAM3(XYZ)
 c     draws a diamond around XX,YY
-#     include "basics.inc"
+      INCLUDE 'basics.inc'
 C
       DIMENSION XYZ(3)
       XX=XISO(XYZ(1),XYZ(2),XYZ(3))
@@ -261,7 +261,7 @@ C
       END
       SUBROUTINE MAPXC(XYZ,IE)
 C     Map the element corner points (x,y,z) to standard vector.
-#     include "basics.inc"
+      INCLUDE 'basics.inc'
       DIMENSION INDX(8)
       DIMENSION XYZ(3,8)
       INDX(1)=1
@@ -306,7 +306,7 @@ C
       CHARACTER*1 SRFQAL(1)
       CHARACTER*1 CB1,CB
 C
-#     include "basics.inc"
+      INCLUDE 'basics.inc'
 C
 C     Select a list of planes according to the specified boundary
 C     qualifications given in SRFQAL.  If the number of qualifications,
@@ -365,7 +365,7 @@ C
       RETURN
       END
       SUBROUTINE SORTL
-#     include "basics.inc"
+      INCLUDE 'basics.inc'
       INCLUDE 'basicsp.inc'
       COMMON /CTMPS/ IND(NELM,6),WK(NELM,6)
 C
@@ -400,7 +400,7 @@ C     with this plane, and assign the sign of the dot product of that
 C     component with the normal to Lplane.
 C     11/92 pff.
 C
-#     include "basics.inc"
+      INCLUDE 'basics.inc'
       INCLUDE 'basicsp.inc'
       DIMENSION VEC0(3),VEC1(3),VEC2(3),VEC3(3)
 C
@@ -457,7 +457,7 @@ C
       END
 c-----------------------------------------------------------------------
       subroutine gencen
-#     include "basics.inc"
+      include 'basics.inc'
 
       integer e
 
@@ -465,7 +465,7 @@ c-----------------------------------------------------------------------
 
       if (mod(nxm,2).eq.0) then
          write(6,*) 'ERROR: Recompile with nxm odd in basics.inc'
-         call prexit(0)
+         call prexit
       endif
 
       nxh = (nxm+1)/2
@@ -537,7 +537,7 @@ C     Compute the maximum radius from the center
       end
 c-----------------------------------------------------------------------
       subroutine gen_neigh
-#     include "basics.inc"
+      include 'basics.inc'
 c
       call izero(neighb,6*nelm)
       call mkside

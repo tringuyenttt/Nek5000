@@ -54,37 +54,39 @@ C... no steady state
 C
 C        Uzawa decoupling: First, compute pressure.....
 C
-         ntot1  = lx1*ly1*lz1*nelv
-         ntot2  = lx2*ly2*lz2*nelv
-         intype = 0
-         if (iftran) intype = -1
-         call sethlm  (h1,h2,intype)
-         if (iftran)  call invers2 (h2inv,h2,ntot1)
-         call makeg   (   g1,g2,g3,h1,h2,intype)
-         call crespuz (wp,g1,g2,g3,h1,h2,h2inv,intype)
+         NTOT1  = NX1*NY1*NZ1*NELV
+         NTOT2  = NX2*NY2*NZ2*NELV
+         INTYPE = 0
+         IF (IFTRAN) INTYPE = -1
+         CALL SETHLM  (H1,H2,INTYPE)
+         IF (IFTRAN)  CALL INVERS2 (H2INV,H2,NTOT1)
+         CALL MAKEG   (   G1,G2,G3,H1,H2,INTYPE)
+         CALL CRESPUZ (WP,G1,G2,G3,H1,H2,H2INV,INTYPE)
          if (solver_type.eq.'fdm') then
             call gfdm_pres_solv(dv1,wp,dv2,dv3,.true.,0.0)
             call copy (wp,dv1,ntot2)
          else
-            call uzawa   (wp,h1,h2,h2inv,intype,icg)
+            CALL UZAWA   (WP,H1,H2,H2INV,INTYPE,ICG)
          endif
-         if (icg.gt.0) call add2 (pr,wp,ntot2)
-
-C        .... then, compute velocity:
-
-         call cresvuz (resv1,resv2,resv3)
-         call ophinv  (dv1,dv2,dv3,resv1,resv2,resv3,h1,h2,tolhv,nmxh)
-         call opadd2  (vx,vy,vz,dv1,dv2,dv3)
-
-      endif
-
+         IF (ICG.GT.0) CALL ADD2 (PR,WP,NTOT2)
+C
+C        .... then, compute velocity.
+C
+         CALL CRESVUZ (RESV1,RESV2,RESV3)
+         CALL OPHINV  (DV1,DV2,DV3,RESV1,RESV2,RESV3,H1,H2,TOLHV,NMXH)
+         CALL OPADD2  (VX,VY,VZ,DV1,DV2,DV3)
+C
+      ENDIF
+C
       return
-      end
-c-----------------------------------------------------------------------
+      END
+C
       subroutine crespuz (respr,g1,g2,g3,h1,h2,h2inv,intype)
-
-c     Compute start-residual/right-hand-side in the pressure equation
-
+C---------------------------------------------------------------------
+C
+C     Compute startresidual/right-hand-side in the pressure equation
+C
+C---------------------------------------------------------------------
       include 'SIZE'
       include 'TOTAL'
       REAL           RESPR  (LX2,LY2,LZ2,LELV)
@@ -100,24 +102,26 @@ c     Compute start-residual/right-hand-side in the pressure equation
       COMMON /SCRMG/ VBDRY1 (LX1,LY1,LZ1,LELV)
      $ ,             VBDRY2 (LX1,LY1,LZ1,LELV)
      $ ,             VBDRY3 (LX1,LY1,LZ1,LELV)
-
-      if ((intype.eq.0).or.(intype.eq.-1)) then
-         call ophinv (ta1,ta2,ta3,g1,g2,g3,h1,h2,tolhr,nmxh)
-      else
-         call opbinv (ta1,ta2,ta3,g1,g2,g3,h2inv)
-      endif
-      call opamask   (vbdry1,vbdry2,vbdry3)
-      call opsub2    (ta1,ta2,ta3,vbdry1,vbdry2,vbdry3)
-      call opdiv     (respr,ta1,ta2,ta3)
-      call ortho     (respr)
-
+C
+      IF ((INTYPE.EQ.0).OR.(INTYPE.EQ.-1)) THEN
+         CALL OPHINV (TA1,TA2,TA3,G1,G2,G3,H1,H2,TOLHR,NMXH)
+      ELSE
+         CALL OPBINV (TA1,TA2,TA3,G1,G2,G3,H2INV)
+      ENDIF
+      CALL OPAMASK   (VBDRY1,VBDRY2,VBDRY3)
+      CALL OPSUB2    (TA1,TA2,TA3,VBDRY1,VBDRY2,VBDRY3)
+      CALL OPDIV     (RESPR,TA1,TA2,TA3)
+      CALL ORTHO     (RESPR)
+C
       return
-      end
-c-----------------------------------------------------------------------
+      END
+C
       subroutine cresvuz (resv1,resv2,resv3)
-
-c     Compute the residual for the velocity - UZAWA SCHEME.
-
+C----------------------------------------------------------------------
+C
+C     Compute the residual for the velocity - UZAWA SCHEME.
+C
+C----------------------------------------------------------------------
       include 'SIZE'
       include 'GEOM'
       include 'SOLN'
@@ -166,7 +170,7 @@ C-----------------------------------------------------------------------
      $              ,TB3   (LX1,LY1,LZ1,LELV)
      $              ,HZERO (LX1,LY1,LZ1,LELV)
 C
-      NTOT1 = lx1*ly1*lz1*NELV
+      NTOT1 = NX1*NY1*NZ1*NELV
 C
       CALL OPGRADT (OUT1,OUT2,OUT3,PR)
       CALL OPCHSGN (OUT1,OUT2,OUT3)
@@ -205,7 +209,7 @@ C
       REAL           RESPR (LX2,LY2,LZ2,LELV)
       COMMON /SCRMG/ WORK  (LX1,LY1,LZ1,LELV)
 C
-      NTOT1 = lx1*ly1*lz1*NELV
+      NTOT1 = NX1*NY1*NZ1*NELV
       CALL INVCOL3 (WORK,RESPR,BM1,NTOT1)
       CALL COL2    (WORK,RESPR,NTOT1)
       RINIT  = SQRT (GLSUM (WORK,NTOT1)/VOLVM1)
@@ -239,7 +243,7 @@ C     to (1,1,...,1)T  (only if all Dirichlet b.c.).
       real respr (lx2,ly2,lz2,lelv)
       integer*8 ntotg,nxyz2
 
-      nxyz2 = lx2*ly2*lz2
+      nxyz2 = nx2*ny2*nz2
       ntot  = nxyz2*nelv
       ntotg = nxyz2*nelgv
 
@@ -280,23 +284,23 @@ C
      $ ,             TB1 (LX1,LY1,LZ1,LELV)
      $ ,             TB2 (LX1,LY1,LZ1,LELV)
      $ ,             TB3 (LX1,LY1,LZ1,LELV)
-
-      call opgradt (ta1,ta2,ta3,wp)
-      if ((intype.eq.0).or.(intype.eq.-1)) then
-         tolhin=tolhs
-         call ophinv (tb1,tb2,tb3,ta1,ta2,ta3,h1,h2,tolhin,nmxh)
-      else
+C
+      CALL OPGRADT (TA1,TA2,TA3,WP)
+      IF ((INTYPE.EQ.0).OR.(INTYPE.EQ.-1)) THEN
+         TOLHIN=TOLHS
+         CALL OPHINV (TB1,TB2,TB3,TA1,TA2,TA3,H1,H2,TOLHIN,NMXH)
+      ELSE
          if (ifanls) then
             dtbdi = dt/bd(1)   ! scale by dt*backwd-diff coefficient
             CALL OPBINV1(TB1,TB2,TB3,TA1,TA2,TA3,dtbdi)
          else
             CALL OPBINV (TB1,TB2,TB3,TA1,TA2,TA3,H2INV)
          endif
-      endif
-      call opdiv  (ap,tb1,tb2,tb3)
-
+      ENDIF
+      CALL OPDIV  (AP,TB1,TB2,TB3)
+C
       return
-      end
+      END
 C
 C-----------------------------------------------------------------------
       subroutine opgrad (out1,out2,out3,inp)
@@ -323,10 +327,10 @@ C---------------------------------------------------------------------
          return
       endif
 
-      NTOT2 = lx2*ly2*lz2*NELV
+      NTOT2 = NX2*NY2*NZ2*NELV
       CALL MULTD (OUT1,INP,RXM2,SXM2,TXM2,1,iflg)
       CALL MULTD (OUT2,INP,RYM2,SYM2,TYM2,2,iflg)
-      IF (ldim.EQ.3) 
+      IF (NDIM.EQ.3) 
      $CALL MULTD (OUT3,INP,RZM2,SZM2,TZM2,3,iflg)
 C
       return
@@ -373,27 +377,27 @@ C
       etime1=dnekclock()
 #endif
 
-      nxyz1 = lx1*ly1*lz1
-      nxyz2 = lx2*ly2*lz2
-      nyz2  = ly2*lz2
-      nxy1  = lx1*ly1
+      nxyz1 = nx1*ny1*nz1
+      nxyz2 = nx2*ny2*nz2
+      nyz2  = ny2*nz2
+      nxy1  = nx1*ny1
 
-      n1    = lx1*ly1
-      n2    = lx1*ly2
+      n1    = nx1*ny1
+      n2    = nx1*ny2
 
       do e=1,nelv
 
 C       Use the appropriate derivative- and interpolation operator in 
 C       the y-direction (= radial direction if axisymmetric).
         if (ifaxis) then
-         ly12   = ly1*ly2
+         ny12   = ny1*ny2
          if (ifrzer(e)) then
-            call copy (iym12,iam12,ly12)
-            call copy (dym12,dam12,ly12)
+            call copy (iym12,iam12,ny12)
+            call copy (dym12,dam12,ny12)
             call copy (w3m2,w2am2,nxyz2)
          else
-            call copy (iym12,icm12,ly12)
-            call copy (dym12,dcm12,ly12)
+            call copy (iym12,icm12,ny12)
+            call copy (dym12,dcm12,ny12)
             call copy (w3m2,w2cm2,nxyz2)
          endif
        endif
@@ -417,28 +421,28 @@ C
          endif
        endif
 C
-       if (ldim.eq.2) then
+       if (ndim.eq.2) then
          if (.not.ifdfrm(e) .and. ifalgn(e)) then
 C
             if (      ifrsxy(e).and.isd.eq.1  .or. 
      $           .not.ifrsxy(e).and.isd.eq.2) then
 C
                call col3 (ta1,wx,rm2(1,e),nxyz2)
-               call mxm  (dxtm12,lx1,ta1,lx2,ta2,nyz2)
-               call mxm  (ta2,lx1,iym12,ly2,dtx(1,e),ly1)
+               call mxm  (dxtm12,nx1,ta1,nx2,ta2,nyz2)
+               call mxm  (ta2,nx1,iym12,ny2,dtx(1,e),ny1)
             else
                call col3 (ta1,wx,sm2(1,e),nxyz2)
-               call mxm  (ixtm12,lx1,ta1,lx2,ta2,nyz2)
-               call mxm  (ta2,lx1,dym12,ly2,dtx(1,e),ly1)
+               call mxm  (ixtm12,nx1,ta1,nx2,ta2,nyz2)
+               call mxm  (ta2,nx1,dym12,ny2,dtx(1,e),ny1)
             endif
          else
             call col3 (ta1,wx,rm2(1,e),nxyz2)
-            call mxm  (dxtm12,lx1,ta1,lx2,ta2,nyz2)
-            call mxm  (ta2,lx1,iym12,ly2,dtx(1,e),ly1)
+            call mxm  (dxtm12,nx1,ta1,nx2,ta2,nyz2)
+            call mxm  (ta2,nx1,iym12,ny2,dtx(1,e),ny1)
 
             call col3 (ta1,wx,sm2(1,e),nxyz2)
-            call mxm  (ixtm12,lx1,ta1,lx2,ta2,nyz2)
-            call mxm  (ta2,lx1,dym12,ly2,ta1,ly1)
+            call mxm  (ixtm12,nx1,ta1,nx2,ta2,nyz2)
+            call mxm  (ta2,nx1,dym12,ny2,ta1,ny1)
 
             call add2 (dtx(1,e),ta1,nxyz1)
          endif
@@ -447,55 +451,55 @@ C
          if (ifsplit) then
 
             call col3 (ta1,wx,rm2(1,e),nxyz2)
-            call mxm  (dxtm12,lx1,ta1,lx2,dtx(1,e),nyz2)
+            call mxm  (dxtm12,nx1,ta1,nx2,dtx(1,e),nyz2)
             call col3 (ta1,wx,sm2(1,e),nxyz2)
             i1 = 1
             i2 = 1
-            do iz=1,lz2
-               call mxm  (ta1(i2),lx1,dym12,ly2,ta2(i1),ly1)
+            do iz=1,nz2
+               call mxm  (ta1(i2),nx1,dym12,ny2,ta2(i1),ny1)
                i1 = i1 + n1
                i2 = i2 + n2
             enddo
             call add2 (dtx(1,e),ta2,nxyz1)
             call col3 (ta1,wx,tm2(1,e),nxyz2)
-            call mxm  (ta1,nxy1,dzm12,lz2,ta2,lz1)
+            call mxm  (ta1,nxy1,dzm12,nz2,ta2,nz1)
             call add2 (dtx(1,e),ta2,nxyz1)
 
          else
 
             call col3 (ta1,wx,rm2(1,e),nxyz2)
-            call mxm  (dxtm12,lx1,ta1,lx2,ta2,nyz2)
+            call mxm  (dxtm12,nx1,ta1,nx2,ta2,nyz2)
             i1 = 1
             i2 = 1
-            do iz=1,lz2
-               call mxm  (ta2(i2),lx1,iym12,ly2,ta1(i1),ly1)
+            do iz=1,nz2
+               call mxm  (ta2(i2),nx1,iym12,ny2,ta1(i1),ny1)
                i1 = i1 + n1
                i2 = i2 + n2
             enddo
-            call mxm  (ta1,nxy1,izm12,lz2,dtx(1,e),lz1)
+            call mxm  (ta1,nxy1,izm12,nz2,dtx(1,e),nz1)
 
             call col3 (ta1,wx,sm2(1,e),nxyz2)
-            call mxm  (ixtm12,lx1,ta1,lx2,ta2,nyz2)
+            call mxm  (ixtm12,nx1,ta1,nx2,ta2,nyz2)
             i1 = 1
             i2 = 1
-            do iz=1,lz2
-               call mxm  (ta2(i2),lx1,dym12,ly2,ta1(i1),ly1)
+            do iz=1,nz2
+               call mxm  (ta2(i2),nx1,dym12,ny2,ta1(i1),ny1)
                i1 = i1 + n1
                i2 = i2 + n2
             enddo
-            call mxm  (ta1,nxy1,izm12,lz2,ta2,lz1)
+            call mxm  (ta1,nxy1,izm12,nz2,ta2,nz1)
             call add2 (dtx(1,e),ta2,nxyz1)
 
             call col3 (ta1,wx,tm2(1,e),nxyz2)
-            call mxm  (ixtm12,lx1,ta1,lx2,ta2,nyz2)
+            call mxm  (ixtm12,nx1,ta1,nx2,ta2,nyz2)
             i1 = 1
             i2 = 1
-            do iz=1,lz2
-               call mxm  (ta2(i2),lx1,iym12,ly2,ta1(i1),ly1)
+            do iz=1,nz2
+               call mxm  (ta2(i2),nx1,iym12,ny2,ta1(i1),ny1)
                i1 = i1 + n1
                i2 = i2 + n2
             enddo
-            call mxm  (ta1,nxy1,dzm12,lz2,ta2,lz1)
+            call mxm  (ta1,nxy1,dzm12,nz2,ta2,nz1)
             call add2 (dtx(1,e),ta2,nxyz1)
 
          endif
@@ -504,7 +508,7 @@ C
 C
 C     If axisymmetric, add an extra diagonal term in the radial 
 C     direction (only if solving the momentum equations and ISD=2)
-C     NOTE: lz1=lz2=1
+C     NOTE: NZ1=NZ2=1
 C
 C
       if(ifsplit) then
@@ -512,9 +516,9 @@ C
        if (ifaxis.and.(isd.eq.4)) then
         call copy    (ta1,x(1,e),nxyz1)
         if (ifrzer(e)) THEN
-           call rzero(ta1, lx1)
-           call mxm  (x  (1,e),lx1,datm1,ly1,duax,1)
-           call copy (ta1,duax,lx1)
+           call rzero(ta1, nx1)
+           call mxm  (x  (1,e),nx1,datm1,ny1,duax,1)
+           call copy (ta1,duax,nx1)
         endif
         call col2    (ta1,baxm1(1,1,1,e),nxyz1)
         call add2    (dtx(1,e),ta1,nxyz1)
@@ -525,8 +529,8 @@ C
        if (ifaxis.and.(isd.eq.2)) then
          call col3    (ta1,x(1,e),bm2(1,1,1,e),nxyz2)
          call invcol2 (ta1,ym2(1,1,1,e),nxyz2)
-         call mxm     (ixtm12,lx1,ta1,lx2,ta2,ly2)
-         call mxm     (ta2,lx1,iym12,ly2,ta1,ly1)
+         call mxm     (ixtm12,nx1,ta1,nx2,ta2,ny2)
+         call mxm     (ta2,nx1,iym12,ny2,ta1,ny1)
          call add2    (dtx(1,e),ta1,nxyz1)
        endif
 
@@ -587,50 +591,50 @@ C
       etime1=dnekclock()
 #endif
 
-      nyz1  = ly1*lz1
-      nxy2  = lx2*ly2
-      nxyz1 = lx1*ly1*lz1
-      nxyz2 = lx2*ly2*lz2
+      nyz1  = ny1*nz1
+      nxy2  = nx2*ny2
+      nxyz1 = nx1*ny1*nz1
+      nxyz2 = nx2*ny2*nz2
 
-      n1    = lx2*ly1
-      n2    = lx2*ly2
+      n1    = nx2*ny1
+      n2    = nx2*ny2
 
       do e=1,nelv
 
 c        Use the appropriate derivative- and interpolation operator in 
 c        the y-direction (= radial direction if axisymmetric).
          if (ifaxis) then
-            ly12   = ly1*ly2
+            ny12   = ny1*ny2
             if (ifrzer(e)) then
-               call copy (iytm12,iatm12,ly12)
-               call copy (dytm12,datm12,ly12)
+               call copy (iytm12,iatm12,ny12)
+               call copy (dytm12,datm12,ny12)
                call copy (w3m2,w2am2,nxyz2)
             else
-               call copy (iytm12,ictm12,ly12)
-               call copy (dytm12,dctm12,ly12)
+               call copy (iytm12,ictm12,ny12)
+               call copy (dytm12,dctm12,ny12)
                call copy (w3m2,w2cm2,nxyz2)
             endif
          endif
 
-         if (ldim.eq.2) then
+         if (ndim.eq.2) then
             if (.not.ifdfrm(e) .and. ifalgn(e)) then
 c
                if (      ifrsxy(e).and.isd.eq.1  .or. 
      $              .not.ifrsxy(e).and.isd.eq.2) then
-                  call mxm     (dxm12,lx2,x(1,e),lx1,ta1,nyz1)
-                  call mxm     (ta1,lx2,iytm12,ly1,dx(1,e),ly2)
+                  call mxm     (dxm12,nx2,x(1,e),nx1,ta1,nyz1)
+                  call mxm     (ta1,nx2,iytm12,ny1,dx(1,e),ny2)
                   call col2    (dx(1,e),rm2(1,e),nxyz2)
                else
-                  call mxm     (ixm12,lx2,x(1,e),lx1,ta1,nyz1)
-                  call mxm     (ta1,lx2,dytm12,ly1,dx(1,e),ly2)
+                  call mxm     (ixm12,nx2,x(1,e),nx1,ta1,nyz1)
+                  call mxm     (ta1,nx2,dytm12,ny1,dx(1,e),ny2)
                   call col2    (dx(1,e),sm2(1,e),nxyz2)
                endif
             else
-               call mxm     (dxm12,lx2,x(1,e),lx1,ta1,nyz1)
-               call mxm     (ta1,lx2,iytm12,ly1,dx(1,e),ly2)
+               call mxm     (dxm12,nx2,x(1,e),nx1,ta1,nyz1)
+               call mxm     (ta1,nx2,iytm12,ny1,dx(1,e),ny2)
                call col2    (dx(1,e),rm2(1,e),nxyz2)
-               call mxm     (ixm12,lx2,x(1,e),lx1,ta1,nyz1)
-               call mxm     (ta1,lx2,dytm12,ly1,ta3,ly2)
+               call mxm     (ixm12,nx2,x(1,e),nx1,ta1,nyz1)
+               call mxm     (ta1,nx2,dytm12,ny1,ta3,ny2)
                call addcol3 (dx(1,e),ta3,sm2(1,e),nxyz2)
             endif
 
@@ -638,52 +642,52 @@ c
 
 c           if (ifsplit) then
 c
-c             call mxm  (dxm12,lx2,x(1,e),lx1,dx(1,e),nyz1)
+c             call mxm  (dxm12,nx2,x(1,e),nx1,dx(1,e),nyz1)
 c             call col2 (dx(1,e),rm2(1,e),nxyz2)
 c             i1=1
 c             i2=1
-c             do iz=1,lz1
-c                call mxm (x(1,e),lx2,dytm12,ly1,ta1(i2),ly2)
+c             do iz=1,nz1
+c                call mxm (x(1,e),nx2,dytm12,ny1,ta1(i2),ny2)
 c                i1=i1+n1
 c                i2=i2+n2
 c             enddo
 c             call addcol3 (dx(1,e),ta1,sm2(1,e),nxyz2)
-c             call mxm (x(1,e),nxy2,dztm12,lz1,ta1,lz2)
+c             call mxm (x(1,e),nxy2,dztm12,nz1,ta1,nz2)
 c             call addcol3 (dx(1,e),ta1,tm2(1,e),nxyz2)
 
 c           else ! PN - PN-2
 
-             call mxm (dxm12,lx2,x(1,e),lx1,ta1,nyz1)
+             call mxm (dxm12,nx2,x(1,e),nx1,ta1,nyz1)
              i1=1
              i2=1
-             do iz=1,lz1
-               call mxm (ta1(i1),lx2,iytm12,ly1,ta2(i2),ly2)
+             do iz=1,nz1
+               call mxm (ta1(i1),nx2,iytm12,ny1,ta2(i2),ny2)
                i1=i1+n1
                i2=i2+n2
              enddo
-             call mxm  (ta2,nxy2,iztm12,lz1,dx(1,e),lz2)
+             call mxm  (ta2,nxy2,iztm12,nz1,dx(1,e),nz2)
              call col2 (dx(1,e),rm2(1,e),nxyz2)
 
-             call mxm  (ixm12,lx2,x(1,e),lx1,ta3,nyz1) ! reuse ta3 below
+             call mxm  (ixm12,nx2,x(1,e),nx1,ta3,nyz1) ! reuse ta3 below
              i1=1
              i2=1
-             do iz=1,lz1
-               call mxm (ta3(i1),lx2,dytm12,ly1,ta2(i2),ly2)
+             do iz=1,nz1
+               call mxm (ta3(i1),nx2,dytm12,ny1,ta2(i2),ny2)
                i1=i1+n1
                i2=i2+n2
              enddo
-             call mxm     (ta2,nxy2,iztm12,lz1,ta1,lz2)
+             call mxm     (ta2,nxy2,iztm12,nz1,ta1,nz2)
              call addcol3 (dx(1,e),ta1,sm2(1,e),nxyz2)
 
-c            call mxm (ixm12,lx2,x(1,e),lx1,ta1,nyz1) ! reuse ta3 from above
+c            call mxm (ixm12,nx2,x(1,e),nx1,ta1,nyz1) ! reuse ta3 from above
              i1=1
              i2=1
-             do iz=1,lz1
-               call mxm (ta3(i1),lx2,iytm12,ly1,ta2(i2),ly2)
+             do iz=1,nz1
+               call mxm (ta3(i1),nx2,iytm12,ny1,ta2(i2),ny2)
                i1=i1+n1
                i2=i2+n2
              enddo
-             call mxm (ta2,nxy2,dztm12,lz1,ta3,lz2)
+             call mxm (ta2,nxy2,dztm12,nz1,ta3,nz2)
              call addcol3 (dx(1,e),ta3,tm2(1,e),nxyz2)
 c           endif
          endif
@@ -709,16 +713,16 @@ C        Collocate with the weights on the pressure mesh
 
 c        If axisymmetric, add an extra diagonal term in the radial 
 c        direction (ISD=2).
-c        NOTE: lz1=lz2=1
+c        NOTE: NZ1=NZ2=1
 
       if(ifsplit) then
 
        if (ifaxis.and.(isd.eq.2).and.iflg.eq.1) then
         call copy    (ta3,x(1,e),nxyz1)
         if (ifrzer(e)) then
-           call rzero(ta3, lx1)
-           call mxm  (x(1,e),lx1,datm1,ly1,duax,1)
-           call copy (ta3,duax,lx1)
+           call rzero(ta3, nx1)
+           call mxm  (x(1,e),nx1,datm1,ny1,duax,1)
+           call copy (ta3,duax,nx1)
         endif
         call col2    (ta3,baxm1(1,1,1,e),nxyz1)
         call add2    (dx(1,e),ta3,nxyz2)
@@ -727,8 +731,8 @@ c        NOTE: lz1=lz2=1
       else
 
        if (ifaxis.and.(isd.eq.2)) then
-            call mxm     (ixm12,lx2,x(1,e),lx1,ta1,ly1)
-            call mxm     (ta1,lx2,iytm12,ly1,ta2,ly2)
+            call mxm     (ixm12,nx2,x(1,e),nx1,ta1,ny1)
+            call mxm     (ta1,nx2,iytm12,ny1,ta2,ny2)
             call col3    (ta3,bm2(1,1,1,e),ta2,nxyz2)
             call invcol2 (ta3,ym2(1,1,1,e),nxyz2)
             call add2    (dx(1,e),ta3,nxyz2)
@@ -743,66 +747,73 @@ C
 #endif
       return
       END
-c-----------------------------------------------------------------------
+C
       subroutine ophinv (out1,out2,out3,inp1,inp2,inp3,h1,h2,tolh,nmxi)
-
-c     OUT = (H1*A+H2*B)-1 * INP  (implicit)
-
+C----------------------------------------------------------------------
+C
+C     OUT = (H1*A+H2*B)-1 * INP  (implicit)
+C
+C----------------------------------------------------------------------
       include 'SIZE'
       include 'INPUT'
       include 'SOLN'
       include 'TSTEP'
-
-      real out1(1),out2(1),out3(1),inp1(1),inp2(1),inp3(1),h1(1),h2(1)
-
-      imesh = 1
-
-
+      REAL OUT1 (LX1,LY1,LZ1,1)
+      REAL OUT2 (LX1,LY1,LZ1,1)
+      REAL OUT3 (LX1,LY1,LZ1,1)
+      REAL INP1 (LX1,LY1,LZ1,1)
+      REAL INP2 (LX1,LY1,LZ1,1)
+      REAL INP3 (LX1,LY1,LZ1,1)
+      REAL H1   (LX1,LY1,LZ1,1)
+      REAL H2   (LX1,LY1,LZ1,1)
+C
+      IMESH = 1
+C
       if (ifstrs) then
-         matmod = 0
+         MATMOD = 0
          if (ifield.eq.ifldmhd) then
-            call hmhzsf  ('NOMG',out1,out2,out3,inp1,inp2,inp3,h1,h2,
-     $                     b1mask,b2mask,b3mask,vmult,
-     $                     tolh,nmxi,matmod)
+            CALL HMHZSF  ('NOMG',OUT1,OUT2,OUT3,INP1,INP2,INP3,H1,H2,
+     $                     B1MASK,B2MASK,B3MASK,VMULT,
+     $                     TOLH,NMXI,MATMOD)
          else
-            call hmhzsf  ('NOMG',out1,out2,out3,inp1,inp2,inp3,h1,h2,
-     $                     v1mask,v2mask,v3mask,vmult,
-     $                     tolh,nmxi,matmod)
+            CALL HMHZSF  ('NOMG',OUT1,OUT2,OUT3,INP1,INP2,INP3,H1,H2,
+     $                     V1MASK,V2MASK,V3MASK,VMULT,
+     $                     TOLH,NMXI,MATMOD)
          endif
       elseif (ifcyclic) then
          matmod = 0
          if (ifield.eq.ifldmhd) then
-            call hmhzsf  ('BXYZ',out1,out2,out3,inp1,inp2,inp3,h1,h2,
+            call hmhzsf  ('bxyz',out1,out2,out3,inp1,inp2,inp3,h1,h2,
      $                     b1mask,b2mask,b3mask,vmult,
      $                     tolh,nmxi,matmod)
          else
-            call hmhzsf  ('VXYZ',out1,out2,out3,inp1,inp2,inp3,h1,h2,
+            call hmhzsf  ('vxyz',out1,out2,out3,inp1,inp2,inp3,h1,h2,
      $                     v1mask,v2mask,v3mask,vmult,
      $                     tolh,nmxi,matmod)
          endif
       else
          if (ifield.eq.ifldmhd) then
-            call hmholtz ('BX  ',out1,inp1,h1,h2,b1mask,vmult,
-     $                                      imesh,tolh,nmxi,1)
-            call hmholtz ('BY  ',out2,inp2,h1,h2,b2mask,vmult,
-     $                                      imesh,tolh,nmxi,2)
-            if (ldim.eq.3) 
-     $      call hmholtz ('BZ  ',out3,inp3,h1,h2,b3mask,vmult,
-     $                                      imesh,tolh,nmxi,3)
+            CALL HMHOLTZ ('BX  ',OUT1,INP1,H1,H2,B1MASK,VMULT,
+     $                                      IMESH,TOLH,NMXI,1)
+            CALL HMHOLTZ ('BY  ',OUT2,INP2,H1,H2,B2MASK,VMULT,
+     $                                      IMESH,TOLH,NMXI,2)
+            IF (NDIM.EQ.3) 
+     $      CALL HMHOLTZ ('BZ  ',OUT3,INP3,H1,H2,B3MASK,VMULT,
+     $                                      IMESH,TOLH,NMXI,3)
          else
-            call hmholtz ('VELX',out1,inp1,h1,h2,v1mask,vmult,
-     $                                      imesh,tolh,nmxi,1)
-            call hmholtz ('VELY',out2,inp2,h1,h2,v2mask,vmult,
-     $                                      imesh,tolh,nmxi,2)
-            if (ldim.eq.3) 
-     $      call hmholtz ('VELZ',out3,inp3,h1,h2,v3mask,vmult,
-     $                                      imesh,tolh,nmxi,3)
+            CALL HMHOLTZ ('VELX',OUT1,INP1,H1,H2,V1MASK,VMULT,
+     $                                      IMESH,TOLH,NMXI,1)
+            CALL HMHOLTZ ('VELY',OUT2,INP2,H1,H2,V2MASK,VMULT,
+     $                                      IMESH,TOLH,NMXI,2)
+            IF (NDIM.EQ.3) 
+     $      CALL HMHOLTZ ('VELZ',OUT3,INP3,H1,H2,V3MASK,VMULT,
+     $                                      IMESH,TOLH,NMXI,3)
          endif
-      endif
+      ENDIF
 C
       return
-      end
-c-----------------------------------------------------------------------
+      END
+C
       subroutine ophx (out1,out2,out3,inp1,inp2,inp3,h1,h2)
 C----------------------------------------------------------------------
 C
@@ -829,7 +840,7 @@ C
       ELSE
          CALL AXHELM (OUT1,INP1,H1,H2,IMESH,1)
          CALL AXHELM (OUT2,INP2,H1,H2,IMESH,2)
-         IF (ldim.EQ.3)
+         IF (NDIM.EQ.3)
      $   CALL AXHELM (OUT3,INP3,H1,H2,IMESH,3)
       ENDIF
 C
@@ -870,17 +881,17 @@ C
       call opmask  (inp1,inp2,inp3)
       call opdssum (inp1,inp2,inp3)
 C
-      NTOT=lx1*ly1*lz1*NELV
+      NTOT=NX1*NY1*NZ1*NELV
 C
 #ifdef TIMER
-      isbcnt = ntot*(1+ldim)
+      isbcnt = ntot*(1+ndim)
       dct(myrout) = dct(myrout) + (isbcnt)
       ncall(myrout) = ncall(myrout) + 1
       dcount      =      dcount + (isbcnt)
 #endif
 
       call invcol3 (out1,bm1,h2inv,ntot)  ! this is expensive and should
-      call dssum   (out1,lx1,ly1,lz1)     ! be changed (pff, 3/18/09)
+      call dssum   (out1,nx1,ny1,nz1)     ! be changed (pff, 3/18/09)
       if (if3d) then
          do i=1,ntot
             tmp = 1./out1(i)
@@ -932,10 +943,10 @@ C
       CALL OPMASK  (INP1,INP2,INP3)
       CALL OPDSSUM (INP1,INP2,INP3)
 C
-      NTOT=lx1*ly1*lz1*NELV
+      NTOT=NX1*NY1*NZ1*NELV
 C
 #ifdef TIMER
-      isbcnt = ntot*(1+ldim)
+      isbcnt = ntot*(1+ndim)
       dct(myrout) = dct(myrout) + (isbcnt)
       ncall(myrout) = ncall(myrout) + 1
       dcount      =      dcount + (isbcnt)
@@ -992,7 +1003,7 @@ c
          return
       endif
 c
-      NTOT2 = lx2*ly2*lz2*NELV
+      NTOT2 = NX2*NY2*NZ2*NELV
       if (istep.ne.kstep .and. .not.ifanls) then
          kstep=istep
          DO 100 IE=1,NELV
@@ -1058,11 +1069,11 @@ C----------------------------------------------------------------
       LOGICAL         IFPRINT, IFHZPC
       integer*8 ntotg,nxyz
  
-      nxyz   = lx1*ly1*lz1
+      nxyz   = nx1*ny1*nz1
       ntotg  = nxyz*nelgv
       ntot1  = nxyz*nelv
-      ntot2  = lx2*ly2*lz2*nelv
-      nfaces = 2*ldim
+      ntot2  = nx2*ny2*nz2*nelv
+      nfaces = 2*ndim
 C
 C     Set the tolerance for the preconditioner
 C
@@ -1117,7 +1128,7 @@ C-----------------------------------------------------------------
       REAL           Z    (1)
       REAL           wrk1(2),wrk2(2)
 c
-      ntot2   = lx2*ly2*lz2*nelv
+      ntot2   = nx2*ny2*nz2*nelv
       wrk1(1) = vlsc21 (res,bm2inv,ntot2)  !  res*bm2inv*res
       wrk1(2) = vlsc2  (res,z     ,ntot2)  !  res*z
       call gop(wrk1,wrk2,'+  ',2)
@@ -1146,7 +1157,7 @@ C-----------------------------------------------------------------
      $ ,             TB   (LX2,LY2,LZ2,LELV)
 C
       RBNORM = 0.
-      NTOT2  = lx2*ly2*lz2*NELV
+      NTOT2  = NX2*NY2*NZ2*NELV
       CALL COL3     (TA,RES,BM2INV,NTOT2)
       CALL COL3     (TB,TA,TA,NTOT2)
       RBNORM = SQRT (GLSC2 (BM2,TB,NTOT2)/VOLVM2)
@@ -1190,7 +1201,7 @@ C     Relaxed pressure iteration; maximum decrease in the residual (ER)
 C
       IF (PRELAX.NE.0.) EPS = PRELAX
 C
-      NTOT2 = lx2*ly2*lz2*NELV
+      NTOT2 = NX2*NY2*NZ2*NELV
       CALL COL3     (TA,RES,BM2INV,NTOT2)
       CALL COL3     (TB,TA,TA,NTOT2)
       CALL COL2     (TB,BM2,NTOT2)
@@ -1255,28 +1266,28 @@ C
 C
       IF (imsh.EQ.1) NEL = NELV
       IF (imsh.EQ.2) NEL = NELT
-      NXY1  = lx1*ly1
-      NYZ1  = ly1*lz1
-      NXYZ1 = lx1*ly1*lz1
+      NXY1  = NX1*NY1
+      NYZ1  = NY1*NZ1
+      NXYZ1 = NX1*NY1*NZ1
       NTOT  = NXYZ1*NEL
 
       DO 1000 IEL=1,NEL
 C
       IF (IFAXIS) CALL SETAXDY (IFRZER(IEL) )
 C
-      IF (ldim.EQ.2) THEN
-            CALL MXM     (DXM1,lx1,U(1,1,1,IEL),lx1,DU(1,1,1,IEL),NYZ1)
+      IF (NDIM.EQ.2) THEN
+            CALL MXM     (DXM1,NX1,U(1,1,1,IEL),NX1,DU(1,1,1,IEL),NYZ1)
             CALL COL2    (DU(1,1,1,IEL),RM1(1,1,1,IEL),NXYZ1)
-            CALL MXM     (U(1,1,1,IEL),lx1,DYTM1,ly1,DRST,ly1)
+            CALL MXM     (U(1,1,1,IEL),NX1,DYTM1,NY1,DRST,NY1)
             CALL ADDCOL3 (DU(1,1,1,IEL),DRST,SM1(1,1,1,IEL),NXYZ1)
       ELSE
-            CALL MXM   (DXM1,lx1,U(1,1,1,IEL),lx1,DU(1,1,1,IEL),NYZ1)
+            CALL MXM   (DXM1,NX1,U(1,1,1,IEL),NX1,DU(1,1,1,IEL),NYZ1)
             CALL COL2  (DU(1,1,1,IEL),RM1(1,1,1,IEL),NXYZ1)
-            DO 20 IZ=1,lz1
-               CALL MXM  (U(1,1,IZ,IEL),lx1,DYTM1,ly1,DRST(1,1,IZ),ly1)
+            DO 20 IZ=1,NZ1
+               CALL MXM  (U(1,1,IZ,IEL),NX1,DYTM1,NY1,DRST(1,1,IZ),NY1)
  20         CONTINUE
             CALL ADDCOL3 (DU(1,1,1,IEL),DRST,SM1(1,1,1,IEL),NXYZ1)
-            CALL MXM     (U(1,1,1,IEL),NXY1,DZTM1,lz1,DRST,lz1)
+            CALL MXM     (U(1,1,1,IEL),NXY1,DZTM1,NZ1,DRST,NZ1)
             CALL ADDCOL3 (DU(1,1,1,IEL),DRST,TM1(1,1,1,IEL),NXYZ1)
       ENDIF
 C
@@ -1321,9 +1332,9 @@ C
       REAL    FI   (LX1,LY1,LZ1,1)
 C
 C
-      NXYZ1 = lx1*ly1*lz1
-      NTOT1 = lx1*ly1*lz1*NELV
-      NTOTZ = lx1*ly1*lz1*NELT
+      NXYZ1 = NX1*NY1*NZ1
+      NTOT1 = NX1*NY1*NZ1*NELV
+      NTOTZ = NX1*NY1*NZ1*NELT
 C
       CALL RZERO  (CONV,NTOTZ)
 C
@@ -1382,14 +1393,14 @@ C--------------------------------------------------------------------
      $ ,             TB2  (LX1,LY1,LZ1,LELV)
      $ ,             TB3  (LX1,LY1,LZ1,LELV)
 C
-      NXY1  = lx1*ly1
-      NYZ1  = ly1*lz1
-      NXYZ1 = lx1*ly1*lz1
-      NTOT1 = lx1*ly1*lz1*NELV
+      NXY1  = NX1*NY1
+      NYZ1  = NY1*NZ1
+      NXYZ1 = NX1*NY1*NZ1
+      NTOT1 = NX1*NY1*NZ1*NELV
 C
       CALL RZERO(DTFI,NTOT1)
 C
-      IF (ldim .EQ. 2) THEN
+      IF (NDIM .EQ. 2) THEN
 C
 C     2-dimensional case
 C
@@ -1398,7 +1409,7 @@ C
       CALL ADD2 (TA1,TA2,NTOT1)
       DO 200 IEL=1,NELV
          CALL COL2    (TA1(1,1,1,IEL),W3M1,NXYZ1)
-         CALL MXM     (DXTM1,lx1,TA1(1,1,1,IEL),lx1,TB1(1,1,1,IEL),ly1)
+         CALL MXM     (DXTM1,NX1,TA1(1,1,1,IEL),NX1,TB1(1,1,1,IEL),NY1)
  200  CONTINUE
       CALL COPY(DTFI,TB1,NTOT1)
 C
@@ -1407,7 +1418,7 @@ C
       CALL ADD2 (TA1,TA2,NTOT1)
       DO 300 IEL=1,NELV
          CALL COL2    (TA1(1,1,1,IEL),W3M1,NXYZ1)
-         CALL MXM     (TA1(1,1,1,IEL),lx1,DYM1,ly1,TB1(1,1,1,IEL),ly1)
+         CALL MXM     (TA1(1,1,1,IEL),NX1,DYM1,NY1,TB1(1,1,1,IEL),NY1)
  300  CONTINUE
       CALL ADD2    (DTFI,TB1,NTOT1)
       CALL INVCOL2 (DTFI,BM1,NTOT1)
@@ -1423,7 +1434,7 @@ C
       CALL ADD2 (TA1,TA3,NTOT1)
       DO 600 IEL=1,NELV
          CALL COL2    (TA1(1,1,1,IEL),W3M1,NXYZ1)
-         CALL MXM     (DXTM1,lx1,TA1(1,1,1,IEL),lx1,TB1(1,1,1,IEL),NYZ1)
+         CALL MXM     (DXTM1,NX1,TA1(1,1,1,IEL),NX1,TB1(1,1,1,IEL),NYZ1)
  600  CONTINUE
       CALL COPY(DTFI,TB1,NTOT1)
 C
@@ -1434,8 +1445,8 @@ C
       CALL ADD2 (TA1,TA3,NTOT1)
       DO 700 IEL=1,NELV
          CALL COL2    (TA1(1,1,1,IEL),W3M1,NXYZ1)
-         DO 710 IZ=1,lz1
-            CALL MXM (TA1(1,1,IZ,IEL),lx1,DYM1,ly1,TB1(1,1,IZ,IEL),ly1)
+         DO 710 IZ=1,NZ1
+            CALL MXM (TA1(1,1,IZ,IEL),NX1,DYM1,NY1,TB1(1,1,IZ,IEL),NY1)
  710     CONTINUE
  700  CONTINUE
       CALL ADD2    (DTFI,TB1,NTOT1)
@@ -1447,7 +1458,7 @@ C
       CALL ADD2 (TA1,TA3,NTOT1)
       DO 800 IEL=1,NELV
          CALL COL2    (TA1(1,1,1,IEL),W3M1,NXYZ1)
-         CALL MXM     (TA1(1,1,1,IEL),NXY1,DZM1,lz1,TB1(1,1,1,IEL),lz1)
+         CALL MXM     (TA1(1,1,1,IEL),NXY1,DZM1,NZ1,TB1(1,1,1,IEL),NZ1)
  800  CONTINUE
       CALL ADD2    (DTFI,TB1,NTOT1)
       CALL INVCOL2 (DTFI,BM1,NTOT1)
@@ -1477,16 +1488,16 @@ C
 C
       CHARACTER CB*1
 C
-      NTOT1  = lx1*ly1*lz1*NELV
-      NFACES = 2*ldim
+      NTOT1  = NX1*NY1*NZ1*NELV
+      NFACES = 2*NDIM
       CALL CFILL (CMASK1,1.,NTOT1)
       CALL CFILL (CMASK2,0.,NTOT1)
       DO 100 IEL=1,NELV
       DO 100 IFACE=1,NFACES
          CB = CBC (IFACE,IEL,IFIELD)
          IF (CB.EQ.'O' .OR. CB.EQ.'o') THEN
-            CALL FACEV (CMASK1,IEL,IFACE,0.,lx1,ly1,lz1)
-            CALL FACEV (CMASK2,IEL,IFACE,1.,lx1,ly1,lz1)
+            CALL FACEV (CMASK1,IEL,IFACE,0.,NX1,NY1,NZ1)
+            CALL FACEV (CMASK2,IEL,IFACE,1.,NX1,NY1,NZ1)
          ENDIF
  100  CONTINUE
       return
@@ -1512,14 +1523,17 @@ C----------------------------------------------------------------------
       include 'MVGEOM'
 
                                                 call makeuf
-      if (filterType.eq.2)                      call make_hpf
+      if (ifnatc)                               call natconv
+c      if (ifexplvis.and.ifsplit)                call explstrs
       if (ifexplvis.and.ifsplit)                call makevis
       if (ifnav .and..not.ifchar)               call advab
       if (ifmvbd.and..not.ifchar)               call admeshv
       if (iftran)                               call makeabf
       if ((iftran.and..not.ifchar).or.
      $    (iftran.and..not.ifnav.and.ifchar))   call makebdf
+c     if (ifnav.and.ifchar.and.(.not.ifmvbd))   call advchar
       if (ifnav.and.ifchar)                     call advchar
+      if (ifmodel)                              call twallsh
 
 c     Adding this call allows prescribed pressure bc for PnPn-2
 c     if (.not.ifsplit.and..not.ifstrs)         call bcneutr
@@ -1540,7 +1554,7 @@ C----------------------------------------------------------------------
 C
       TIME = TIME-DT
       CALL NEKUF   (BFX,BFY,BFZ)
-      CALL OPCOLV  (BFX,BFY,BFZ,BM1)
+      CALL OPCOLV (BFX,BFY,BFZ,BM1)
       TIME = TIME+DT
 C
       return
@@ -1550,22 +1564,15 @@ C
       include 'SIZE'
       include 'PARALLEL'
       include 'NEKUSE'
-      include 'CTIMER'
-
       REAL F1 (LX1,LY1,LZ1,LELV)
       REAL F2 (LX1,LY1,LZ1,LELV)
       REAL F3 (LX1,LY1,LZ1,LELV)
-
-#ifdef TIMER
-      etime1=dnekclock_sync()
-#endif
-
       CALL OPRZERO (F1,F2,F3)
       DO 100 IEL=1,NELV
          ielg = lglel(iel)
-         DO 100 K=1,lz1
-         DO 100 J=1,ly1
-         DO 100 I=1,lx1
+         DO 100 K=1,NZ1
+         DO 100 J=1,NY1
+         DO 100 I=1,NX1
             if (optlevel.le.2) CALL NEKASGN (I,J,K,IEL)
             CALL USERF   (I,J,K,IELG)
 #ifdef CMTPART
@@ -1578,11 +1585,92 @@ C
             F2(I,J,K,IEL) = FFY
             F3(I,J,K,IEL) = FFZ
  100  CONTINUE
+      return
+      END
+C
+      subroutine natconv 
+C-----------------------------------------------------------------------
+C
+C     Compute driving force (in x- and y-direction) 
+C     due to natural convection (Boussinesq approximation).
+C
+C-----------------------------------------------------------------------
+      include 'SIZE'
+      include 'SOLN'
+      include 'MASS'
+      include 'TSTEP'
+C
+      COMMON /SCRUZ/ TA1 (LX1,LY1,LZ1,LELV)
+     $ ,             TA2 (LX1,LY1,LZ1,LELV)
+     $ ,             TA3 (LX1,LY1,LZ1,LELV)
+C
+      NTOT1   = NX1*NY1*NZ1*NELV
+      RGTHETA = GTHETA*PI/180.
+      BOUSS1  = -BETAG*SIN(RGTHETA)
+      BOUSS2  =  BETAG*COS(RGTHETA)
+      CALL SETTBAR (TBAR)
+      CALL CADD2   (TA1,T,-TBAR,NTOT1)
+      CALL COPY    (TA2,TA1,NTOT1)
+      CALL CMULT   (TA1,BOUSS1,NTOT1)
+      CALL CMULT   (TA2,BOUSS2,NTOT1)
+C
+      CALL ADDCOL3 (BFX,BM1,TA1,NTOT1)
+      CALL ADDCOL3 (BFY,BM1,TA2,NTOT1)
+C
+      return
+      END
+C
+      subroutine settbar (tbar)
+C----------------------------------------------------------------
+C
+C     Find reasonable Tbar in the buoyancy term, beta*(T-Tbar)...
+C
+C----------------------------------------------------------------
+      include 'SIZE'
+      include 'MASS'
+      include 'INPUT'
+      include 'PARALLEL'
+      include 'SOLN'
+      include 'TSTEP'
+C
+      CHARACTER CB*1
+      DIMENSION TEMP(2)
 
-#ifdef TIMER
-      tusfq=tusfq+(dnekclock()-etime1)
-#endif
+      integer*8 ntotg,nxyz
 
+      IF (BETAG.EQ.0.0) return
+
+      TBAR   = 0.
+      NNOUT  = 0
+      NFACES = 2*NDIM
+
+      nxyz   = nx1*ny1*nz1
+      ntot1  = nxyz*nelv
+      ntotg  = nxyz*nelgv
+
+      DO 100 IEL=1,NELV
+      DO 100 IFACE=1,NFACES
+         CB = CBC(IFACE,IEL,IFIELD)
+         IF (CB.EQ.'O' .OR. CB.EQ.'o') THEN
+            CALL FACIND(KX1,KX2,KY1,KY2,KZ1,KZ2,NX1,NY1,NZ1,IFACE)
+            DO 10 IZ=KZ1,KZ2
+            DO 10 IY=KY1,KY2
+            DO 10 IX=KX1,KX2
+               NNOUT  = NNOUT + 1
+               TBAR   = TBAR + T(IX,IY,IZ,IEL,1)
+ 10         CONTINUE
+         ENDIF
+ 100  CONTINUE
+      TEMP(1)=TBAR
+      TEMP(2)=NNOUT
+      TBAR =     GLSUM(TEMP(1),1)
+      NNOUT=INT( GLSUM(TEMP(2),1) )
+      IF (NNOUT.GT.0) THEN
+         TBAR = TBAR/(NNOUT)
+      ELSE
+         tbar = glsum(t,ntot1)/ntotg
+      ENDIF
+C
       return
       END
 C
@@ -1602,12 +1690,12 @@ C
      $ ,             TA2 (LX1,LY1,LZ1,LELV)
      $ ,             TA3 (LX1,LY1,LZ1,LELV)
 C
-      NTOT1 = lx1*ly1*lz1*NELV
+      NTOT1 = NX1*NY1*NZ1*NELV
       CALL CONVOP  (TA1,VX)
       CALL CONVOP  (TA2,VY)
       CALL SUBCOL3 (BFX,BM1,TA1,NTOT1)
       CALL SUBCOL3 (BFY,BM1,TA2,NTOT1)
-      IF (ldim.EQ.2) THEN
+      IF (NDIM.EQ.2) THEN
          CALL RZERO (TA3,NTOT1)
       ELSE
          CALL CONVOP  (TA3,VZ)
@@ -1637,7 +1725,7 @@ C
      $ ,             TB3(LX1,LY1,LZ1,LELV)
      $ ,             H2 (LX1,LY1,LZ1,LELV)
 C
-      NTOT1 = lx1*ly1*lz1*NELV
+      NTOT1 = NX1*NY1*NZ1*NELV
       CONST = 1./DT
 
       if(iflomach) then
@@ -1682,7 +1770,7 @@ C
      $ ,             TA2 (LX1,LY1,LZ1,LELV)
      $ ,             TA3 (LX1,LY1,LZ1,LELV)
 C
-      NTOT1 = lx1*ly1*lz1*NELV
+      NTOT1 = NX1*NY1*NZ1*NELV
 C
       AB0 = AB(1)
       AB1 = AB(2)
@@ -1697,7 +1785,7 @@ C
       CALL ADD2S1 (BFY,TA2,AB0,NTOT1)
       if(.not.iflomach) CALL COL2   (BFX,VTRANS,NTOT1)          ! multiply by density
       if(.not.iflomach) CALL COL2   (BFY,VTRANS,NTOT1)
-      IF (ldim.EQ.3) THEN
+      IF (NDIM.EQ.3) THEN
          CALL ADD3S2 (TA3,ABZ1,ABZ2,AB1,AB2,NTOT1)
          CALL COPY   (ABZ2,ABZ1,NTOT1)
          CALL COPY   (ABZ1,BFZ,NTOT1)
@@ -1811,9 +1899,9 @@ C
 C     Compute bacward-differentiation coefficients of order NBD
 C
 C-----------------------------------------------------------------------
-      PARAMETER (ldim = 10)
-      REAL BDMAT(ldim,ldim),BDRHS(ldim)
-      INTEGER IR(ldim),IC(ldim)
+      PARAMETER (NDIM = 10)
+      REAL BDMAT(NDIM,NDIM),BDRHS(NDIM)
+      INTEGER IR(NDIM),IC(NDIM)
       REAL BD(1),DTBD(1)
 C
       CALL RZERO (BD,10)
@@ -1822,9 +1910,9 @@ C
          BDF   = 1.
       ELSEIF (NBD.GE.2) THEN
          NSYS = NBD+1
-         CALL BDSYS (BDMAT,BDRHS,DTBD,NBD,ldim)
-         CALL LU    (BDMAT,NSYS,ldim,IR,IC)
-         CALL SOLVE (BDRHS,BDMAT,1,NSYS,ldim,IR,IC)
+         CALL BDSYS (BDMAT,BDRHS,DTBD,NBD,NDIM)
+         CALL LU    (BDMAT,NSYS,NDIM,IR,IC)
+         CALL SOLVE (BDRHS,BDMAT,1,NSYS,NDIM,IR,IC)
          DO 30 I=1,NBD
             BD(I) = BDRHS(I)
  30      CONTINUE
@@ -1846,9 +1934,9 @@ C
       return
       END
 C
-      subroutine bdsys (a,b,dt,nbd,ldim)
-      REAL A(ldim,9),B(9),DT(9)
-      CALL RZERO (A,ldim**2)
+      subroutine bdsys (a,b,dt,nbd,ndim)
+      REAL A(NDIM,9),B(9),DT(9)
+      CALL RZERO (A,NDIM**2)
       N = NBD+1
       DO 10 J=1,NBD
          A(1,J) = 1.
@@ -1928,7 +2016,7 @@ C--------------------------------------------------------------------
       REAL VZN (LX1,LY1,LZ1,LELV)
       CALL VELCHAR (VX,VXN,VXLAG,NBD,TAU,DTLAG)
       CALL VELCHAR (VY,VYN,VYLAG,NBD,TAU,DTLAG)
-      IF (ldim.EQ.3) 
+      IF (NDIM.EQ.3) 
      $CALL VELCHAR (VZ,VZN,VZLAG,NBD,TAU,DTLAG)
       return
       END
@@ -1949,10 +2037,10 @@ C--------------------------------------------------------------------
 C
       IF (IMESH.EQ.1) NEL=NELV
       IF (IMESH.EQ.2) NEL=NELT
-      NTOT1 = lx1*ly1*lz1*NEL
+      NTOT1 = NX1*NY1*NZ1*NEL
       CALL CONVOP (Y,X)
       CALL COL2   (Y,BM1,NTOT1)
-      CALL DSSUM  (Y,lx1,ly1,lz1)
+      CALL DSSUM  (Y,NX1,NY1,NZ1)
       IF (IMESH.EQ.1) CALL COL2 (Y,BINVM1,NTOT1)
       IF (IMESH.EQ.2) CALL COL2 (Y,BINTM1,NTOT1)
       CALL COL2   (Y,MASK,NTOT1)
@@ -1972,7 +2060,7 @@ C-----------------------------------------------------------------------
       REAL VLAG (LX1,LY1,LZ1,LELV,9)
       REAL DTBD (NBD)
 C
-      NTOT1 = lx1*ly1*lz1*NELV
+      NTOT1 = NX1*NY1*NZ1*NELV
       IF (NBD.EQ.1) THEN
          CALL COPY (VEL,VN,NTOT1)
          return
@@ -2011,13 +2099,13 @@ C-----------------------------------------------------------------------
       include 'SOLN'
       include 'TSTEP'
 C
-      NTOT1 = lx1*ly1*lz1*NELV
+      NTOT1 = NX1*NY1*NZ1*NELV
 C
 c      DO 100 ILAG=NBDINP-1,2,-1
       DO 100 ILAG=3-1,2,-1
          CALL COPY (VXLAG (1,1,1,1,ILAG),VXLAG (1,1,1,1,ILAG-1),NTOT1)
          CALL COPY (VYLAG (1,1,1,1,ILAG),VYLAG (1,1,1,1,ILAG-1),NTOT1)
-         IF (ldim.EQ.3)
+         IF (NDIM.EQ.3)
      $   CALL COPY (VZLAG (1,1,1,1,ILAG),VZLAG (1,1,1,1,ILAG-1),NTOT1)
  100  CONTINUE
 C
@@ -2044,8 +2132,8 @@ C---------------------------------------------------------------------
       PARAMETER (LXYZ1=LX1*LY1*LZ1)
       COMMON /CTMP1/ WORK   (LXYZ1,LELT)
 C
-      NFACES= 2*ldim
-      NTOT1 = lx1*ly1*lz1*NELV
+      NFACES= 2*NDIM
+      NTOT1 = NX1*NY1*NZ1*NELV
       CALL RZERO (WORK  ,NTOT1)
       CALL RONE  (HV1MSK,NTOT1)
 C
@@ -2060,10 +2148,10 @@ C
      $     CALL FADDCL3(WORK(1,IE),VZ(1,1,1,IE),UNZ(1,1,IFACE,IE),IFACE)
            CALL FCAVER (VAVER,WORK,IE,IFACE)
 C
-           IF (VAVER.LT.0.) CALL FACEV (HV1MSK,IE,IFACE,0.0,lx1,ly1,lz1)
+           IF (VAVER.LT.0.) CALL FACEV (HV1MSK,IE,IFACE,0.0,NX1,NY1,NZ1)
          ENDIF
          IF (CB(1:2).EQ.'WS' .OR. CB(1:2).EQ.'ws') 
-     $   CALL FACEV (HV1MSK,IE,IFACE,0.0,lx1,ly1,lz1)
+     $   CALL FACEV (HV1MSK,IE,IFACE,0.0,NX1,NY1,NZ1)
  100   CONTINUE
       ENDIF
 C
@@ -2122,8 +2210,8 @@ C
          NEL = NELT
          VOL = VOLTM1
       ENDIF
-      LENGTH = VOL**(1./(ldim))
-      NXYZ1  = lx1*ly1*lz1
+      LENGTH = VOL**(1./(NDIM))
+      NXYZ1  = NX1*NY1*NZ1
       NTOT1  = NXYZ1*NEL
 C
       H1     = 0.
@@ -2179,8 +2267,8 @@ C
       IMESH  = 1
       NEL    = NELV
       VOL    = VOLVM1
-      LENGTH = VOL**(1./(ldim))
-      NXYZ1  = lx1*ly1*lz1
+      LENGTH = VOL**(1./(NDIM))
+      NXYZ1  = NX1*NY1*NZ1
       NTOT1  = NXYZ1*NEL
 C
       H1     = 0.
@@ -2191,7 +2279,7 @@ C
       CALL COL3 (TA1,X1,X1,NTOT1)
       CALL COL3 (TA2,X2,X2,NTOT1)
       CALL ADD2 (TA1,TA2,NTOT1)
-      IF (ldim.EQ.3) THEN
+      IF (NDIM.EQ.3) THEN
       CALL COL3 (TA2,X3,X3,NTOT1)
       CALL ADD2 (TA1,TA2,NTOT1)
       ENDIF
@@ -2201,7 +2289,7 @@ C
       CALL COL3 (TA1,X1,X1,NTOT1)
       CALL COL3 (TA2,X2,X2,NTOT1)
       CALL ADD2 (TA1,TA2,NTOT1)
-      IF (ldim.EQ.3) THEN
+      IF (NDIM.EQ.3) THEN
       CALL COL3 (TA2,X3,X3,NTOT1)
       CALL ADD2 (TA1,TA2,NTOT1)
       ENDIF
@@ -2215,7 +2303,7 @@ C
       CALL COL3  (TA1,Y1,X1,NTOT1)
       CALL COL3  (TA2,Y2,X2,NTOT1)
       CALL ADD2  (TA1,TA2,NTOT1)
-      IF (ldim.EQ.3) THEN
+      IF (NDIM.EQ.3) THEN
       CALL COL3  (TA2,Y3,X3,NTOT1)
       CALL ADD2  (TA1,TA2,NTOT1)
       ENDIF
@@ -2243,7 +2331,7 @@ C
       REAL   P   (LX2,LY2,LZ2,LELV)
       REAL   WM2 (LX2,LY2,LZ2)
 C
-      NXYZ2 = lx2*ly2*lz2
+      NXYZ2 = NX2*NY2*NZ2
       DO 100 IEL=1,NELV
          CALL COL3 (WP(1,1,1,IEL),WM2(1,1,1),P(1,1,1,IEL),NXYZ2)
  100  CONTINUE
@@ -2277,8 +2365,8 @@ C
       IFSTUZ = .TRUE.
       TCRITV = TOLHV*1.5
       TCRITP = TOLPS*1.5
-      NTOT1  = lx1*ly1*lz1*NELV
-      NTOT2  = lx2*ly2*lz2*NELV
+      NTOT1  = NX1*NY1*NZ1*NELV
+      NTOT2  = NX2*NY2*NZ2*NELV
       INTYPE = 0
       CALL SETHLM (H1,H2,INTYPE)
 C
@@ -2296,7 +2384,7 @@ C
       RV2 = SQRT(GLSC3(TA2,RESV2,VMULT,NTOT1)/VOLVM1)
       IF (RV1 .GT. TCRITV) IFSTUZ = .FALSE.
       IF (RV2 .GT. TCRITV) IFSTUZ = .FALSE.
-      IF (ldim.EQ.3) THEN
+      IF (NDIM.EQ.3) THEN
          RV3 = SQRT(GLSC3(TA3,RESV3,VMULT,NTOT1)/VOLVM1)
          IF (RV3 .GT. TCRITV) IFSTUZ = .FALSE.
       ENDIF
@@ -2359,7 +2447,7 @@ C----------------------------------------------------------------------
       REAL VBDRY2 (LX1,LY1,LZ1,1)
       REAL VBDRY3 (LX1,LY1,LZ1,1)
 C
-      NTOT1 = lx1*ly1*lz1*NELV
+      NTOT1 = NX1*NY1*NZ1*NELV
 C
       IF (IFSTRS) THEN
          if (ifield.eq.ifldmhd) then
@@ -2371,12 +2459,12 @@ C
          if (ifield.eq.ifldmhd) then
             CALL ANTIMSK (VBDRY1,BX,B1MASK,NTOT1)
             CALL ANTIMSK (VBDRY2,BY,B2MASK,NTOT1)
-            IF (ldim.EQ.3) 
+            IF (NDIM.EQ.3) 
      $      CALL ANTIMSK (VBDRY3,BZ,B3MASK,NTOT1)
          else
             CALL ANTIMSK (VBDRY1,VX,V1MASK,NTOT1)
             CALL ANTIMSK (VBDRY2,VY,V2MASK,NTOT1)
-            IF (ldim.EQ.3) 
+            IF (NDIM.EQ.3) 
      $      CALL ANTIMSK (VBDRY3,VZ,V3MASK,NTOT1)
          endif
       ENDIF
@@ -2396,7 +2484,7 @@ C----------------------------------------------------------------------
       include 'TSTEP'
       REAL RES1(1),RES2(1),RES3(1)
 C
-      NTOT1 = lx1*ly1*lz1*NELV
+      NTOT1 = NX1*NY1*NZ1*NELV
 C
 c     sv=glsum(v3mask,ntot1)
 c     sb=glsum(b3mask,ntot1)
@@ -2407,12 +2495,12 @@ c     write(6,*) istep,' ifld:',ifield,intype,sv,sb
          if (ifield.eq.ifldmhd) then
             CALL COL2 (RES1,B1MASK,NTOT1)
             CALL COL2 (RES2,B2MASK,NTOT1)
-            IF (ldim.EQ.3)
+            IF (NDIM.EQ.3)
      $      CALL COL2 (RES3,B3MASK,NTOT1)
          else
             CALL COL2 (RES1,V1MASK,NTOT1)
             CALL COL2 (RES2,V2MASK,NTOT1)
-            IF (ldim.EQ.3)
+            IF (NDIM.EQ.3)
      $      CALL COL2 (RES3,V3MASK,NTOT1)
          endif
       ENDIF
@@ -2423,30 +2511,30 @@ C
       subroutine opadd2 (a1,a2,a3,b1,b2,b3)
       include 'SIZE'
       REAL A1(1),A2(1),A3(1),B1(1),B2(1),B3(1)
-      NTOT1=lx1*ly1*lz1*NELV
+      NTOT1=NX1*NY1*NZ1*NELV
       CALL ADD2(A1,B1,NTOT1)
       CALL ADD2(A2,B2,NTOT1)
-      IF(ldim.EQ.3)CALL ADD2(A3,B3,NTOT1)
+      IF(NDIM.EQ.3)CALL ADD2(A3,B3,NTOT1)
       return
       END
 C
       subroutine opsub2 (a1,a2,a3,b1,b2,b3)
       include 'SIZE'
       REAL A1(1),A2(1),A3(1),B1(1),B2(1),B3(1)
-      NTOT1=lx1*ly1*lz1*NELV
+      NTOT1=NX1*NY1*NZ1*NELV
       CALL SUB2(A1,B1,NTOT1)
       CALL SUB2(A2,B2,NTOT1)
-      IF(ldim.EQ.3)CALL SUB2(A3,B3,NTOT1)
+      IF(NDIM.EQ.3)CALL SUB2(A3,B3,NTOT1)
       return
       END
 C
       subroutine opsub3 (a1,a2,a3,b1,b2,b3,c1,c2,c3)
       include 'SIZE'
       REAL A1(1),A2(1),A3(1),B1(1),B2(1),B3(1),C1(1),C2(1),C3(1)
-      NTOT1=lx1*ly1*lz1*NELV
+      NTOT1=NX1*NY1*NZ1*NELV
       CALL SUB3(A1,B1,C1,NTOT1)
       CALL SUB3(A2,B2,C2,NTOT1)
-      IF(ldim.EQ.3)CALL SUB3(A3,B3,C3,NTOT1)
+      IF(NDIM.EQ.3)CALL SUB3(A3,B3,C3,NTOT1)
       return
       END
 C
@@ -2457,7 +2545,7 @@ C
       REAL C (1)
       include 'OPCTR'
 C
-      NTOT1=lx1*ly1*lz1*NELV
+      NTOT1=NX1*NY1*NZ1*NELV
 
 #ifdef TIMER
       if (isclld.eq.0) then
@@ -2467,13 +2555,13 @@ C
           rname(myrout) = 'opcolv'
       endif
 C
-      isbcnt = ntot1*ldim
+      isbcnt = ntot1*ndim
       dct(myrout) = dct(myrout) + (isbcnt)
       ncall(myrout) = ncall(myrout) + 1
       dcount      =      dcount + (isbcnt)
 #endif
 C
-      IF (ldim.EQ.3) THEN
+      IF (NDIM.EQ.3) THEN
          DO 100 I=1,NTOT1
             A1(I)=B1(I)*C(I)
             A2(I)=B2(I)*C(I)
@@ -2493,7 +2581,7 @@ C
       REAL A1(1),A2(1),A3(1),C(1)
       include 'OPCTR'
 C
-      NTOT1=lx1*ly1*lz1*NELV
+      NTOT1=NX1*NY1*NZ1*NELV
 
 #ifdef TIMER
       if (isclld.eq.0) then
@@ -2503,13 +2591,13 @@ C
           rname(myrout) = 'opcolv'
       endif
 C
-      isbcnt = ntot1*ldim
+      isbcnt = ntot1*ndim
       dct(myrout) = dct(myrout) + (isbcnt)
       ncall(myrout) = ncall(myrout) + 1
       dcount      =      dcount + (isbcnt)
 #endif
 C
-      IF (ldim.EQ.3) THEN
+      IF (NDIM.EQ.3) THEN
          DO 100 I=1,NTOT1
             A1(I)=A1(I)*C(I)
             A2(I)=A2(I)*C(I)
@@ -2527,30 +2615,30 @@ C
       subroutine opcol2 (a1,a2,a3,b1,b2,b3)
       include 'SIZE'
       REAL A1(1),A2(1),A3(1),B1(1),B2(1),B3(1)
-      NTOT1=lx1*ly1*lz1*NELV
+      NTOT1=NX1*NY1*NZ1*NELV
       CALL COL2(A1,B1,NTOT1)
       CALL COL2(A2,B2,NTOT1)
-      IF(ldim.EQ.3)CALL COL2(A3,B3,NTOT1)
+      IF(NDIM.EQ.3)CALL COL2(A3,B3,NTOT1)
       return
       END
 C
       subroutine opchsgn (a,b,c)
       include 'SIZE'
       REAL A(1),B(1),C(1)
-      NTOT1=lx1*ly1*lz1*NELV
+      NTOT1=NX1*NY1*NZ1*NELV
       CALL CHSIGN(A,NTOT1)
       CALL CHSIGN(B,NTOT1)
-      IF(ldim.EQ.3)CALL CHSIGN(C,NTOT1)
+      IF(NDIM.EQ.3)CALL CHSIGN(C,NTOT1)
       return
       END
 c
       subroutine opcopy (a1,a2,a3,b1,b2,b3)
       include 'SIZE'
       REAL A1(1),A2(1),A3(1),B1(1),B2(1),B3(1)
-      NTOT1=lx1*ly1*lz1*NELV
+      NTOT1=NX1*NY1*NZ1*NELV
       CALL COPY(A1,B1,NTOT1)
       CALL COPY(A2,B2,NTOT1)
-      IF(ldim.EQ.3)CALL COPY(A3,B3,NTOT1)
+      IF(NDIM.EQ.3)CALL COPY(A3,B3,NTOT1)
       return
       END
 
@@ -2574,7 +2662,7 @@ c-----------------------------------------------------------------------
 c     (1) Face n-t transformation
 
 
-      nface = 2*ldim
+      nface = 2*ndim
       do e=1,nelfld(ifield)
       do f=1,nface
 
@@ -2655,10 +2743,10 @@ c-----------------------------------------------------------------------
 
       if (ifcyclic) then
          call rotate_cyc  (a,b,c,1)
-         call vec_dssum   (a,b,c,lx1,ly1,lz1)
+         call vec_dssum   (a,b,c,nx1,ny1,nz1)
          call rotate_cyc  (a,b,c,0)
       else
-         call vec_dssum   (a,b,c,lx1,ly1,lz1)
+         call vec_dssum   (a,b,c,nx1,ny1,nz1)
       endif
 
       return
@@ -2678,16 +2766,16 @@ c-----------------------------------------------------------------------
       if (ifcyclic) then
 
          if (op.eq.'*  ' .or. op.eq.'mul' .or. op.eq.'MUL') then
-            call vec_dsop    (a,b,c,lx1,ly1,lz1,op)
+            call vec_dsop    (a,b,c,nx1,ny1,nz1,op)
          else
             call rotate_cyc  (a,b,c,1)
-            call vec_dsop    (a,b,c,lx1,ly1,lz1,op)
+            call vec_dsop    (a,b,c,nx1,ny1,nz1,op)
             call rotate_cyc  (a,b,c,0)
          endif
 
       else
 
-         call vec_dsop    (a,b,c,lx1,ly1,lz1,op)
+         call vec_dsop    (a,b,c,nx1,ny1,nz1,op)
 
       endif
 
@@ -2697,40 +2785,40 @@ c-----------------------------------------------------------------------
       subroutine opicol2 (a1,a2,a3,b1,b2,b3)
       include 'SIZE'
       REAL A1(1),A2(1),A3(1),B1(1),B2(1),B3(1)
-      NTOT1=lx1*ly1*lz1*NELV
+      NTOT1=NX1*NY1*NZ1*NELV
       CALL INVCOL2(A1,B1,NTOT1)
       CALL INVCOL2(A2,B2,NTOT1)
-      IF(ldim.EQ.3)CALL INVCOL2(A3,B3,NTOT1)
+      IF(NDIM.EQ.3)CALL INVCOL2(A3,B3,NTOT1)
       return
       END
 C
       subroutine oprzero (a,b,c)
       include 'SIZE'
       REAL A(1),B(1),C(1)
-      NTOT1=lx1*ly1*lz1*NELV
+      NTOT1=NX1*NY1*NZ1*NELV
       CALL RZERO(A,NTOT1)
       CALL RZERO(B,NTOT1)
-      IF(ldim.EQ.3) CALL RZERO(C,NTOT1)
+      IF(NDIM.EQ.3) CALL RZERO(C,NTOT1)
       return
       END
 C
       subroutine oprone (a,b,c)
       include 'SIZE'
       REAL A(1),B(1),C(1)
-      NTOT1=lx1*ly1*lz1*NELV
+      NTOT1=NX1*NY1*NZ1*NELV
       CALL RONE(A,NTOT1)
       CALL RONE(B,NTOT1)
-      IF(ldim.EQ.3) CALL RONE(C,NTOT1)
+      IF(NDIM.EQ.3) CALL RONE(C,NTOT1)
       return
       END
 C
       subroutine opcmult (a,b,c,const)
       include 'SIZE'
       REAL A(1),B(1),C(1)
-      NTOT1=lx1*ly1*lz1*NELV
+      NTOT1=NX1*NY1*NZ1*NELV
       CALL CMULT(A,CONST,NTOT1)
       CALL CMULT(B,CONST,NTOT1)
-      IF(ldim.EQ.3) CALL CMULT(C,CONST,NTOT1)
+      IF(NDIM.EQ.3) CALL CMULT(C,CONST,NTOT1)
       return
       END
 c-----------------------------------------------------------------------
@@ -2740,7 +2828,7 @@ c-----------------------------------------------------------------------
       REAL B1(1),B2(1)
       include 'OPCTR'
 C
-      NTOT1=lx1*ly1*lz1*NELV
+      NTOT1=NX1*NY1*NZ1*NELV
 
 #ifdef TIMER
       if (isclld.eq.0) then
@@ -2750,13 +2838,13 @@ C
           rname(myrout) = 'opcv2c'
       endif
 C
-      isbcnt = ntot1*(ldim+2)
+      isbcnt = ntot1*(ndim+2)
       dct(myrout) = dct(myrout) + (isbcnt)
       ncall(myrout) = ncall(myrout) + 1
       dcount      =      dcount + (isbcnt)
 #endif
 C
-      IF (ldim.EQ.3) THEN
+      IF (NDIM.EQ.3) THEN
          DO 100 I=1,NTOT1
             tmp = c*b1(i)*b2(i)
             A1(I)=A1(I)*tmp
@@ -2779,7 +2867,7 @@ c-----------------------------------------------------------------------
       REAL B1(1),B2(1)
       include 'OPCTR'
 C
-      NTOT1=lx1*ly1*lz1*NELV
+      NTOT1=NX1*NY1*NZ1*NELV
 
 #ifdef TIMER
       if (isclld.eq.0) then
@@ -2789,13 +2877,13 @@ C
           rname(myrout) = 'opclv2'
       endif
 C
-      isbcnt = ntot1*(ldim+1)
+      isbcnt = ntot1*(ndim+1)
       dct(myrout) = dct(myrout) + (isbcnt)
       ncall(myrout) = ncall(myrout) + 1
       dcount      =      dcount + (isbcnt)
 #endif
 C
-      IF (ldim.EQ.3) THEN
+      IF (NDIM.EQ.3) THEN
          DO 100 I=1,NTOT1
             tmp = b1(i)*b2(i)
             A1(I)=A1(I)*tmp
@@ -2818,7 +2906,7 @@ c-----------------------------------------------------------------------
       REAL B1(1),B2(1),B3(1),C(1)
       include 'OPCTR'
 C
-      NTOT1=lx1*ly1*lz1*NELV
+      NTOT1=NX1*NY1*NZ1*NELV
 
 #ifdef TIMER
       if (isclld.eq.0) then
@@ -2828,13 +2916,13 @@ C
           rname(myrout) = 'opa2cl'
       endif
 C
-      isbcnt = ntot1*(ldim*2)
+      isbcnt = ntot1*(ndim*2)
       dct(myrout) = dct(myrout) + (isbcnt)
       ncall(myrout) = ncall(myrout) + 1
       dcount      =      dcount + (isbcnt)
 #endif
 C
-      IF (ldim.EQ.3) THEN
+      IF (NDIM.EQ.3) THEN
          DO 100 I=1,NTOT1
             A1(I)=A1(I)+b1(i)*c(i)
             A2(I)=A2(I)+b2(i)*c(i)
@@ -2856,7 +2944,7 @@ c-----------------------------------------------------------------------
       REAL C (1)
       include 'OPCTR'
 C
-      NTOT1=lx1*ly1*lz1*NELV
+      NTOT1=NX1*NY1*NZ1*NELV
 
 #ifdef TIMER
       if (isclld.eq.0) then
@@ -2866,13 +2954,13 @@ C
           rname(myrout) = 'opcv3c'
       endif
 C
-      isbcnt = ntot1*ldim*2
+      isbcnt = ntot1*ndim*2
       dct(myrout) = dct(myrout) + (isbcnt)
       ncall(myrout) = ncall(myrout) + 1
       dcount      =      dcount + (isbcnt)
 #endif
 C
-      IF (ldim.EQ.3) THEN
+      IF (NDIM.EQ.3) THEN
          DO 100 I=1,NTOT1
             A1(I)=B1(I)*C(I)*d
             A2(I)=B2(I)*C(I)*d
@@ -2929,7 +3017,7 @@ c         IF (NID.EQ.0) WRITE(6,9999) ITER,DIVEX,TOLPS
 c         return
 c      ENDIF
 
-      nxyz2 = lx2*ly2*lz2
+      nxyz2 = nx2*ny2*nz2
       ntot2 = nxyz2*nelv
       ntotg = nxyz2*nelgv
 
@@ -2974,7 +3062,7 @@ c        if (ratio.le.1.e-5) goto 9000
          ELSE
             pcgmx = glamax(pcg,ntot2)
             wp_mx = glamax(wp ,ntot2)
-            ntot1 = lx1*ly1*lz1*nelv
+            ntot1 = nx1*ny1*nz1*nelv
             h1_mx = glamax(h1 ,ntot1)
             h2_mx = glamax(h2 ,ntot1)
             if (nid.eq.0) write(6,*) 'ERROR: pap=0 in uzawa.'
@@ -3022,6 +3110,150 @@ C
 C
       return
       END
+c-----------------------------------------------------------------------
+      subroutine spbslpf(abd,lda,n,m,b)
+      integer lda,n,m
+      real abd(lda,1),b(1)
+C
+      real sdot,t
+      integer k,kb,la,lb,lm
+C
+C     Timing stuff, pff 1.14.92.
+C
+      include 'SIZE'
+      include 'PARALLEL'
+      include 'CTIMER'
+      include 'OPCTR'
+C
+#ifdef TIMER
+      if (isclld.eq.0) then
+          isclld=1
+          nrout=nrout+1
+          myrout=nrout
+          rname(myrout) = 'spbslp'
+      endif
+      isbcnt = n*(4*m+1) - m*(2*m+1)
+      dct(myrout) = dct(myrout) + (isbcnt)
+      ncall(myrout) = ncall(myrout) + 1
+      dcount      =      dcount + (isbcnt)
+C
+      if (icalld.eq.0) tslvb=0.0
+      icalld=icalld+1
+      nslvb=nslvb+1
+      etime1=dnekclock()
+#endif
+c
+c     solve trans(r)*y = b
+c
+      if (ifdblas) then
+         do k = 1, n
+            lm = min0(k-1,m)
+            la = m + 1 - lm
+            lb = k - lm
+            t = ddot(lm,abd(la,k),1,b(lb),1)
+            b(k) = (b(k) - t)*abd(m+1,k)
+         enddo
+      else
+         do k = 1, n
+            lm = min0(k-1,m)
+            la = m + 1 - lm
+            lb = k - lm
+            t = sdot(lm,abd(la,k),1,b(lb),1)
+            b(k) = (b(k) - t)*abd(m+1,k)
+         enddo
+      endif
+c
+c     solve r*x = y
+c
+      if (ifdblas) then
+         do kb = 1, n
+            k = n + 1 - kb
+            lm = min0(k-1,m)
+            la = m + 1 - lm
+            lb = k - lm
+            b(k) = b(k)*abd(m+1,k)
+            t = -b(k)
+            call daxpy(lm,t,abd(la,k),1,b(lb),1)
+         enddo
+      else
+         do kb = 1, n
+            k = n + 1 - kb
+            lm = min0(k-1,m)
+            la = m + 1 - lm
+            lb = k - lm
+            b(k) = b(k)*abd(m+1,k)
+            t = -b(k)
+            call saxpy(lm,t,abd(la,k),1,b(lb),1)
+         enddo
+      endif
+      tslvb=tslvb+dnekclock()-etime1
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine spbfapf(abd,lda,n,m,info)
+c
+      include 'SIZE'
+      include 'PARALLEL'
+c
+      integer lda,n,m,info
+      real abd(lda,1)
+c
+c     spbfa factors a real symmetric positive definite matrix
+c     stored in band form.
+c
+      real sdot,t
+      real s
+      integer ik,j,jk,k,mu
+c     begin block with ...exits to 40
+c
+c
+         do 30 j = 1, n
+            info = j
+            s = 0.0e0
+            ik = m + 1
+            jk = max0(j-m,1)
+            mu = max0(m+2-j,1)
+            if (m .lt. mu) go to 20
+            if (ifdblas) then
+               do k = mu, m
+                  t = abd(k,j) - ddot(k-mu,abd(ik,jk),1,abd(mu,j),1)
+                  t = t/abd(m+1,jk)
+                  abd(k,j) = t
+                  s = s + t*t
+                  ik = ik - 1
+                  jk = jk + 1
+               enddo
+            else
+               do k = mu, m
+                  t = abd(k,j) - sdot(k-mu,abd(ik,jk),1,abd(mu,j),1)
+                  t = t/abd(m+1,jk)
+                  abd(k,j) = t
+                  s = s + t*t
+                  ik = ik - 1
+                  jk = jk + 1
+               enddo
+            endif
+c
+   20       continue
+            s = abd(m+1,j) - s
+c     ......exit
+            if (s .le. 0.0e0) go to 40
+            abd(m+1,j) = sqrt(s)
+   30    continue
+         info = 0
+c     ......store inverse of the diagonal for repeated forward/back solves (pff)
+         do 35 j=1,n
+            abd(m+1,j) = 1.0/abd(m+1,j)
+   35    continue
+   40 continue
+c
+      if (info.ne.0) then
+          write(6,*) 'ABORT: info nonzero in spbfapf',m,n,info
+          call exitt
+      endif
+c
+      return
+      end
 c-----------------------------------------------------------------------
       subroutine mapw(md,nd,m1,n1,mflg)
 c
@@ -3231,9 +3463,6 @@ C
       REAL    CONV (LX1,LY1,LZ1,1) 
       REAL    FI   (LX1,LY1,LZ1,1)
 
-      if (nio.eq.0.and.loglevel.gt.2)
-     $   write(6,*) 'convop', ifield, ifdeal(ifield)
-
 #ifdef TIMER
       if (icalld.eq.0) tadvc=0.0
       icalld=icalld+1
@@ -3241,10 +3470,10 @@ C
       etime1=dnekclock()
 #endif
  
-      nxyz1 = lx1*ly1*lz1
-      ntot1 = lx1*ly1*lz1*nelv
-      ntotz = lx1*ly1*lz1*nelfld(ifield)
-      ntott = lx1*ly1*lz1*nelt
+      nxyz1 = nx1*ny1*nz1
+      ntot1 = nx1*ny1*nz1*nelv
+      ntotz = nx1*ny1*nz1*nelfld(ifield)
+      ntott = nx1*ny1*nz1*nelt
  
       call rzero  (conv,ntott)
  
@@ -3255,6 +3484,10 @@ C
          call convopo(conv,fi)
          goto 100
       endif
+
+c     write(6,*) istep,param(99),' CONVOP',ifpert
+c     ip99 = param(99)
+c     if (istep.gt.5) call exitti(' CONVOP dbg: $',ip99)
 
       if (.not. ifdeal(ifield)) goto 101
      
@@ -3303,22 +3536,25 @@ C
       save icalld
       data icalld /0/
 c
-      NTOTD = lxd*lyd*lzd*NELV
+      nxd = lxd
+      nyd = lyd
+      nzd = lzd
+      NTOTD = NXD*NYD*NZD*NELV
 c
 c
 c     interpolate ta1 and vx onto larger mesh
 c
       CALL DUDXYZ (TA1,FI,RXM1,SXM1,TXM1,JACM1,IMESH,1)
-      call mapw   (ta1d,lxd,ta1,lx1,1)
-      call mapw   (vxd ,lxd,vx ,lx1,1)
+      call mapw   (ta1d,nxd,ta1,nx1,1)
+      call mapw   (vxd ,nxd,vx ,nx1,1)
       CALL COL3   (DFID,TA1D,VXD,NTOTD)
 c
 c
 c     interpolate ta1 and vy onto larger mesh
 c
       CALL DUDXYZ  (TA1,FI,RYM1,SYM1,TYM1,JACM1,IMESH,2)
-      call mapw    (ta1d,lxd,ta1,lx1,1)
-      call mapw    (vyd ,lxd,vy ,lx1,1)
+      call mapw    (ta1d,nxd,ta1,nx1,1)
+      call mapw    (vyd ,nxd,vy ,nx1,1)
       CALL ADDCOL3 (DFID,TA1D,VYD,NTOTD)
 c
       IF (if3d) THEN
@@ -3326,15 +3562,15 @@ c
 c        interpolate ta1 and vy onto larger mesh
 c
          CALL DUDXYZ  (TA1,FI,RZM1,SZM1,TZM1,JACM1,IMESH,3)
-         call mapw    (ta1d,lxd,ta1,lx1,1)
-         call mapw    (vzd ,lxd,vz ,lx1,1)
+         call mapw    (ta1d,nxd,ta1,nx1,1)
+         call mapw    (vzd ,nxd,vz ,nx1,1)
          CALL ADDCOL3 (DFID,TA1D,VZD,NTOTD)
 c
       ENDIF
 c
 c     Now, *project* DFID onto mesh 1 using L2 projection
 c
-      call mapwp(dfid,lxd,dfi,lx1,-1)
+      call mapwp(dfid,nxd,dfi,nx1,-1)
       return
       END
 C------------------------------------------------------------------------
@@ -3361,9 +3597,9 @@ C
 
       nel = nelv
       if (imesh.eq.2) nel = nelt
-      nxy1  = lx1*ly1
-      nyz1  = ly1*lz1
-      nxyz1 = lx1*ly1*lz1
+      nxy1  = nx1*ny1
+      nyz1  = ny1*nz1
+      nxyz1 = nx1*ny1*nz1
       ntot  = nxyz1*nel
 C
 C     Compute vel.grad(u)
@@ -3372,11 +3608,11 @@ C
 C
         if (if3d) then
 c
-           call mxm   (dxm1,lx1,u(1,1,1,ie),lx1,dudr,nyz1)
-           do iz=1,lz1
-             call mxm (u(1,1,iz,ie),lx1,dytm1,ly1,duds(1,1,iz),ly1)
+           call mxm   (dxm1,nx1,u(1,1,1,ie),nx1,dudr,nyz1)
+           do iz=1,nz1
+             call mxm (u(1,1,iz,ie),nx1,dytm1,ny1,duds(1,1,iz),ny1)
            enddo
-           call mxm   (u(1,1,1,ie),nxy1,dztm1,lz1,dudt,lz1)
+           call mxm   (u(1,1,1,ie),nxy1,dztm1,nz1,dudt,nz1)
 c
            do i=1,nxyz1
               du(i,ie) = jacmi(i,ie)*(
@@ -3397,8 +3633,8 @@ c
          else
 c
 c           2D
-            call mxm (dxm1,lx1,u(1,1,1,ie),lx1,dudr,nyz1)
-            call mxm (u(1,1,1,ie),lx1,dytm1,ly1,duds,ly1)
+            call mxm (dxm1,nx1,u(1,1,1,ie),nx1,dudr,nyz1)
+            call mxm (u(1,1,1,ie),nx1,dytm1,ny1,duds,ny1)
             do i=1,nxyz1
                du(i,ie) = jacmi(i,ie)*(
      $                      vx(i,1,1,ie)*(
@@ -3439,9 +3675,9 @@ C
 C
       nel = nelv
       if (imesh.eq.2) nel = nelt
-      nxy1  = lx1*ly1
-      nyz1  = ly1*lz1
-      nxyz1 = lx1*ly1*lz1
+      nxy1  = nx1*ny1
+      nyz1  = ny1*nz1
+      nxyz1 = nx1*ny1*nz1
       ntot  = nxyz1*nel
 C
 C     Compute vel.grad(u)
@@ -3450,11 +3686,11 @@ C
 C
         if (if3d) then
 c
-           call mxm   (dxm1,lx1,u(1,1,1,ie),lx1,dudr,nyz1)
-           do iz=1,lz1
-             call mxm (u(1,1,iz,ie),lx1,dytm1,ly1,duds(1,1,iz),ly1)
+           call mxm   (dxm1,nx1,u(1,1,1,ie),nx1,dudr,nyz1)
+           do iz=1,nz1
+             call mxm (u(1,1,iz,ie),nx1,dytm1,ny1,duds(1,1,iz),ny1)
            enddo
-           call mxm   (u(1,1,1,ie),nxy1,dztm1,lz1,dudt,lz1)
+           call mxm   (u(1,1,1,ie),nxy1,dztm1,nz1,dudt,nz1)
 c
            do i=1,nxyz1
               du(i,ie) = jacmi(i,ie)*(
@@ -3475,8 +3711,8 @@ c
          else
 c
 c           2D
-            call mxm (dxm1,lx1,u(1,1,1,ie),lx1,dudr,nyz1)
-            call mxm (u(1,1,1,ie),lx1,dytm1,ly1,duds,ly1)
+            call mxm (dxm1,nx1,u(1,1,1,ie),nx1,dudr,nyz1)
+            call mxm (u(1,1,1,ie),nx1,dytm1,ny1,duds,ny1)
             do i=1,nxyz1
                du(i,ie) = jacmi(i,ie)*(
      $                      vx(i,1,1,ie)*(
@@ -3514,32 +3750,32 @@ C
 C
       nel = nelv
       if (imesh.eq.2) nel = nelt
-      nxy1  = lx1*ly1
-      nyz1  = ly1*lz1
-      nxyz1 = lx1*ly1*lz1
+      nxy1  = nx1*ny1
+      nyz1  = ny1*nz1
+      nxyz1 = nx1*ny1*nz1
 C
 C     Compute vel.grad(u)
 C
       do ie=1,nel
 C
          if (if3d) then
-            call mxm   (dxm1,lx1,u(1,1,1,ie),lx1,du(1,ie),nyz1)
-            call mxm   (dxm1,lx1,v(1,1,1,ie),lx1,dv(1,ie),nyz1)
-            call mxm   (dxm1,lx1,w(1,1,1,ie),lx1,dw(1,ie),nyz1)
+            call mxm   (dxm1,nx1,u(1,1,1,ie),nx1,du(1,ie),nyz1)
+            call mxm   (dxm1,nx1,v(1,1,1,ie),nx1,dv(1,ie),nyz1)
+            call mxm   (dxm1,nx1,w(1,1,1,ie),nx1,dw(1,ie),nyz1)
             do i=1,nxyz1
                du(i,ie) = du(i,ie)*vx(i,1,1,ie)
                dv(i,ie) = dv(i,ie)*vx(i,1,1,ie)
                dw(i,ie) = dw(i,ie)*vx(i,1,1,ie)
             enddo
 c
-            do iz=1,lz1
-              call mxm (u(1,1,iz,ie),lx1,dytm1,ly1,duds(1,1,iz),ly1)
+            do iz=1,nz1
+              call mxm (u(1,1,iz,ie),nx1,dytm1,ny1,duds(1,1,iz),ny1)
             enddo
-            do iz=1,lz1
-              call mxm (v(1,1,iz,ie),lx1,dytm1,ly1,dvds(1,1,iz),ly1)
+            do iz=1,nz1
+              call mxm (v(1,1,iz,ie),nx1,dytm1,ny1,dvds(1,1,iz),ny1)
             enddo
-            do iz=1,lz1
-              call mxm (w(1,1,iz,ie),lx1,dytm1,ly1,dwds(1,1,iz),ly1)
+            do iz=1,nz1
+              call mxm (w(1,1,iz,ie),nx1,dytm1,ny1,dwds(1,1,iz),ny1)
             enddo
             do i=1,nxyz1
                du(i,ie) = du(i,ie) + duds(i,1,1)*vy(i,1,1,ie)
@@ -3547,9 +3783,9 @@ c
                dw(i,ie) = dw(i,ie) + dwds(i,1,1)*vy(i,1,1,ie)
             enddo
 c
-            call mxm   (u(1,1,1,ie),nxy1,dztm1,lz1,duds,lz1)
-            call mxm   (v(1,1,1,ie),nxy1,dztm1,lz1,dvds,lz1)
-            call mxm   (w(1,1,1,ie),nxy1,dztm1,lz1,dwds,lz1)
+            call mxm   (u(1,1,1,ie),nxy1,dztm1,nz1,duds,nz1)
+            call mxm   (v(1,1,1,ie),nxy1,dztm1,nz1,dvds,nz1)
+            call mxm   (w(1,1,1,ie),nxy1,dztm1,nz1,dwds,nz1)
             do i=1,nxyz1
                du(i,ie) = du(i,ie) + duds(i,1,1)*vz(i,1,1,ie)
                dv(i,ie) = dv(i,ie) + dvds(i,1,1)*vz(i,1,1,ie)
@@ -3557,15 +3793,15 @@ c
             enddo
          else
 c           2D
-            call mxm   (dxm1,lx1,u(1,1,1,ie),lx1,du(1,ie),nyz1)
-            call mxm   (dxm1,lx1,v(1,1,1,ie),lx1,dv(1,ie),nyz1)
+            call mxm   (dxm1,nx1,u(1,1,1,ie),nx1,du(1,ie),nyz1)
+            call mxm   (dxm1,nx1,v(1,1,1,ie),nx1,dv(1,ie),nyz1)
             do i=1,nxyz1
                du(i,ie) = du(i,ie)*vx(i,1,1,ie)
                dv(i,ie) = dv(i,ie)*vx(i,1,1,ie)
             enddo
 c
-            call mxm (u(1,1,1,ie),lx1,dytm1,ly1,duds,ly1)
-            call mxm (v(1,1,1,ie),lx1,dytm1,ly1,dvds,ly1)
+            call mxm (u(1,1,1,ie),nx1,dytm1,ny1,duds,ny1)
+            call mxm (v(1,1,1,ie),nx1,dytm1,ny1,dvds,ny1)
             do i=1,nxyz1
                du(i,ie) = du(i,ie) + duds(i,1,1)*vy(i,1,1,ie)
                dv(i,ie) = dv(i,ie) + dvds(i,1,1)*vy(i,1,1,ie)
@@ -3606,11 +3842,11 @@ c     Operation count
 
       call velchar (vx,vxn,vxlag,nbd,tau,dtlag)
       call velchar (vy,vyn,vylag,nbd,tau,dtlag)
-      if (ldim.eq.3) 
+      if (ndim.eq.3) 
      $call velchar (vz,vzn,vzlag,nbd,tau,dtlag)
 c
-      ntot = lx1*ly1*lz1*nelv
-      if (ldim.eq.3) then
+      ntot = nx1*ny1*nz1*nelv
+      if (ndim.eq.3) then
          do i=1,ntot
 c
             tx = vx(i,1,1,1)*bm1(i,1,1,1)*jacmi(i,1)
@@ -3641,7 +3877,7 @@ c
       endif
 c
 #ifdef TIMER
-      if (ldim.eq.3) then
+      if (ndim.eq.3) then
          opct = ntot*21
       else
          opct = ntot*10
@@ -3687,11 +3923,11 @@ c
 c     Evaluate right-hand-side for Runge-Kutta scheme in the case of
 c     pure convection.
 c
-      ntot = lx1*ly1*lz1*nelv
+      ntot = nx1*ny1*nz1*nelv
       call conv1rk   (du,dv,dw,u,v,w)
       CALL OPDSSUM   (du,dv,dw)
 c
-      if (ldim.eq.3) then
+      if (ndim.eq.3) then
          do i=1,ntot
             du(i) = du(i)*binvm1(i,1,1,1)
             dv(i) = dv(i)*binvm1(i,1,1,1)
@@ -3707,7 +3943,7 @@ c
 c     Mask
 c
       nu = mu(0)
-      if (ldim.eq.3) then
+      if (ndim.eq.3) then
          do i=1,nu
             du(mu(i)) = 0.
             dv(mu(i)) = 0.
@@ -3721,7 +3957,7 @@ c
       endif
 c
 #ifdef TIMER
-      opct = ldim*ntot
+      opct = ndim*ntot
       dct(myrout) = dct(myrout) + opct
       dcount      =      dcount + opct
 #endif
@@ -3765,9 +4001,9 @@ c
 c
       nel = nelv
       if (imesh.eq.2) nel = nelt
-      nxy1  = lx1*ly1
-      nyz1  = ly1*lz1
-      nxyz1 = lx1*ly1*lz1
+      nxy1  = nx1*ny1
+      nyz1  = ny1*nz1
+      nxyz1 = nx1*ny1*nz1
       ntot  = nxyz1*nel
 C
 C     Compute vel.grad(u)
@@ -3781,23 +4017,23 @@ C
                wk(i,1,1,3)=w(i,1,1,ie)+beta*cw(i,1,1,ie)
             enddo
 c
-            call mxm   (dxm1,lx1,wk(1,1,1,1),lx1,du(1,ie),nyz1)
-            call mxm   (dxm1,lx1,wk(1,1,1,2),lx1,dv(1,ie),nyz1)
-            call mxm   (dxm1,lx1,wk(1,1,1,3),lx1,dw(1,ie),nyz1)
+            call mxm   (dxm1,nx1,wk(1,1,1,1),nx1,du(1,ie),nyz1)
+            call mxm   (dxm1,nx1,wk(1,1,1,2),nx1,dv(1,ie),nyz1)
+            call mxm   (dxm1,nx1,wk(1,1,1,3),nx1,dw(1,ie),nyz1)
             do i=1,nxyz1
                du(i,ie) = du(i,ie)*vx(i,1,1,ie)
                dv(i,ie) = dv(i,ie)*vx(i,1,1,ie)
                dw(i,ie) = dw(i,ie)*vx(i,1,1,ie)
             enddo
 c
-            do iz=1,lz1
-              call mxm (wk(1,1,iz,1),lx1,dytm1,ly1,duds(1,1,iz),ly1)
+            do iz=1,nz1
+              call mxm (wk(1,1,iz,1),nx1,dytm1,ny1,duds(1,1,iz),ny1)
             enddo
-            do iz=1,lz1
-              call mxm (wk(1,1,iz,2),lx1,dytm1,ly1,dvds(1,1,iz),ly1)
+            do iz=1,nz1
+              call mxm (wk(1,1,iz,2),nx1,dytm1,ny1,dvds(1,1,iz),ny1)
             enddo
-            do iz=1,lz1
-              call mxm (wk(1,1,iz,3),lx1,dytm1,ly1,dwds(1,1,iz),ly1)
+            do iz=1,nz1
+              call mxm (wk(1,1,iz,3),nx1,dytm1,ny1,dwds(1,1,iz),ny1)
             enddo
             do i=1,nxyz1
                du(i,ie) = du(i,ie) + duds(i,1,1)*vy(i,1,1,ie)
@@ -3805,9 +4041,9 @@ c
                dw(i,ie) = dw(i,ie) + dwds(i,1,1)*vy(i,1,1,ie)
             enddo
 c
-            call mxm   (wk(1,1,1,1),nxy1,dztm1,lz1,duds,lz1)
-            call mxm   (wk(1,1,1,2),nxy1,dztm1,lz1,dvds,lz1)
-            call mxm   (wk(1,1,1,3),nxy1,dztm1,lz1,dwds,lz1)
+            call mxm   (wk(1,1,1,1),nxy1,dztm1,nz1,duds,nz1)
+            call mxm   (wk(1,1,1,2),nxy1,dztm1,nz1,dvds,nz1)
+            call mxm   (wk(1,1,1,3),nxy1,dztm1,nz1,dwds,nz1)
             do i=1,nxyz1
                du(i,ie) = du(i,ie) + duds(i,1,1)*vz(i,1,1,ie)
                dv(i,ie) = dv(i,ie) + dvds(i,1,1)*vz(i,1,1,ie)
@@ -3820,15 +4056,15 @@ c           2D
                wk(i,1,1,2)=v(i,1,1,ie)+beta*cv(i,1,1,ie)
             enddo
 c
-            call mxm   (dxm1,lx1,wk(1,1,1,1),lx1,du(1,ie),nyz1)
-            call mxm   (dxm1,lx1,wk(1,1,1,2),lx1,dv(1,ie),nyz1)
+            call mxm   (dxm1,nx1,wk(1,1,1,1),nx1,du(1,ie),nyz1)
+            call mxm   (dxm1,nx1,wk(1,1,1,2),nx1,dv(1,ie),nyz1)
             do i=1,nxyz1
                du(i,ie) = du(i,ie)*vx(i,1,1,ie)
                dv(i,ie) = dv(i,ie)*vx(i,1,1,ie)
             enddo
 c
-            call mxm (wk(1,1,1,1),lx1,dytm1,ly1,duds,ly1)
-            call mxm (wk(1,1,1,2),lx1,dytm1,ly1,dvds,ly1)
+            call mxm (wk(1,1,1,1),nx1,dytm1,ny1,duds,ny1)
+            call mxm (wk(1,1,1,2),nx1,dytm1,ny1,dvds,ny1)
             do i=1,nxyz1
                du(i,ie) = du(i,ie) + duds(i,1,1)*vy(i,1,1,ie)
                dv(i,ie) = dv(i,ie) + dvds(i,1,1)*vy(i,1,1,ie)
@@ -3887,11 +4123,11 @@ c     Evaluate right-hand-side for Runge-Kutta scheme in the case of
 c     pure convection.
 c
 C
-      ntot = lx1*ly1*lz1*nelv
+      ntot = nx1*ny1*nz1*nelv
       call conv1rk2  (du,dv,dw,u,v,w,cu,cv,cw,beta,wk)
       CALL OPDSSUM   (du,dv,dw)
 c
-      if (ldim.eq.3) then
+      if (ndim.eq.3) then
          do i=1,ntot
             du(i) = du(i)*binvm1(i,1,1,1)
             dv(i) = dv(i)*binvm1(i,1,1,1)
@@ -3907,7 +4143,7 @@ c
 c     Mask
 c
       nu = mu(0)
-      if (ldim.eq.3) then
+      if (ndim.eq.3) then
          do i=1,nu
             du(mu(i)) = 0.
             dv(mu(i)) = 0.
@@ -3921,7 +4157,7 @@ c
       endif
 c
 #ifdef TIMER
-      opct = ldim*ntot
+      opct = ndim*ntot
       dct(myrout) = dct(myrout) + opct
       dcount      =      dcount + opct
 #endif
@@ -3946,8 +4182,8 @@ C---------------------------------------------------------------------
       COMMON /CTMP1/ WORK(LXYZ1,LELT)
       real mask(lxyz1,lelt)
 C
-      NFACES= 2*ldim
-      NTOT1 = lx1*ly1*lz1*NELV
+      NFACES= 2*NDIM
+      NTOT1 = NX1*NY1*NZ1*NELV
       CALL RZERO (WORK  ,NTOT1)
       CALL RONE  (mask,NTOT1)
 C
@@ -3962,15 +4198,15 @@ C
      $     CALL FADDCL3(WORK(1,IE),VZ(1,1,1,IE),UNZ(1,1,IFACE,IE),IFACE)
            CALL FCAVER (VAVER,WORK,IE,IFACE)
 C
-           IF (VAVER.LT.0.) CALL FACEV (mask,IE,IFACE,0.0,lx1,ly1,lz1)
+           IF (VAVER.LT.0.) CALL FACEV (mask,IE,IFACE,0.0,NX1,NY1,NZ1)
          ENDIF
          IF (CB(1:2).EQ.'WS' .OR. CB(1:2).EQ.'ws') 
-     $   CALL FACEV (mask,IE,IFACE,0.0,lx1,ly1,lz1)
+     $   CALL FACEV (mask,IE,IFACE,0.0,NX1,NY1,NZ1)
  100   CONTINUE
       ENDIF
 C
       nm = 0
-      ntot = lx1*ly1*lz1*nelv
+      ntot = nx1*ny1*nz1*nelv
       do i=1,ntot
          if (mask(i,1).eq.0) then
             nm = nm+1
@@ -4017,7 +4253,7 @@ C
       COMMON /SCRCH/ RKZ3  (LX1,LY1,LZ1,LELV)
      $ ,             RKZ4  (LX1,LY1,LZ1,LELV)
 C
-      NTOT1 = lx1*ly1*lz1*NELV
+      NTOT1 = NX1*NY1*NZ1*NELV
 C
       CALL OPCOPY  (VXN,VYN,VZN,VX,VY,VZ)
       CALL HYPMSK3 (HV1MSK,HV2MSK,HV3MSK)
@@ -4038,7 +4274,7 @@ C           Stage 1.
 C
             CALL FRKCONV (RKX1,VEL1,HV1MSK)
             CALL FRKCONV (RKY1,VEL2,HV2MSK)
-            IF (ldim.EQ.3) 
+            IF (NDIM.EQ.3) 
      $      CALL FRKCONV (RKZ1,VEL3,HV3MSK)
 C
 C
@@ -4055,7 +4291,7 @@ C
             CALL ADD2S2  (WORK,RKY1,-DTHALF,NTOT1)
             CALL FRKCONV (RKY2,WORK,HV2MSK)
 C
-            IF (ldim.EQ.3) THEN
+            IF (NDIM.EQ.3) THEN
                CALL COPY    (WORK,VEL3,NTOT1)
                CALL ADD2S2  (WORK,RKZ1,-DTHALF,NTOT1)
                CALL FRKCONV (RKZ2,WORK,HV3MSK)
@@ -4072,7 +4308,7 @@ C
             CALL ADD2S2  (WORK,RKY2,-DTHALF,NTOT1)
             CALL FRKCONV (RKY3,WORK,HV2MSK)
 C
-            IF (ldim.EQ.3) THEN
+            IF (NDIM.EQ.3) THEN
                CALL COPY    (WORK,VEL3,NTOT1)
                CALL ADD2S2  (WORK,RKZ2,-DTHALF,NTOT1)
                CALL FRKCONV (RKZ3,WORK,HV3MSK)
@@ -4092,7 +4328,7 @@ C
             CALL ADD2S2  (WORK,RKY3,-DTAU,NTOT1)
             CALL FRKCONV (RKY4,WORK,HV2MSK)
 C
-            IF (ldim.EQ.3) THEN
+            IF (NDIM.EQ.3) THEN
                CALL COPY    (WORK,VEL3,NTOT1)
                CALL ADD2S2  (WORK,RKZ3,-DTAU,NTOT1)
                CALL FRKCONV (RKZ4,WORK,HV3MSK)
@@ -4111,7 +4347,7 @@ C
             CALL ADD2S2  (VEL2,RKY3,-CRK2,NTOT1)
             CALL ADD2S2  (VEL2,RKY4,-CRK1,NTOT1)
 C
-            IF (ldim.EQ.3) THEN
+            IF (NDIM.EQ.3) THEN
                CALL ADD2S2  (VEL3,RKZ1,-CRK1,NTOT1)
                CALL ADD2S2  (VEL3,RKZ2,-CRK2,NTOT1)
                CALL ADD2S2  (VEL3,RKZ3,-CRK2,NTOT1)
@@ -4143,12 +4379,12 @@ C---------------------------------------------------------------------
 C
       iflg = 1
 
-      ntot2 = lx2*ly2*lz2*nelv
+      ntot2 = nx2*ny2*nz2*nelv
       call multd (work,inpx,rxm2,sxm2,txm2,1,iflg)
       call copy  (outfld,work,ntot2)
       call multd (work,inpy,rym2,sym2,tym2,2,iflg)
       call add2  (outfld,work,ntot2)
-      if (ldim.eq.3) then
+      if (ndim.eq.3) then
          call multd (work,inpz,rzm2,szm2,tzm2,3,iflg)
          call add2  (outfld,work,ntot2)
       endif
@@ -4172,7 +4408,7 @@ C-----------------------------------------------------------------------
 C
       call cdtp (outx,inpfld,rxm2,sxm2,txm2,1)
       call cdtp (outy,inpfld,rym2,sym2,tym2,2)
-      if (ldim.eq.3) 
+      if (ndim.eq.3) 
      $   call cdtp (outz,inpfld,rzm2,szm2,tzm2,3)
 C
       return
@@ -4250,7 +4486,7 @@ c
 
       integer e
 
-      N = lx1-1
+      N = nx1-1
       do e=1,nel
          if (if3d) then
             call local_grad3(ur,us,ut,u,N,e,dxm1,dxtm1)
@@ -4328,7 +4564,7 @@ C
       REAL fac
 C----------------------------------------------------------------------
 
-      NTOT = lx1*ly1*lz1*NELV
+      NTOT = NX1*NY1*NZ1*NELV
 
       ! CONSTRUCT strain rate tensor S (SXX, ..., SZZ)
       ! CALL MAKEABS
@@ -4367,7 +4603,7 @@ c add to RHS (BFX,BFY,BFZ)
       CALL COL2  (W1,W2,NTOT)
       CALL ADD2  (BFY,W1,NTOT)
 
-      IF (ldim.EQ.3) THEN
+      IF (NDIM.EQ.3) THEN
         CALL OPDIV (W1,SXZ,SYZ,SZZ)
         CALL COL2  (W1,W2,NTOT)
         CALL ADD2  (BFZ,W1,NTOT)
@@ -4402,14 +4638,14 @@ C
 
 
       NEL = NELV
-      NTOT1 = lx1*ly1*lz1*NEL
+      NTOT1 = NX1*NY1*NZ1*NEL
 
       CALL RZERO3 (EXX,EYY,EZZ,NTOT1)
       CALL RZERO3 (EXY,EXZ,EYZ,NTOT1)
 C
       CALL UXYZ  (U1,EXX,EXY,EXZ,NEL)
       CALL UXYZ  (U2,EXY,EYY,EYZ,NEL)
-      IF (ldim.EQ.3) CALL UXYZ   (U3,EXZ,EYZ,EZZ,NEL)
+      IF (NDIM.EQ.3) CALL UXYZ   (U3,EXZ,EYZ,EZZ,NEL)
 C
       CALL COL2 (EXX,JACMi,NTOT1)
       CALL COL2 (EXY,JACMi,NTOT1)
@@ -4417,7 +4653,7 @@ C
 C
       IF (IFAXIS) CALL AXIEZZ (U2,EYY,EZZ,NEL)
 C
-      IF (ldim.EQ.3) THEN
+      IF (NDIM.EQ.3) THEN
          CALL COL2 (EXZ,JACMi,NTOT1)
          CALL COL2 (EYZ,JACMi,NTOT1)
          CALL COL2 (EZZ,JACMi,NTOT1)
@@ -4443,7 +4679,7 @@ c
       real wrk(lx1,ly1,lz1,lelt)
       real h2(lx1,ly1,lz1,lelt)
 
-      ntot = lx1*ly1*lz1*nelfld(ifld)
+      ntot = nx1*ny1*nz1*nelfld(ifld)
       if (.not.iftmsh(ifld)) imesh = 1
       if (     iftmsh(ifld)) imesh = 2
 
@@ -4470,7 +4706,7 @@ c-----------------------------------------------------------------------
 
       integer e
 
-      nxyz = lx1*ly1*lz1
+      nxyz = nx1*ny1*nz1
 
 
       do e=1,nelv
@@ -4496,7 +4732,7 @@ c-----------------------------------------------------------------------
 
       integer e
 
-      nxyz = lx1*ly1*lz1
+      nxyz = nx1*ny1*nz1
       k = 1
       do e=1,nelv
 
@@ -4559,9 +4795,9 @@ c     \dxj/   \     dxj       dxi /
      $             , vr(lxyz),vs(lxyz),vt(lxyz)
      $             , wr(lxyz),ws(lxyz),wt(lxyz)
 
-      call gradl_rst(ur,us,ut,u1,lx1,if3d) ! Grad on GLL
-      call gradl_rst(vr,vs,vt,u2,lx1,if3d)
-      call gradl_rst(wr,ws,wt,u3,lx1,if3d)
+      call gradl_rst(ur,us,ut,u1,nx1,if3d) ! Grad on GLL
+      call gradl_rst(vr,vs,vt,u2,nx1,if3d)
+      call gradl_rst(wr,ws,wt,u3,nx1,if3d)
 
       do i=1,lxyz
 
@@ -4604,9 +4840,9 @@ c        uij := jac*( du_i / dx_j )
 
       enddo
 
-      call gradl_rst_t(w1,ur,us,ut,lx1,if3d)
-      call gradl_rst_t(w2,vr,vs,vt,lx1,if3d)
-      call gradl_rst_t(w3,wr,ws,wt,lx1,if3d)
+      call gradl_rst_t(w1,ur,us,ut,nx1,if3d)
+      call gradl_rst_t(w2,vr,vs,vt,nx1,if3d)
+      call gradl_rst_t(w3,wr,ws,wt,nx1,if3d)
 
       return
       end
@@ -4640,8 +4876,8 @@ c
      $             , vr(lxyz),vs(lxyz),vt(lxyz)
      $             , wr(lxyz),ws(lxyz),wt(lxyz)
 
-      call gradl_rst(ur,us,ut,u1,lx1,if3d) ! Grad on GLL
-      call gradl_rst(vr,vs,vt,u2,lx1,if3d)
+      call gradl_rst(ur,us,ut,u1,nx1,if3d) ! Grad on GLL
+      call gradl_rst(vr,vs,vt,u2,nx1,if3d)
 
       do i=1,lxyz
 
@@ -4669,8 +4905,8 @@ c        uij := jac*( du_i / dx_j )
 
       enddo
 
-      call gradl_rst_t(w1,ur,us,ut,lx1,if3d)
-      call gradl_rst_t(w2,vr,vs,vt,lx1,if3d)
+      call gradl_rst_t(w1,ur,us,ut,nx1,if3d)
+      call gradl_rst_t(w2,vr,vs,vt,nx1,if3d)
 
       return
       end

@@ -3,7 +3,7 @@ c
       subroutine set_vert(glo_num,ngv,nx,nel,vertex,ifcenter)
 c
 c     Given global array, vertex, pointing to hex vertices, set up
-c     a new array of global pointers for an nx^ldim set of elements.
+c     a new array of global pointers for an nx^ndim set of elements.
 c
       include 'SIZE'
       include 'INPUT'
@@ -47,8 +47,10 @@ c
       real uf(1),vf(1)
       common /scrpre/ uc(lcr*lelt),w(2*lx1*ly1*lz1)
 
+
+
       call map_f_to_c_l2_bilin(uf,vf,w)
-      call fgslib_crs_solve(xxth(ifield),uc,uf)
+      call crs_solve(xxth(ifield),uc,uf)
       call map_c_to_f_l2_bilin(uf,uc,w)
 
       return
@@ -129,7 +131,7 @@ c     if (nxc.lt.2) nxc=2
 
       if(nio.eq.0) write(6,*) 'setup h1 coarse grid, nx_crs=', nx_crs
 
-      ncr     = nxc**ldim
+      ncr     = nxc**ndim
       nxyz_c  = ncr
 c
 c     Set SEM_to_GLOB
@@ -144,7 +146,7 @@ c     Set mask
       if (if3d) nzc=nxc
       call rone(mask,ntot)
       call rone(cmlt,ntot)
-      nfaces=2*ldim
+      nfaces=2*ndim
 c     ifield=1			!c? avo: set in set_overlap through 'TSTEP'?
 
       if (ifield.eq.1) then
@@ -169,27 +171,38 @@ c     ifield=1			!c? avo: set in set_overlap through 'TSTEP'?
 
 c     Set global index of dirichlet nodes to zero; xxt will ignore them
 
-      call fgslib_gs_setup(gs_handle,se_to_gcrs,ntot,nekcomm,mp)
-      call fgslib_gs_op   (gs_handle,mask,1,2,0)  !  "*"
-      call fgslib_gs_op   (gs_handle,cmlt,1,1,0)  !  "+"
-      call fgslib_gs_free (gs_handle)
+      call gs_setup(gs_handle,se_to_gcrs,ntot,nekcomm,mp)
+c     if(nid .eq.0) print *, 'gs_setup', dnekclock()-t0
+c     t1 = dnekclock() 
+      call gs_op   (gs_handle,mask,1,2,0)  !  "*"
+c     if(nid .eq.0) print *, 'gs_op mask', dnekclock()-t1
+c     t1 = dnekclock() 
+      call gs_op   (gs_handle,cmlt,1,1,0)  !  "+"
+c     if(nid .eq.0) print *, 'gs_op cmlt', dnekclock()-t1
+c     t1 = dnekclock() 
+      call gs_free (gs_handle)
       call set_jl_crs_mask(ntot,mask,se_to_gcrs)
-
+c     if(nid .eq.0) print *, 'set_jl_crs_mask', dnekclock()-t1
+c     t1 = dnekclock() 
       call invcol1(cmlt,ntot)
+c     if(nid .eq.0) print *, 'invcol1', dnekclock()-t1
+c     t1 = dnekclock() 
 
 c     Setup local SEM-based Neumann operators (for now, just full...)
 
 c      if (param(51).eq.1) then     ! old coarse grid
-c         nxyz1=lx1*ly1*lz1
+c         nxyz1=nx1*ny1*nz1
 c         lda = 27*nxyz1*lelt
 c         ldw =  7*nxyz1*lelt
 c         call get_local_crs(a,lda,nxc,h1,h2,w,ldw)
 c      else
 c        NOTE: a(),h1,...,w2() must all be large enough
-         n = lx1*ly1*lz1*nelv
+         n = nx1*ny1*nz1*nelv
          call rone (h1,n)
          call rzero(h2,n)
          call get_local_crs_galerkin(a,ncr,nxc,h1,h2,w1,w2)
+c     if(nid .eq.0) print *, 'get_local_crs_galerkin', dnekclock()-t1
+c     t1 = dnekclock() 
 c      endif
 
       call set_mat_ij(ia,ja,ncr,nelv)
@@ -199,17 +212,15 @@ c      endif
       elseif (ifield.eq.ifldmhd) then
          if (ifbcor)  null_space=1
       endif
+c     if(nid .eq.0) print *, 'set_mat_ij', dnekclock()-t1
+c     t1 = dnekclock() 
 
       nz=ncr*ncr*nelv
-      imode = param(40) 
-
-!     dz comment
-c     if (imode.eq.0 .and. nelgt.gt.350000) call exitti(
-c    $ 'Problem size requires AMG solver$',1)
-
-      call fgslib_crs_setup(xxth(ifield),imode,nekcomm,mp,ntot,
-     $                      se_to_gcrs,nz,ia,ja,a, null_space)
-c      call fgslib_crs_stats(xxth(ifield))
+      call crs_setup(xxth(ifield),nekcomm,mp, ntot,se_to_gcrs,
+     $               nz,ia,ja,a, null_space)
+c     call crs_stats(xxth(ifield))
+c     if(nid .eq.0) print *, 'crs_setup', dnekclock()-t1
+c     t1 = dnekclock() 
 
       t0 = dnekclock()-t0
       if (nio.eq.0) then
@@ -495,7 +506,7 @@ c-----------------------------------------------------------------------
 c
       subroutine get_local_crs(a,lda,nxc,h1,h2,w,ldw)
 c
-c     This routine generates Nelv submatrices of order nxc^ldim.
+c     This routine generates Nelv submatrices of order nxc^ndim.
 c
       include 'SIZE'
       include 'GEOM'
@@ -513,7 +524,7 @@ c
       common /ctmp1/ x(lcrd),y(lcrd),z(lcrd)
 c
 c
-      ncrs_loc = nxc**ldim
+      ncrs_loc = nxc**ndim
       n2       = ncrs_loc*ncrs_loc
 c
 c     Required storage for a:
@@ -527,11 +538,11 @@ c
       l = 1
       do ie=1,nelv
 c
-         call map_m_to_n(x,nxc,xm1(1,1,1,ie),lx1,if3d,w,ldw)
-         call map_m_to_n(y,nxc,ym1(1,1,1,ie),lx1,if3d,w,ldw)
-         if (if3d) call map_m_to_n(z,nxc,zm1(1,1,1,ie),lx1,if3d,w,ldw)
-c.later. call map_m_to_n(hl1,nxc,h1(1,1,1,ie),lx1,if3d,w,ldw)
-c.later. call map_m_to_n(hl2,nxc,h2(1,1,1,ie),lx1,if3d,w,ldw)
+         call map_m_to_n(x,nxc,xm1(1,1,1,ie),nx1,if3d,w,ldw)
+         call map_m_to_n(y,nxc,ym1(1,1,1,ie),nx1,if3d,w,ldw)
+         if (if3d) call map_m_to_n(z,nxc,zm1(1,1,1,ie),nx1,if3d,w,ldw)
+c.later. call map_m_to_n(hl1,nxc,h1(1,1,1,ie),nx1,if3d,w,ldw)
+c.later. call map_m_to_n(hl2,nxc,h2(1,1,1,ie),nx1,if3d,w,ldw)
 c
          call a_crs_enriched(a(l),h1,h2,x,y,z,nxc,if3d,ie)
          l=l+n2
@@ -548,7 +559,7 @@ c
 c     This sets up a matrix for a single array of tensor-product
 c     gridpoints (e.g., an array defined by SEM-GLL vertices)
 c
-c         For example, suppose ldim=3.
+c         For example, suppose ndim=3.
 c
 c         Then, there would be ncrs_loc := nxc^3 dofs for this matrix,
 c
@@ -566,7 +577,7 @@ c
       real a_loc(ldm2,ldm2)
       real x(8),y(8),z(8)
 c
-      ncrs_loc = nxc**ldim
+      ncrs_loc = nxc**ndim
       n2       = ncrs_loc*ncrs_loc
       call rzero(a,n2)
 c
@@ -1078,7 +1089,7 @@ c
       nx_crs = 2   ! bilinear only
 
       do ie=1,nelv
-         call maph1_to_l2(uf(1,ie),lx2,uc(1,ie),nx_crs,if3d,w,ltot22)
+         call maph1_to_l2(uf(1,ie),nx2,uc(1,ie),nx_crs,if3d,w,ltot22)
       enddo
 c
       return
@@ -1102,7 +1113,7 @@ c                                 (linear --> spectral GLL mesh)
       nx_crs = 2   ! bilinear only
 
       do ie=1,nelv
-         call maph1_to_l2t(uc(1,ie),nx_crs,uf(1,ie),lx2,if3d,w,ltot22)
+         call maph1_to_l2t(uc(1,ie),nx_crs,uf(1,ie),nx2,if3d,w,ltot22)
       enddo
 c
       return
@@ -1354,7 +1365,7 @@ c
       endif
       ncrsl  = ncrsl  + 1
 
-      ntot = nelv*lx1*ly1*lz1
+      ntot = nelv*nx1*ny1*nz1
       call col3(uf,vf,vmult,ntot)
 
       call map_f_to_c_h1_bilin(vc,uf)   ! additive Schwarz
@@ -1362,7 +1373,7 @@ c
 #ifdef TIMER
       etime1=dnekclock()
 #endif
-      call fgslib_crs_solve(xxth(ifield),uc,vc)
+      call crs_solve(xxth(ifield),uc,vc)
 #ifdef TIMER
       tcrsl=tcrsl+dnekclock()-etime1
 #endif
@@ -1379,9 +1390,9 @@ c
       include 'DOMAIN'
       include 'WZ'
 c
-      do ix=1,lx1
+      do ix=1,nx1
          h1_basis(ix) = 0.5*(1.0-zgm1(ix,1))
-         h1_basis(ix+lx1) = 0.5*(1.0+zgm1(ix,1))
+         h1_basis(ix+nx1) = 0.5*(1.0+zgm1(ix,1))
       enddo
       call transpose(h1_basist,2,h1_basis,lx1)
 c
@@ -1416,22 +1427,22 @@ c
       if (if3d) then
 c
          n31 = n2*n2*nelv
-         n13 = lx1*lx1
+         n13 = nx1*nx1
 c
-         call mxm(h1_basis,lx1,uc,n2,v,n31)
+         call mxm(h1_basis,nx1,uc,n2,v,n31)
          do ie=1,nelv
             do iz=1,n2
-               call mxm(v(1,1,iz,ie),lx1,h1_basist,n2,w(1,1,iz),lx1)
+               call mxm(v(1,1,iz,ie),nx1,h1_basist,n2,w(1,1,iz),nx1)
             enddo
-            call mxm(w,n13,h1_basist,n2,uf(1,ie),lx1)
+            call mxm(w,n13,h1_basist,n2,uf(1,ie),nx1)
          enddo
 c
       else
 c
          n31 = 2*nelv
-         call mxm(h1_basis,lx1,uc,n2,v,n31)
+         call mxm(h1_basis,nx1,uc,n2,v,n31)
          do ie=1,nelv
-            call mxm(v(1,1,1,ie),lx1,h1_basist,n2,uf(1,ie),lx1)
+            call mxm(v(1,1,1,ie),nx1,h1_basist,n2,uf(1,ie),nx1)
          enddo
       endif
       return
@@ -1462,20 +1473,20 @@ c
 c
       n2 = 2
       if (if3d) then
-         n31 = ly1*lz1*nelv
+         n31 = ny1*nz1*nelv
          n13 = n2*n2
-         call mxm(h1_basist,n2,uf,lx1,v,n31)
+         call mxm(h1_basist,n2,uf,nx1,v,n31)
          do ie=1,nelv
-            do iz=1,lz1
-               call mxm(v(1,1,iz,ie),n2,h1_basis,lx1,w(1,1,iz),n2)
+            do iz=1,nz1
+               call mxm(v(1,1,iz,ie),n2,h1_basis,nx1,w(1,1,iz),n2)
             enddo
-            call mxm(w,n13,h1_basis,lx1,uc(1,ie),n2)
+            call mxm(w,n13,h1_basis,nx1,uc(1,ie),n2)
          enddo
       else
-         n31 = ly1*nelv
-         call mxm(h1_basist,n2,uf,lx1,v,n31)
+         n31 = ny1*nelv
+         call mxm(h1_basist,n2,uf,nx1,v,n31)
          do ie=1,nelv
-               call mxm(v(1,1,1,ie),n2,h1_basis,lx1,uc(1,ie),n2)
+               call mxm(v(1,1,1,ie),n2,h1_basis,nx1,uc(1,ie),n2)
          enddo
       endif
  
@@ -1490,7 +1501,7 @@ c     Galerkin projection
       include 'SIZE'
 
       real    a(ncl,ncl,1),h1(1),h2(1)
-      real    w1(lx1*ly1*lz1,nelv),w2(lx1*ly1*lz1,nelv)
+      real    w1(nx1*ny1*nz1,nelv),w2(nx1*ny1*nz1,nelv)
 
       parameter (lcrd=lx1**ldim)
       common /ctmp1z/ b(lcrd,8)
@@ -1504,7 +1515,7 @@ c     Galerkin projection
       isd  = 1
       imsh = 1
 
-      nxyz = lx1*ly1*lz1
+      nxyz = nx1*ny1*nz1
       do j = 1,ncl
          do e = 1,nelv
             call copy(w1(1,e),b(1,j),nxyz)
@@ -1526,39 +1537,39 @@ c-----------------------------------------------------------------------
       subroutine gen_crs_basis(b,j) ! bi- tri-linear
 
       include 'SIZE'
-      real b(lx1,ly1,lz1)
+      real b(nx1,ny1,nz1)
 
       real z0(lx1),z1(lx1)
       real zr(lx1),zs(lx1),zt(lx1)
 
       integer p,q,r
 
-      call zwgll(zr,zs,lx1)
+      call zwgll(zr,zs,nx1)
 
-      do i=1,lx1
+      do i=1,nx1
          z0(i) = .5*(1-zr(i))  ! 1-->0
          z1(i) = .5*(1+zr(i))  ! 0-->1
       enddo
 
-      call copy(zr,z0,lx1)
-      call copy(zs,z0,lx1)
-      call copy(zt,z0,lx1)
+      call copy(zr,z0,nx1)
+      call copy(zs,z0,nx1)
+      call copy(zt,z0,nx1)
 
-      if (mod(j,2).eq.0)                        call copy(zr,z1,lx1)
-      if (j.eq.3.or.j.eq.4.or.j.eq.7.or.j.eq.8) call copy(zs,z1,lx1)
-      if (j.gt.4)                               call copy(zt,z1,lx1)
+      if (mod(j,2).eq.0)                        call copy(zr,z1,nx1)
+      if (j.eq.3.or.j.eq.4.or.j.eq.7.or.j.eq.8) call copy(zs,z1,nx1)
+      if (j.gt.4)                               call copy(zt,z1,nx1)
 
-      if (ldim.eq.3) then
-         do r=1,lx1
-         do q=1,lx1
-         do p=1,lx1
+      if (ndim.eq.3) then
+         do r=1,nx1
+         do q=1,nx1
+         do p=1,nx1
             b(p,q,r) = zr(p)*zs(q)*zt(r)
          enddo
          enddo
          enddo
       else
-         do q=1,lx1
-         do p=1,lx1
+         do q=1,nx1
+         do p=1,nx1
             b(p,q,1) = zr(p)*zs(q)
          enddo
          enddo
@@ -1570,40 +1581,40 @@ c-----------------------------------------------------------------------
       subroutine gen_crs_basis2(b,j) ! bi- tri-quadratic
 
       include 'SIZE'
-      real b(lx1,ly1,lz1)
+      real b(nx1,ny1,nz1)
 
       real z0(lx1),z1(lx1),z2(lx1)
       real zr(lx1),zs(lx1),zt(lx1)
 
       integer p,q,r
 
-      call zwgll(zr,zs,lx1)
+      call zwgll(zr,zs,nx1)
 
-      do i=1,lx1
+      do i=1,nx1
          z0(i) = .5*(zr(i)-1)*zr(i)  ! 1-->0   ! Lagrangian, ordered
          z1(i) = 4.*(1+zr(i))*(1-zr(i))        ! lexicographically
          z2(i) = .5*(zr(i)+1)*zr(i)  ! 0-->1   !
       enddo
 
-      call copy(zr,z0,lx1)
-      call copy(zs,z0,lx1)
-      call copy(zt,z0,lx1)
+      call copy(zr,z0,nx1)
+      call copy(zs,z0,nx1)
+      call copy(zt,z0,nx1)
 
-      if (mod(j,2).eq.0)                        call copy(zr,z1,lx1)
-      if (j.eq.3.or.j.eq.4.or.j.eq.7.or.j.eq.8) call copy(zs,z1,lx1)
-      if (j.gt.4)                               call copy(zt,z1,lx1)
+      if (mod(j,2).eq.0)                        call copy(zr,z1,nx1)
+      if (j.eq.3.or.j.eq.4.or.j.eq.7.or.j.eq.8) call copy(zs,z1,nx1)
+      if (j.gt.4)                               call copy(zt,z1,nx1)
 
-      if (ldim.eq.3) then
-         do r=1,lx1
-         do q=1,lx1
-         do p=1,lx1
+      if (ndim.eq.3) then
+         do r=1,nx1
+         do q=1,nx1
+         do p=1,nx1
             b(p,q,r) = zr(p)*zs(q)*zt(r)
          enddo
          enddo
          enddo
       else
-         do q=1,lx1
-         do p=1,lx1
+         do q=1,nx1
+         do p=1,nx1
             b(p,q,1) = zr(p)*zs(q)
          enddo
          enddo
@@ -1636,6 +1647,319 @@ c-----------------------------------------------------------------------
       return
       end
 c-----------------------------------------------------------------------
+      subroutine assign_gllnid(gllnid,iunsort,nelgt,nelgv,np)
+c
+      integer gllnid(1),iunsort(1),nelgt,np 
+      integer e,eg
+
+
+      log2p = log2(np)
+      np2   = 2**log2p
+      if (np2.eq.np.and.nelgv.eq.nelgt) then   ! std power of 2 case
+
+         npstar = ivlmax(gllnid,nelgt)+1
+         nnpstr = npstar/np
+         do eg=1,nelgt
+            gllnid(eg) = gllnid(eg)/nnpstr
+         enddo
+
+         return
+
+      elseif (np2.eq.np) then   ! std power of 2 case, conjugate heat xfer
+
+c        Assign fluid elements
+         npstar = max(np,ivlmax(gllnid,nelgv)+1)
+         nnpstr = npstar/np
+         do eg=1,nelgv
+            gllnid(eg) = gllnid(eg)/nnpstr
+         enddo
+
+c        Assign solid elements
+         nelgs  = nelgt-nelgv  ! number of solid elements
+         npstar = max(np,ivlmax(gllnid(nelgv+1),nelgs)+1)
+         nnpstr = npstar/np
+         do eg=nelgv+1,nelgt
+            gllnid(eg) = gllnid(eg)/nnpstr
+         enddo
+
+         return
+
+      elseif (nelgv.ne.nelgt) then
+         call exitti
+     $       ('Conjugate heat transfer requires P=power of 2.$',np)
+      endif
+
+
+c  Below is the code for P a non-power of two:
+
+c  Split the sorted gllnid array (read from .map file) 
+c  into np contiguous partitions. 
+
+c  To load balance the partitions in case of mod(nelgt,np)>0 
+c  add 1 contiguous entry out of the sorted list to NODE_i 
+c  where i = np-mod(nelgt,np) ... np
+
+
+      nel   = nelgt/np       ! number of elements per processor
+      nmod  = mod(nelgt,np)  ! bounded between 1 ... np-1
+      npp   = np - nmod      ! how many paritions of size nel 
+ 
+      ! sort gllnid  
+      call isort(gllnid,iunsort,nelgt)
+
+      ! setup partitions of size nel 
+      k   = 0
+      do ip = 0,npp-1
+         do e = 1,nel  
+            k = k + 1 
+            gllnid(k) = ip
+         enddo
+      enddo
+      ! setup partitions of size nel+1
+      if(nmod.gt.0) then 
+        do ip = npp,np-1
+           do e = 1,nel+1  
+              k = k + 1 
+              gllnid(k) = ip
+           enddo
+        enddo 
+      endif
+
+      ! unddo sorting to restore initial ordering by
+      ! global element number
+      call iswapt_ip(gllnid,iunsort,nelgt)
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine get_vert
+      include 'SIZE'
+      include 'TOTAL'
+      include 'ZPER'
+
+      common /ivrtx/ vertex ((2**ldim),lelt)
+      common /elementload/ gfirst, inoassignd, resetFindpts, pload(lelg)
+      integer vertex
+      integer gfirst, inoassignd, resetFindpts, pload
+
+      integer e,eg
+
+      integer icalld
+      save    icalld
+      data    icalld  /0/
+      if ((icalld.gt.0) .and. (inoassignd .gt. 0)) return
+      icalld = 1
+      inoassignd = 1
+
+      ncrnr = 2**ndim
+
+      call get_vert_map(vertex, ncrnr, nelgt, '.map', ifgfdm)
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine get_vert_map(vertex, nlv, nel, suffix, ifgfdm)
+      include 'SIZE'
+      include 'INPUT'
+      include 'PARALLEL'
+      logical ifgfdm
+      common /nekmpi/ nid_,np_,nekcomm,nekgroup,nekreal
+      common /elementload/ gfirst, inoassignd, resetFindpts, pload(lelg)
+      integer gfirst, inoassignd, resetFindpts, pload
+      integer vertex(nlv,1)
+      character*4 suffix
+
+      parameter(mdw=2+2**ldim)
+      parameter(ndw=7*lx1*ly1*lz1*lelv/mdw)
+      common /scrns/ wk(mdw,ndw)   ! room for long ints, if desired
+      integer wk,e,eg,eg0,eg1, distrib
+      common /inputfiles/ mapdata(mdw,ndw)
+      integer mapdata   
+      integer neli
+      save neli
+
+      character*132 mapfle
+      character*1   mapfle1(132)
+      equivalence  (mapfle,mapfle1)
+
+      starttime = dnekclock_sync()
+      if (gfirst .eq. 1) then
+      iok = 0
+      if (nid.eq.0) then
+         lfname = ltrunc(reafle,132) - 4
+         call blank (mapfle,132)
+         call chcopy(mapfle,reafle,lfname)
+         call chcopy(mapfle1(lfname+1),suffix,4)
+         if(nio.eq.0) write(6,'(A,A)') ' Reading ', mapfle
+         open(unit=80,file=mapfle,status='old',err=99)
+         read(80,*,err=99) neli,nnzi
+         iok = 1
+      endif
+   99 continue
+      iok = iglmax(iok,1)
+      if (iok.eq.0) goto 999     ! Mapfile not found
+
+      if (nid.eq.0) then
+         neli = iglmax(neli,1)   ! communicate to all procs
+      else
+         neli = 0
+         neli = iglmax(neli,1)   ! communicate neli to all procs
+      endif
+
+      npass = 1 + (neli/ndw)
+      if (npass.gt.np) then
+         if (nid.eq.0) write(6,*) npass,np,neli,ndw,'Error get_vert_map'
+         call exitt
+      endif 
+
+      !print *, "Debug neli", npass, neli, ndw
+      len = 4*mdw*ndw
+      if (nid.gt.0.and.nid.lt.npass) msg_id=irecv(nid,wk,len)
+      call nekgsync
+
+      if (nid.eq.0) then
+         eg0 = 0
+         do ipass=1,npass
+            eg1 = min(eg0+ndw,neli)
+            m   = 0
+            do eg=eg0+1,eg1
+               m = m+1
+               read(80,*,end=998) (wk(k,m),k=2,mdw)
+               if(.not.ifgfdm .and. (gfirst .eq. 1)) then
+                  gllnid(eg) = wk(2,m)  !proc map,  must still be divided
+               endif
+               wk(1,m)    = eg
+            enddo
+            if (ipass.lt.npass) call csend(ipass,wk,len,ipass,0) !send to ipass
+            eg0 = eg1
+         enddo
+         close(80)
+         call icopy(mapdata, wk, mdw*ndw)
+         ntuple = m
+         endtime = dnekclock()
+         print *, "read map file", endtime - starttime
+      elseif (nid.lt.npass) then
+         call msgwait(msg_id)
+         call icopy(mapdata, wk, mdw*ndw)
+         ntuple = ndw
+      else
+         ntuple = 0
+      endif
+      else
+          npass = 1 + (neli/ndw)
+          !print *, "Debug nelgt", nid,  nelgt, mdw, ndw, neli, npass 
+          if (nid .eq. 0) then 
+              call icopy(wk, mapdata, mdw*ndw)
+              ntuple = neli-(npass-1)*ndw
+          else if (nid .lt. npass) then
+              ntuple = ndw
+              call icopy(wk, mapdata, mdw*ndw) 
+          else
+              ntuple = 0
+          endif
+      endif
+      endtime = dnekclock_sync()
+      if( mod(nid, np/2) .eq. np/2-2) then
+         print *, 'copy_wk ', endtime-starttime
+      endif
+
+c     Distribute and assign partitions
+      if (.not.ifgfdm) then             ! gllnid is already assigned for gfdm
+        if ( gfirst .eq. 1) then
+           if (nid .eq. 0) then
+               call assign_partitions   !(gllnid, lelt, nelgt, np)
+!keke add, assign gllnid according to the elements load balance
+           endif
+            lng = isize*neli
+            call bcast(gllnid,lng)
+c           call assign_gllnid(gllnid,gllel,nelgt,nelgv,np) ! gllel is used as scratch
+         else
+            starttime = dnekclock_sync()
+            distrib = param(80)
+            if (distrib.eq.1) then
+                call recompute_partitions_distr   !keke add, distributed load balance
+            else if (distrib.eq.2) then
+                call recompute_partitions_hybrid
+            else
+                call recompute_partitions   !keke add, assign gllnid according to the elements load balance, gllnid has obtained within this function
+            endif
+            lng = isize*neli
+            call bcast(pload,lng)
+            endtime = dnekclock_sync()
+            if( mod(nid, np/2) .eq. np/2-2) then
+               print *, 'recompute_partitions ', endtime-starttime,
+     $    'distrib', distrib
+            endif
+        endif
+
+c       if(nid.eq.0) then
+c         write(99,*) (gllnid(i),i=1,nelgt)
+c       endif
+c       call exitt
+      endif
+
+      nelt=0 !     Count number of elements on this processor
+      nelv=0
+      do eg=1,neli
+         if (gllnid(eg).eq.nid) then
+            if (eg.le.nelgv) nelv=nelv+1
+            if (eg.le.nelgt) nelt=nelt+1
+         endif
+      enddo
+      if (np.le.64) write(6,*) nid,nelv,nelt,nelgv,nelgt,' NELV'
+
+c     NOW: crystal route vertex by processor id
+
+      do i=1,ntuple
+         eg=wk(1,i)
+         wk(2,i)=gllnid(eg)        ! processor id for element eg
+      enddo
+
+      key = 2  ! processor id is in wk(2,:)
+      call crystal_ituple_transfer(cr_h,wk,mdw,ntuple,ndw,key)
+
+      if (.not.ifgfdm) then            ! no sorting for gfdm?
+         key = 1  ! Sort tuple list by eg := wk(1,:)
+         nkey = 1
+         call crystal_ituple_sort(cr_h,wk,mdw,nelt,key,nkey)
+      endif
+
+      iflag = 0
+      if (ntuple.ne.nelt) then
+         write(6,*) nid,ntuple,nelv,nelt,nelgt,' NELT FAIL'
+         write(6,*) 'Check that .map file and .rea file agree'
+         iflag=1
+      else
+         nv = 2**ndim
+         do e=1,nelt
+            call icopy(vertex(1,e),wk(3,e),nv)
+         enddo
+      endif
+
+      iflag = iglmax(iflag,1)
+      if (iflag.gt.0) then
+         do mid=0,np-1
+            call nekgsync
+            if (mid.eq.nid)
+     $      write(6,*) nid,ntuple,nelv,nelt,nelgt,' NELT FB'
+            call nekgsync
+         enddo
+         call nekgsync
+         call exitt
+      endif
+
+      return
+
+  999 continue
+      if (nid.eq.0) write(6,*) 'ABORT: Could not find map file ',mapfle
+      call exitt
+
+  998 continue
+      if (nid.eq.0) write(6,*)ipass,npass,eg0,eg1,mdw,m,eg,'get v fail'
+      call exitt0  ! Emergency exit
+
+      return
+      end
 c-----------------------------------------------------------------------
       subroutine irank_vecn(ind,nn,a,m,n,key,nkey,aa)
 c
@@ -1708,10 +2032,10 @@ c
 
       ni= n
       ky=1  ! Assumes crystal_new already called
-      call fgslib_crystal_ituple_transfer(cr_h, tuple,m,ni,nmax, ky)
+      call crystal_ituple_transfer(cr_h, tuple,m,ni,nmax, ky)
 
       nimx = iglmax(ni,1)
-      if (ni.gt.nmax)   write(6,*) ni,nmax,n,'cr_xfer problem, A'
+      if (ni.gt.nmax)   write(6,*) nid, ni,nmax,n,'cr_xfer problem, A'
       if (nimx.gt.nmax) call exitt
 
       nkey = m-2
@@ -1729,7 +2053,7 @@ c
          tuple(3,i) = ind(i) + nu_prior  ! global ranking
       enddo
 
-      call fgslib_crystal_ituple_transfer(cr_h, tuple,m,ni,nmax, ky)
+      call crystal_ituple_transfer(cr_h, tuple,m,ni,nmax, ky)
 
       nk = 1  ! restore to original order, local rank: 2; global: 3
       ky = 2
@@ -1786,7 +2110,7 @@ c     Assign hypercube ordering of vertices
 c     -------------------------------------
 c
 c     Count number of unique vertices
-      nlv  = 2**ldim
+      nlv  = 2**ndim
       ngvv = iglmax(vertex,nlv*nel)
 c
       do e=1,nel
@@ -1926,8 +2250,8 @@ c                      |     |/     /
 c                     5+-----+6    Z
 c                         3
 c
-      nfaces=ldim*2
-      ncrnr =2**(ldim-1)
+      nfaces=ndim*2
+      ncrnr =2**(ndim-1)
       do e=1,nel
          do ifac=1,nfaces
             do icrn=1,ncrnr
@@ -2139,7 +2463,7 @@ c
       key(3)=3
 c
 c     Count number of unique vertices
-      nlv  = 2**ldim
+      nlv  = 2**ndim
       ngvv = iglmax(vertex,nlv*nel)
       ngv  = ngvv
 c
@@ -2326,7 +2650,7 @@ c-----------------------------------------------------------------------
       ifld = 2
       if (ifflow) ifld = 1
 
-      nface=2*ldim
+      nface=2*ndim
       do e=1,nelt
       do f=1,nface,2
          fo  = f+1

@@ -569,7 +569,7 @@ c     // Also need to get local domain index
           err = visitvardataalloc(y)
           if(IF3D) err = visitvardataalloc(z)
 
-          dl = lx1 * ly1 * lz1
+          dl = NX1 * NY1 * NZ1
           err = visitvardatasetd(x, VISIT_OWNER_SIM, 1, dl, 
      .                           XM1(1,1,1,domain))
           err = visitvardatasetd(y, VISIT_OWNER_SIM, 1, dl,
@@ -579,9 +579,9 @@ c     // Also need to get local domain index
      .                             ZM1(1,1,1,domain))
           endif
 
-          dmdims(1) = lx1
-          dmdims(2) = ly1
-          dmdims(3) = lz1
+          dmdims(1) = NX1
+          dmdims(2) = NY1
+          dmdims(3) = NZ1
           if(IF3D) then
             err = visitcurvmeshsetcoordsxyz(vh, dmdims, x, y, z)
           else
@@ -619,7 +619,7 @@ c     implicit none
 c     // local vars
       integer h, nvals, err, domain, k
 
-      nvals = lx1 * ly1 * lz1
+      nvals = NX1 * NY1 * NZ1
 
       h = VISIT_INVALID_HANDLE
 
@@ -734,15 +734,3 @@ c---------------------------------------------------------------------
       visitgetdomainnesting = VISIT_INVALID_HANDLE
       end
 
-c---------------------------------------------------------------------
-c     visitgetmixedvariable
-c     This is needed to run with newer version of Visit (2.12.0 tested).
-c     TODO: The comment should be changed
-c---------------------------------------------------------------------
-      integer function visitgetmixedvariable(domain, name, lname)
-      implicit none
-      character*8 name
-      integer     domain, lname
-      include "visitfortransimV2interface.inc"
-      visitgetmixedvariable = VISIT_ERROR
-      end

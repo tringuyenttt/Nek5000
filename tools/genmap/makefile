@@ -1,14 +1,18 @@
+FLAGS =  $(FFLAGS_IN)
+CFLAGS =  $(CFLAGS_IN)
+LFLAGS = $(LFLAGS_IN)
 prefix = $(bin_nek_tools)
+
 
 OBJS = genmap.o byte.o 
 
 all: genmap
 
 genmap:	$(OBJS)
-	$(FC) $(FFLAGS) -o $(prefix)/genmap $(OBJS) $(LDFLAGS)
+	$(F77) $(FLAGS) -o $(prefix)/genmap $(OBJS) $(LFLAGS)
 
 clean:
-	@rm -f *.o
+	'rm' *.o
 
-genmap.o        : genmap.f		;  $(FC) -c $(FFLAGS) genmap.f
-byte.o		: ../../core/byte.c	;  $(CC) -c $(CFLAGS) ../../core/byte.c
+genmap.o          : genmap.f		 		;  $(F77) -c $(FLAGS) genmap.f
+byte.o				: ../../core/byte.c	;  $(CC)  -c $(CFLAGS) ../../core/byte.c

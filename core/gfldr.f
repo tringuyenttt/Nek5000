@@ -1,5 +1,3 @@
-#ifndef NOMPIIO
-
       subroutine gfldr(sourcefld)
 c
 c     generic field file reader
@@ -7,27 +5,36 @@ c     reads sourcefld and interpolates all avaiable fields
 c     onto current mesh
 c
 c     memory requirement: 
-c     nelgs*nxs**ldim < np*(4*lelt*lx1**ldim)
+c     nelgs*nxs**ndim < np*(4*lelt*lx1**ldim)
 c
       include 'SIZE'
       include 'TOTAL'
       include 'RESTART'
       include 'GFLDR'
 
-      character sourcefld*(*)
+      character*132 sourcefld
 
       common /scrcg/  pm1(lx1*ly1*lz1,lelv)
       common /nekmpi/ nidd,npp,nekcomm,nekgroup,nekreal
 
-      character*1   hdr(iHeaderSize)
+      character*132 hdr
+      character*1   hdr1(132)
+      equivalence   (hdr1,hdr)
 
       integer*8 dtmp8
 
-      logical ifbswp, if_byte_swap_test
-      real*4 bytetest
+      logical if_full_pres_tmp
+
 
       etime_t = dnekclock_sync()
-      if(nio.eq.0) write(6,*) 'call gfldr ',trim(sourcefld) 
+      if(nio.eq.0) write(6,*) 'call gfldr' 
+
+#ifndef MPIIO
+      call exitti('ABORT: Requires MPIIO to be enabled!$',0)
+#endif
+
+      isave = pid0r
+      pid0r = nid ! every ranks reads
 
       ! open source field file
       ierr = 0
@@ -42,23 +49,25 @@ c
 
       ! read and parse header
       call byte_read_mpi(hdr,iHeaderSize/4,0,fldh_gfldr,ierr)
-      call byte_read_mpi(bytetest,1,0,fldh_gfldr,ierr)
+      call err_chk(ierr,' Cannot read header!$')
 
+      call bcast(hdr,iHeaderSize)
       call mfi_parse_hdr(hdr,ierr)
       call err_chk(ierr,' Invalid header!$')
-      ifbswp = if_byte_swap_test(bytetest,ierr)
-      call err_chk(ierr,' Invalid endian tag!$')
-
       nelgs   = nelgr
       nxs     = nxr
       nys     = nyr
       nzs     = nzr
       if(nzs.gt.1) then 
-        ldims = 3
+        ndims = 3
       else
-        ldims = 2
+        ndims = 2
       endif
       if (ifgtim) time = timer
+
+
+      if_full_pres_tmp = if_full_pres
+      if (wdsizr.eq.8) if_full_pres = .true.
 
       ! distribute elements across all ranks
       nels = nelgs/np
@@ -75,8 +84,10 @@ c
       noff0_b    = iHeaderSize + iSize + iSize*dtmp8
 
       ! do some checks
-      if(ldims.ne.ldim) 
-     $ call exitti('ldim of source does not match target!$',0)
+      if(ndims.ne.ndim) 
+     $ call exitti('ABORT: ndim of source does not match target!$',0)
+      if(indx2(rdcode,10,'X',1).le.0) 
+     $ call exitti('ABORT: source does not contain a mesh!$',0)
       if(ntots_b/wdsize .gt. ltots) then
         dtmp8 = nelgs
         lelt_req = dtmp8*nxs*nys*nzs / (np*ltots/lelt)
@@ -86,64 +97,51 @@ c
         call exitt
       endif
 
-      ifldpos = 0
-      if(ifgetxr) then
-        ! read source mesh coordinates
-        call gfldr_getxyz(xm1s,ym1s,zm1s,ifbswp)
-        ifldpos = ldim
-      else
-        call exitti('source does not contain a mesh!$',0)
-      endif
-
-      if(if_full_pres) then
-        call exitti('no support for if_full_pres!$',0)
-      endif
-
-      if(nelt.ne.nelv) then
-        call exitti('no support for conj/HT!$',0)
-      endif
+      ! read source mesh coordinates
+      call gfldr_getxyz(xm1s,ym1s,zm1s)
 
       ! initialize interpolation tool using source mesh
       nxf   = 2*nxs
       nyf   = 2*nys
       nzf   = 2*nzs
+      bb_t  = 0.1
       nhash = nxs*nys*nzs 
       nmax  = 256
 
-      call fgslib_findpts_setup(inth_gfldr,nekcomm,np,ldim,
-     &                          xm1s,ym1s,zm1s,nxs,nys,nzs,
-     &                          nels,nxf,nyf,nzf,bb_t,
-     &                          nhash,nhash,nmax,tol)
+      call findpts_setup(inth_gfldr,nekcomm,np,ndim,
+     &                   xm1s,ym1s,zm1s,nxs,nys,nzs,
+     &                   nels,nxf,nyf,nzf,bb_t,
+     &                   nhash,nhash,nmax,tol)
 
       ! read source fields and interpolate
-      if(ifgetur) then
-        if(nid.eq.0 .and. loglevel.gt.2) write(6,*) 'reading vel'
-        call gfldr_getfld(vx,vy,vz,ldim,ifldpos+1,ifbswp)
-        ifldpos = ifldpos + ldim
+      ifldpos = ndim
+      if(ifgetur .and. ifflow) then
+        call gfldr_getfld(vx,vy,vz,ndim,ifldpos+1)
+        ifldpos = ifldpos + ndim
       endif
       if(ifgetpr) then
-        if(nid.eq.0 .and. loglevel.gt.2) write(6,*) 'reading pr'
-        call gfldr_getfld(pm1,dum,dum,1,ifldpos+1,ifbswp)
+        call gfldr_getfld(pm1,dum,dum,1,ifldpos+1)
         ifldpos = ifldpos + 1
         if (ifaxis) call axis_interp_ic(pm1)
-        call map_pm1_to_pr(pm1,1)
+        if (ifgetpr) call map_pm1_to_pr(pm1,1)
       endif
       if(ifgettr .and. ifheat) then
-        if(nid.eq.0 .and. loglevel.gt.2) write(6,*) 'reading temp'
-        call gfldr_getfld(t(1,1,1,1,1),dum,dum,1,ifldpos+1,ifbswp)
+        call gfldr_getfld(t(1,1,1,1,1),dum,dum,1,ifldpos+1)
         ifldpos = ifldpos + 1
       endif
       do i = 1,ldimt-1
          if(ifgtpsr(i)) then
-           if(nid.eq.0 .and. loglevel.gt.2) 
-     $       write(6,*) 'reading scalar',i
-           call gfldr_getfld(t(1,1,1,1,i+1),dum,dum,1,ifldpos+1,ifbswp) 
+           call gfldr_getfld(t(1,1,1,1,i+1),dum,dum,1,ifldpos+1) 
            ifldpos = ifldpos + 1
          endif
       enddo
 
+      if_full_pres = if_full_pres_tmp
+
       call byte_close_mpi(fldh_gfldr,ierr)
-      call fgslib_findpts_free(inth_gfldr)
+      call findpts_free(inth_gfldr)
+
+      pid0r = isave
 
       etime_t = dnekclock_sync() - etime_t
       if(nio.eq.0) write(6,'(A,1(1g8.2),A)')
@@ -152,7 +150,7 @@ c
       return
       end
 c-----------------------------------------------------------------------
-      subroutine gfldr_getxyz(xout,yout,zout,ifbswp)
+      subroutine gfldr_getxyz(xout,yout,zout)
 
       include 'SIZE'
       include 'GFLDR'
@@ -161,30 +159,29 @@ c-----------------------------------------------------------------------
       real xout(*)
       real yout(*)
       real zout(*)
-      logical ifbswp
 
       integer*8 ioff_b
 
  
-      ioff_b = noff0_b + ldim*rankoff_b
+      ioff_b = noff0_b + ndim*rankoff_b
       call byte_set_view(ioff_b,fldh_gfldr)
 
-      nread = ldim*ntots_b/4
+      nread = ndim*ntots_b/4
       call byte_read_mpi(bufr,nread,-1,fldh_gfldr,ierr)
-      if(ifbswp) then
+      if(if_byte_sw) then
         if(wdsizr.eq.4) call byte_reverse (bufr,nread,ierr)
         if(wdsizr.eq.8) call byte_reverse8(bufr,nread,ierr)
       endif
 
-      call gfldr_buf2vi (xout,1,bufr,ldim,wdsizr,nels,nxyzs)
-      call gfldr_buf2vi (yout,2,bufr,ldim,wdsizr,nels,nxyzs)
-      if(ldim.eq.3)
-     $ call gfldr_buf2vi(zout,3,bufr,ldim,wdsizr,nels,nxyzs)
+      call gfldr_buf2vi (xout,1,bufr,ndim,wdsizr,nels,nxyzs)
+      call gfldr_buf2vi (yout,2,bufr,ndim,wdsizr,nels,nxyzs)
+      if(ndim.eq.3)
+     $ call gfldr_buf2vi(zout,3,bufr,ndim,wdsizr,nels,nxyzs)
 
       return
       end
 c-----------------------------------------------------------------------
-      subroutine gfldr_getfld(out1,out2,out3,nldim,ifldpos,ifbswp)
+      subroutine gfldr_getfld(out1,out2,out3,nndim,ifldpos)
 
       include 'SIZE'
       include 'GEOM'
@@ -194,7 +191,6 @@ c-----------------------------------------------------------------------
       real out1(*)
       real out2(*)
       real out3(*)
-      logical ifbswp
 
       integer*8 ioff_b
 
@@ -213,27 +209,27 @@ c-----------------------------------------------------------------------
 
       ! read field data from source fld file
       ioff_b = noff0_b + (ifldpos-1)*nSizeFld_b
-      ioff_b = ioff_b  + nldim*rankoff_b
+      ioff_b = ioff_b  + nndim*rankoff_b
       call byte_set_view(ioff_b,fldh_gfldr)
-      nread = nldim*ntots_b/4
+      nread = nndim*ntots_b/4
       call byte_read_mpi(bufr,nread,-1,fldh_gfldr,ierr)
-      if(ifbswp) then
+      if(if_byte_sw) then
         if(wdsizr.eq.4) call byte_reverse (bufr,nread,ierr)
         if(wdsizr.eq.8) call byte_reverse8(bufr,nread,ierr)
       endif
 
       ! interpolate onto current mesh
-      ntot = lx1*ly1*lz1*nelt
-      call gfldr_buf2vi  (buffld,1,bufr,nldim,wdsizr,nels,nxyzs)
+      ntot = nx1*ny1*nz1*nelt
+      call gfldr_buf2vi  (buffld,1,bufr,nndim,wdsizr,nels,nxyzs)
       call gfldr_intp    (out1,buffld,ifpts)
-      if(nldim.eq.1) return
+      if(nndim.eq.1) return
 
-      call gfldr_buf2vi  (buffld,2,bufr,nldim,wdsizr,nels,nxyzs)
+      call gfldr_buf2vi  (buffld,2,bufr,nndim,wdsizr,nels,nxyzs)
       call gfldr_intp    (out2,buffld,.false.)
-      if(nldim.eq.2) return
+      if(nndim.eq.2) return
 
-      if(nldim.eq.3) then
-        call gfldr_buf2vi(buffld,3,bufr,nldim,wdsizr,nels,nxyzs)
+      if(nndim.eq.3) then
+        call gfldr_buf2vi(buffld,3,bufr,nndim,wdsizr,nels,nxyzs)
         call gfldr_intp  (out3,buffld,.false.)
       endif
 
@@ -264,7 +260,6 @@ c-----------------------------------------------------------------------
       subroutine gfldr_intp(fieldout,fieldin,iffpts)
 
       include 'SIZE'
-      include 'RESTART'
       include 'GEOM'
       include 'GFLDR'
 
@@ -275,48 +270,40 @@ c-----------------------------------------------------------------------
 
 
       nfail = 0
-      ntot  = lx1*ly1*lz1*nelt
-
-      toldist = 5e-6
-      if(wdsizr.eq.8) toldist = 5e-14
+      ntot  = nx1*ny1*nz1*nelt
 
       if(iffpts) then ! locate points (iel,iproc,r,s,t)
 
-        call fgslib_findpts(inth_gfldr,
-     &                      grcode,1,
-     &                      gproc,1,
-     &                      gelid,1,
-     &                      grst,ldim,
-     &                      gdist,1,
-     &                      xm1,1,
-     &                      ym1,1,
-     &                      zm1,1,ntot)
+        call findpts(inth_gfldr,
+     &               rcode,1,
+     &               proc,1,
+     &               elid,1,
+     &               rst,ndim,
+     &               dist,1,
+     &               xm1,1,
+     &               ym1,1,
+     &               zm1,1,ntot)
 
         do i=1,ntot
-           if(grcode(i).eq.1 .and. sqrt(gdist(i)).gt.toldist)
-     &       nfail = nfail + 1
-           if(grcode(i).eq.2) nfail = nfail + 1
+           if(rcode(i).eq.1 .and. dist(i).gt.10*tol) nfail = nfail + 1
+           if(rcode(i).eq.2) nfail = nfail + 1
         enddo
 
         nfail_sum = i8glsum(nfail,1)
-        if(nfail_sum.gt.0) then
-          if(nio.eq.0) write(6,*)
-     &      ' WARNING: Unable to find all mesh points in source fld ',
-     &      nfail_sum
-        endif
+        if(nio.eq.0 .and. nfail_sum.gt.0) write(6,*) 
+     &   ' WARNING: Unable to find all mesh points in source fld ',
+     &   nfail_sum
 
       endif
 
       ! evaluate inut field at given points
-      call fgslib_findpts_eval(inth_gfldr,
-     &                         fieldout,1,
-     &                         grcode,1,
-     &                         gproc,1,
-     &                         gelid,1,
-     &                         grst,ldim,ntot,
-     &                         fieldin)
+      call findpts_eval(inth_gfldr,
+     &                  fieldout,1,
+     &                  rcode,1,
+     &                  proc,1,
+     &                  elid,1,
+     &                  rst,ndim,ntot,
+     &                  fieldin)
 
       return
       end
-
-#endif

@@ -1,18 +1,16 @@
-PREFIX = $(bin_nek_tools)
-LIBS = ./hypre/lib/libHYPRE.a
+CFLAGS    = -DHAVE_CONFIG_H -DHYPRE_TIMING 
+LFLAGS    = $(LFLAGS_IN) -lm
+PREFIX    = $(bin_nek_tools)
 
-all: lib amg_hypre
+all: amg_hypre
 
-amg_hypre: amg_hypre.o
-	$(CC) -o $(PREFIX)/$@ $^ $(LIBS) $(LDFLAGS) -lm
+amg_hypre: amg_hypre.o 
+	$(CC) -o $(PREFIX)/$@ $^ $(LFLAGS)
 
 %.o: %.c
-	$(CC) -DHAVE_CONFIG_H -DHYPRE_TIMING $(CFLAGS) -I./hypre/include -c $<
-
-lib:
-	@cd hypre; env CC="$(CC)" CFLAGS="$(BIGMEM)" FC="$(FC)" FFLAGS="$(BIGMEM)" ./install
+	$(CC) $(CFLAGS) -c $<
 
 clean:
-	@rm -rf amg_hypre *.o hypre/lib hypre/include hypre/hypre*
+	-rm amg_hypre *.o
 
 .PHONY: clean

@@ -1,5 +1,5 @@
 c-----------------------------------------------------------------------
-      subroutine read_re2_data(ifbswap)  ! .re2 reader
+      subroutine bin_rd1(ifbswap)  ! .re2 reader
 
       include 'SIZE'
       include 'TOTAL'
@@ -7,12 +7,11 @@ c-----------------------------------------------------------------------
       include 'CTIMER'
 
       logical ifbswap
-      integer idummy(100)
 
       common /nekmpi/ nidd,npp,nekcomm,nekgroup,nekreal
  
  
-      etime0 = dnekclock_sync()
+      etime1 = dnekclock_sync()
 
                   ibc = 2
       if (ifflow) ibc = 1
@@ -21,18 +20,20 @@ c-----------------------------------------------------------------------
       if (ifheat) nfldt = 2+npscal
       if (ifmhd ) nfldt = 2+npscal+1
 
-      ! first field to read
-      if (param(33).gt.0) ibc = int(param(33))
-
-      ! number of fields to read
-      if (param(32).gt.0) nfldt = ibc + int(param(32)) - 1
+c
+c     If p32 = 0.1, there will be no bcs read in
+c
+      if (param(32).gt.0) nfldt = ibc + param(32)-1
 
       lcbc=18*lelt*(ldimt1 + 1)
       call blank(cbc,lcbc)
 
-#ifndef NOMPIIO
-      call fgslib_crystal_setup(cr_re2,nekcomm,np)
+#ifdef PRE2
+      call byte_close(ierr)
+      call crystal_setup(cr_re2,nekcomm,np)
 
+      isave = pid0r
+      pid0r = nid ! every ranks reads
       call byte_open_mpi(re2fle,fh_re2,.TRUE.,ierr)
       call err_chk(ierr,' Cannot open .re2 file!$')
 
@@ -42,12 +43,10 @@ c-----------------------------------------------------------------------
          call readp_re2_bc(cbc(1,1,ifield),bc(1,1,1,ifield),ifbswap)
       enddo
 
-      call fgslib_crystal_free(cr_re2)
+      call crystal_free  (cr_re2)
       call byte_close_mpi(fh_re2,ierr)
+      pid0r = isave 
 #else
-      call byte_open(re2fle,ierr)
-      call byte_read(idummy,21,ierr) ! skip hdr+endian code 
-
       call bin_rd1_mesh (ifbswap)
       call bin_rd1_curve(ifbswap)
       do ifield = ibc,nfldt
@@ -57,9 +56,9 @@ c-----------------------------------------------------------------------
       call byte_close(ierr)
 #endif
 
-      etime_t = dnekclock_sync() - etime0
-      if(nio.eq.0) write(6,'(A,1(1g8.2),A,/)')
-     &                   ' done :: read .re2 file   ',
+      etime_t = dnekclock_sync() - etime1
+      if(nio.eq.0) write(6,'(A,1(1g8.2),A)')
+     &                   'done :: read .re2 file   ',
      &                   etime_t, ' sec'
 
       return
@@ -85,7 +84,7 @@ c-----------------------------------------------------------------------
       integer*8       lre2off_b,dtmp8
       integer*8       nrg
 
-      if (nio.eq.0) write(6,*) ' preading mesh '
+      if (nio.eq.0) write(6,*) '  preading mesh '
 
       nrg       = nelgt
       nr        = nelt
@@ -114,8 +113,7 @@ c-----------------------------------------------------------------------
       ! crystal route nr real items of size lrs to rank vi(key,1:nr)
       n   = nr
       key = 1 
-      call fgslib_crystal_tuple_transfer(cr_re2,n,nrmax,vi,li,vl,0,vr,0,
-     &                                   key)
+      call crystal_tuple_transfer(cr_re2,n,nrmax,vi,li,vl,0,vr,0,key)
 
       ! unpack buffer
       if(n.gt.nrmax) goto 100
@@ -174,7 +172,7 @@ c-----------------------------------------------------------------------
       re2off_b = re2off_b + 4*nwds4r
 
       if(nrg.eq.0) return
-      if(nio.eq.0) write(6,*) ' preading curved sides '
+      if(nio.eq.0) write(6,*) '  preading curved sides '
 
       ! read data from file
       nr = nrg/np
@@ -215,8 +213,7 @@ c-----------------------------------------------------------------------
       ! crystal route nr real items of size lrs to rank vi(key,1:nr)
       n    = nr
       key  = 1
-      call fgslib_crystal_tuple_transfer(cr_re2,n,nrmax,vi,li,vl,0,vr,0,
-     &                                   key)
+      call crystal_tuple_transfer(cr_re2,n,nrmax,vi,li,vl,0,vr,0,key)
 
       ! unpack buffer
       if(n.gt.nrmax) goto 100
@@ -281,7 +278,7 @@ c-----------------------------------------------------------------------
       re2off_b = re2off_b + 4*nwds4r
 
       if(nrg.eq.0) return
-      if(nio.eq.0) write(6,*) ' preading bc for ifld',ifield
+      if(nio.eq.0) write(6,*) '  preading bc for ifld',ifield
 
       ! read data from file
       nr = nrg/np
@@ -322,8 +319,7 @@ c-----------------------------------------------------------------------
       ! crystal route nr real items of size lrs to rank vi(key,1:nr)
       n    = nr
       key  = 1
-      call fgslib_crystal_tuple_transfer(cr_re2,n,nrmax,vi,li,vl,0,vr,0,
-     &                                   key)
+      call crystal_tuple_transfer(cr_re2,n,nrmax,vi,li,vl,0,vr,0,key)
 
       ! unpack buffer
       if(n.gt.nrmax) goto 100
@@ -348,7 +344,7 @@ c-----------------------------------------------------------------------
 c      integer e,eg,buf(0:49)
       integer e,eg,buf(0:49)
 
-      nwds = (1 + ldim*(2**ldim))*(wdsizi/4) ! group + 2x4 for 2d, 3x8 for 3d
+      nwds = (1 + ndim*(2**ndim))*(wdsizi/4) ! group + 2x4 for 2d, 3x8 for 3d
 
       if     (ifbswap.and.ierr.eq.0.and.wdsizi.eq.8) then
           call byte_reverse8(buf,nwds,ierr)
@@ -359,7 +355,7 @@ c      integer e,eg,buf(0:49)
 
       if(wdsizi.eq.8) then
          call copyi4(igroup(e),buf(0),1) !0-1
-         if (ldim.eq.3) then
+         if (ndim.eq.3) then
             call copy  (xc(1,e),buf( 2),8) !2 --17
             call copy  (yc(1,e),buf(18),8) !18--33
             call copy  (zc(1,e),buf(34),8) !34--49
@@ -464,7 +460,7 @@ c-----------------------------------------------------------------------
 
       if (nio.eq.0) write(6,*)    '  reading mesh '
 
-      nwds = (1 + ldim*(2**ldim))*(wdsizi/4) ! group + 2x4 for 2d, 3x8 for 3d
+      nwds = (1 + ndim*(2**ndim))*(wdsizi/4) ! group + 2x4 for 2d, 3x8 for 3d
       len  = 4*nwds                          ! 4 bytes / wd
 
       if (nwds.gt.55.or.isize.gt.4) then
@@ -686,7 +682,7 @@ c        write(6,*) mid,' bclose ',eg,nbc_max
 
       else               ! wait for data from node 0
 
-         nbc_max = 2*ldim*nelt
+         nbc_max = 2*ndim*nelt
          do k=1,nbc_max+1  ! Need one extra !
 
 c           write(6,*) nid,' recvbc1',k
@@ -752,75 +748,6 @@ c     len  = 4
             if(wdsizi.eq.4)call csend(mid, zero,len,mid,0)
          enddo
       endif
-
-      return
-      end
-c-----------------------------------------------------------------------
-      subroutine read_re2_hdr(ifbswap) ! open file & chk for byteswap
-
-      include 'SIZE'
-      include 'TOTAL'
-
-      logical ifbswap,if_byte_swap_test
-
-      integer fnami (33)
-      character*132 fname
-      equivalence (fname,fnami)
-
-      character*132 hdr
-      character*5 version
-      real*4      test
-
-      logical iffound
-
-      ierr=0
-
-      if (nid.eq.0) then
-         write(6,'(A,A)') ' Reading ', re2fle
-         call izero(fnami,33)
-         m = indx2(re2fle,132,' ',1)-1
-         call chcopy(fname,re2fle,m)
-
-         inquire(file=fname, exist=iffound)
-         if(.not.iffound) ierr = 1
-      endif
-      call err_chk(ierr,' Cannot find re2 file!$')
-
-      if (nid.eq.0) then
-         call byte_open(fname,ierr)
-         if(ierr.ne.0) goto 100
-         call byte_read(hdr,20,ierr)
-         if(ierr.ne.0) goto 100
-
-         read (hdr,1) version,nelgt,ldimr,nelgv
-    1    format(a5,i9,i3,i9)
- 
-         wdsizi = 4
-         if(version.eq.'#v002') wdsizi = 8
-         if(version.eq.'#v003') then
-           wdsizi = 8
-           param(32) = 1
-         endif
-
-         call byte_read(test,1,ierr)
-         if(ierr.ne.0) goto 100
-         ifbswap = if_byte_swap_test(test,ierr)
-         if(ierr.ne.0) goto 100
-        
-         call byte_close(ierr)
-      endif
- 
- 100  call err_chk(ierr,'Error reading re2 header$')
-
-      call bcast(wdsizi, ISIZE)
-      call bcast(ifbswap,LSIZE)
-      call bcast(nelgv  ,ISIZE)
-      call bcast(nelgt  ,ISIZE)
-      call bcast(ldimr  ,ISIZE)
-      call bcast(param(32),WDSIZE)
-
-      if(wdsize.eq.4.and.wdsizi.eq.8) 
-     $   call exitti('wdsize=4 & wdsizi(re2)=8 not compatible$',wdsizi)
 
       return
       end

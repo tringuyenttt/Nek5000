@@ -17,7 +17,7 @@ c     Global-to-local mapping for gs
 
 c     Initialize gather-scatter code
       ntot      = nx*ny*nz*nel
-      call fgslib_gs_setup(gs_handle,glo_num,ntot,nekcomm,mp)
+      call gs_setup(gs_handle,glo_num,ntot,nekcomm,mp)
 
 c     call gs_chkr(glo_num)
 
@@ -74,9 +74,7 @@ c                 ~ ~T
 c     This is the Q Q  part
 c
       if (gsh_fld(ifldt).ge.0) then
-         if (nio.eq.0.and.loglevel.gt.3)
-     $   write(6,*) 'dssum', ifldt 
-         call fgslib_gs_op(gsh_fld(ifldt),u,1,1,0)  ! 1 ==> +
+         call gs_op(gsh_fld(ifldt),u,1,1,0)  ! 1 ==> +
       endif
 c
 c
@@ -137,25 +135,25 @@ c    $   write(6,*) istep,' dsop: ',op,ifield,ifldt,gsh_fld(ifldt)
 
       if(ifsync) call nekgsync()
 
-      if (op.eq.'+  ') call fgslib_gs_op(gsh_fld(ifldt),u,1,1,0)
-      if (op.eq.'sum') call fgslib_gs_op(gsh_fld(ifldt),u,1,1,0)
-      if (op.eq.'SUM') call fgslib_gs_op(gsh_fld(ifldt),u,1,1,0)
+      if (op.eq.'+  ') call gs_op(gsh_fld(ifldt),u,1,1,0)
+      if (op.eq.'sum') call gs_op(gsh_fld(ifldt),u,1,1,0)
+      if (op.eq.'SUM') call gs_op(gsh_fld(ifldt),u,1,1,0)
 
-      if (op.eq.'*  ') call fgslib_gs_op(gsh_fld(ifldt),u,1,2,0)
-      if (op.eq.'mul') call fgslib_gs_op(gsh_fld(ifldt),u,1,2,0)
-      if (op.eq.'MUL') call fgslib_gs_op(gsh_fld(ifldt),u,1,2,0)
+      if (op.eq.'*  ') call gs_op(gsh_fld(ifldt),u,1,2,0)
+      if (op.eq.'mul') call gs_op(gsh_fld(ifldt),u,1,2,0)
+      if (op.eq.'MUL') call gs_op(gsh_fld(ifldt),u,1,2,0)
 
-      if (op.eq.'m  ') call fgslib_gs_op(gsh_fld(ifldt),u,1,3,0)
-      if (op.eq.'min') call fgslib_gs_op(gsh_fld(ifldt),u,1,3,0)
-      if (op.eq.'mna') call fgslib_gs_op(gsh_fld(ifldt),u,1,3,0)
-      if (op.eq.'MIN') call fgslib_gs_op(gsh_fld(ifldt),u,1,3,0)
-      if (op.eq.'MNA') call fgslib_gs_op(gsh_fld(ifldt),u,1,3,0)
+      if (op.eq.'m  ') call gs_op(gsh_fld(ifldt),u,1,3,0)
+      if (op.eq.'min') call gs_op(gsh_fld(ifldt),u,1,3,0)
+      if (op.eq.'mna') call gs_op(gsh_fld(ifldt),u,1,3,0)
+      if (op.eq.'MIN') call gs_op(gsh_fld(ifldt),u,1,3,0)
+      if (op.eq.'MNA') call gs_op(gsh_fld(ifldt),u,1,3,0)
 
-      if (op.eq.'M  ') call fgslib_gs_op(gsh_fld(ifldt),u,1,4,0)
-      if (op.eq.'max') call fgslib_gs_op(gsh_fld(ifldt),u,1,4,0)
-      if (op.eq.'mxa') call fgslib_gs_op(gsh_fld(ifldt),u,1,4,0)
-      if (op.eq.'MAX') call fgslib_gs_op(gsh_fld(ifldt),u,1,4,0)
-      if (op.eq.'MXA') call fgslib_gs_op(gsh_fld(ifldt),u,1,4,0)
+      if (op.eq.'M  ') call gs_op(gsh_fld(ifldt),u,1,4,0)
+      if (op.eq.'max') call gs_op(gsh_fld(ifldt),u,1,4,0)
+      if (op.eq.'mxa') call gs_op(gsh_fld(ifldt),u,1,4,0)
+      if (op.eq.'MAX') call gs_op(gsh_fld(ifldt),u,1,4,0)
+      if (op.eq.'MXA') call gs_op(gsh_fld(ifldt),u,1,4,0)
 c
       return
       end
@@ -195,7 +193,7 @@ c
 c     if (ifldt.eq.0)       ifldt = 1
       if (ifldt.eq.ifldmhd) ifldt = 1
 
-      call fgslib_gs_op_many(gsh_fld(ifldt),u,v,w,u,u,u,ldim,1,1,0)
+      call gs_op_many(gsh_fld(ifldt),u,v,w,u,u,u,ndim,1,1,0)
 
 #ifdef TIMER
       timee=(dnekclock()-etime1)
@@ -237,21 +235,21 @@ c     write(6,*) 'opdsop: ',op,ifldt,ifield
       if(ifsync) call nekgsync()
 
       if (op.eq.'+  ' .or. op.eq.'sum' .or. op.eq.'SUM')
-     $   call fgslib_gs_op_many(gsh_fld(ifldt),u,v,w,u,u,u,ldim,1,1,0)
+     $   call gs_op_many(gsh_fld(ifldt),u,v,w,u,u,u,ndim,1,1,0)
 
 
       if (op.eq.'*  ' .or. op.eq.'mul' .or. op.eq.'MUL')
-     $   call fgslib_gs_op_many(gsh_fld(ifldt),u,v,w,u,u,u,ldim,1,2,0)
+     $   call gs_op_many(gsh_fld(ifldt),u,v,w,u,u,u,ndim,1,2,0)
 
 
       if (op.eq.'m  ' .or. op.eq.'min' .or. op.eq.'mna'
      $                .or. op.eq.'MIN' .or. op.eq.'MNA')
-     $   call fgslib_gs_op_many(gsh_fld(ifldt),u,v,w,u,u,u,ldim,1,3,0)
+     $   call gs_op_many(gsh_fld(ifldt),u,v,w,u,u,u,ndim,1,3,0)
 
 
       if (op.eq.'M  ' .or. op.eq.'max' .or. op.eq.'mxa'
      $                .or. op.eq.'MAX' .or. op.eq.'MXA')
-     $   call fgslib_gs_op_many(gsh_fld(ifldt),u,v,w,u,u,u,ldim,1,4,0)
+     $   call gs_op_many(gsh_fld(ifldt),u,v,w,u,u,u,ndim,1,4,0)
 
 
       return
@@ -274,7 +272,7 @@ c
       nvdss=icalld
       etime1=dnekclock()
 #endif
-      call fgslib_gs_op_fields(gs_handle,u,stride,n,1,1,0)
+      call gs_op_fields(gs_handle,u,stride,n,1,1,0)
 
 #ifdef TIMER
       timee=(dnekclock()-etime1)
@@ -298,7 +296,7 @@ c
 c
       common /matvtmp/ utmp(lx1,ly1)
 c
-      if (ldim.eq.2) then
+      if (ndim.eq.2) then
          call mxm (Jmat(1,1,1),n1,uin,n1,uout,n2)
       else
          if (iftrsp) then
@@ -355,7 +353,7 @@ c      real a(1),b(1),c(1)
 c
 c      call q_in_place(a)
 c      call q_in_place(b)
-c      if (ldim .eq.3) call q_in_place(c)
+c      if (ndim .eq.3) call q_in_place(c)
 c
 c      return
 c      end
@@ -505,13 +503,13 @@ c
 c        Note, we zero out u() on this face after extracting, for
 c        consistency reasons discovered during Jerry's thesis. 
 c        Thus,  "ftovec_0" rather than ftovec().   (iface -- Ed notation)
-         do iface = 1 , 2*ldim
+         do iface = 1 , 2*ndim
             im = mortar(iface,ie)
             if (im.ne.0) then
                call ftovec_0(uin(1,iface),u,ie,iface,nx,ny,nz)
             endif
          enddo
-         do iface=1,2*ldim
+         do iface=1,2*ndim
             im = mortar(iface,ie)
             if (im.ne.0) then
                if (if3d) then
@@ -544,13 +542,13 @@ c     This is the J  part,  interpolating parent solution onto child
 c
 c
       do ie = 1 , nel
-         do iface = 1 , 2*ldim
+         do iface = 1 , 2*ndim
             im = mortar(iface,ie)
             if (im.ne.0) then
                call ftovec(uin(1,iface),u,ie,iface,nx,ny,nz)
             endif
          enddo
-         do iface=1,2*ldim
+         do iface=1,2*ndim
             im = mortar(iface,ie)
             if (im.ne.0) then
                call matvec3
@@ -606,7 +604,7 @@ c
 c                 ~ ~T
 c     This is the Q Q  part
 c
-      call fgslib_gs_op(gsh_fld(ifldt),u,1,1,0) 
+      call gs_op(gsh_fld(ifldt),u,1,1,0) 
 c
 c 
 c     This is the J  part,  interpolating parent solution onto child
@@ -670,7 +668,7 @@ c
 c                 ~ ~T
 c     This is the Q Q  part
 c
-      call fgslib_gs_op(gsh_fld(ifldt),u,1,1,0) 
+      call gs_op(gsh_fld(ifldt),u,1,1,0) 
       call col2  (u,mask,ntot)
 c
 c 
@@ -737,7 +735,7 @@ c
 c                 ~ ~T
 c     This is the Q Q  part
 c
-      call fgslib_gs_op(gsh_fld(ifldt),u,1,1,0) 
+      call gs_op(gsh_fld(ifldt),u,1,1,0) 
       call col3  (u,mask,binv,ntot)
 c
 c 

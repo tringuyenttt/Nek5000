@@ -2,12 +2,16 @@ c---------------------------------------------------------------------
       subroutine iniproc(intracomm)
       include 'SIZE'
       include 'PARALLEL'
-      include 'INPUT'
       include 'mpif.h'
 
       common /nekmpi/ nid_,np_,nekcomm,nekgroup,nekreal
 
       logical flag
+
+c      call mpi_initialized(mpi_is_initialized, ierr) !  Initialize MPI
+c      if ( mpi_is_initialized .eq. 0 ) then
+c         call mpi_init (ierr)
+c      endif
 
       ! set nek communicator
       call init_nek_comm(intracomm)
@@ -15,20 +19,15 @@ c---------------------------------------------------------------------
       np   = np_
 
       nio = -1             ! Default io flag 
-      if (nid.eq.0) nio=0  ! Only node 0 writes
+      if(nid.eq.0) nio=0   ! Only node 0 writes
 
-      if (nid.eq.nio) then
-         if (ifneknek) then
-           call set_stdout(' ',idsess) 
-         else
-           call set_stdout(' ',-1) 
-         endif
-      endif
-
-      if (nid.eq.nio) call printHeader
+      if(nid.eq.nio) call printHeader
 
       ! check upper tag size limit
       call mpi_attr_get(MPI_COMM_WORLD,MPI_TAG_UB,nval,flag,ierr)
+c     to avoid problems with MPI_TAG_UB on Cray we change
+c     tags from global (eg) to local (e) element number
+c      if (nval.lt.(10000+max(lp,lelg))) then
       if (nval.lt.(10000+lp)) then
          if(nid.eq.0) write(6,*) 'ABORT: MPI_TAG_UB too small!'
          call exitt
@@ -57,6 +56,9 @@ c---------------------------------------------------------------------
       endif
       nekreal = mpi_real
       if (wdsize.eq.8) nekreal = mpi_double_precision
+
+      ifdblas = .false.
+      if (wdsize.eq.8) ifdblas = .true.
 
       ! set word size for INTEGER
       ! HARDCODED since there is no secure way to detect an int overflow
@@ -87,10 +89,9 @@ C     Test timer accuracy
          WRITE(6,*) 'REAL    wdsize      :',WDSIZE
          WRITE(6,*) 'INTEGER wdsize      :',ISIZE
          WRITE(6,'(A,1pE8.2)') ' Timer accuracy      : ',edif
-         WRITE(6,*) ' '
       endif
 
-      call fgslib_crystal_setup(cr_h,nekcomm,np)  ! set cr handle to new instance
+      call crystal_setup(cr_h,nekcomm,np)  ! set cr handle to new instance
 
       return
       end
@@ -492,107 +493,94 @@ c     include 'CTIMER'
 c
 c-----------------------------------------------------------------------
       subroutine exitt0
-
-      include 'SIZE'
-      include 'TOTAL'
-      common /happycallflag/ icall
-
-      if (nid.eq.0) then
-         write(6,*) ' '
-         write(6,'(A)') 'run successful: dying ...'
-         write(6,*) ' '
-      endif
-
-      if (ifneknek.and.icall.eq.0) call happy_check(0)
-c      if (nid.eq.0) call close_files
-      call print_runtime_info
-      call nek_die(0) 
-
-      return
-      end
-c-----------------------------------------------------------------------
-      subroutine exitt
-
-      include 'SIZE'
-      include 'TOTAL'
-      common /happycallflag/ icall
-
-      if (nid.eq.0) then
-         write(6,*) ' '
-         write(6,'(A)') 'an error occured: dying ...'
-         write(6,*) ' '
-      endif
-
-c      call print_stack()
-      if (ifneknek.and.icall.eq.0) call happy_check(0)
-c      if (nid.eq.0) call close_files
-      call print_runtime_info
-      call nek_die(1) 
- 
-      return
-      end
-c-----------------------------------------------------------------------
-      subroutine print_runtime_info
       include 'SIZE'
       include 'TOTAL'
       include 'CTIMER'
       include 'mpif.h'
 
+      real*4 papi_mflops
+      integer*8 papi_flops
+
+      write(6,*) 'Emergency exit'
+
+      call print_stack()
+      call flush_io
+
+      call mpi_finalize (ierr)
+#ifdef EXTBAR
+      call exit_(0)
+#else
+      call exit(0)
+#endif
+ 
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine exitt
+      include 'SIZE'
+      include 'TOTAL'
+      include 'CTIMER'
+      include 'mpif.h'
+      common /happycallflag/ icall
+
+      real*4 papi_mflops
+      integer*8 papi_flops
+      logical ifopen              !check for opened files
+c
+
+c     Communicate unhappiness to the other session
+      if (ifneknek.and.icall.eq.0) call happy_check(0)
+
+      call nekgsync()
+
+
 #ifdef PAPI
-      gflops = glsum(dnekgflops(),1)
+      call nek_flops(papi_flops,papi_mflops)
 #endif
 
-      tstop  = dnekclock_sync()
+      tstop  = dnekclock()
       ttotal = tstop-etimes
-      tsol   = max(ttime - tprep,0.0)
-      nxyz   = lx1*ly1*lz1
-
-      dtmp4 = glsum(getmaxrss(),1)/1e9
+      nxyz   = nx1*ny1*nz1
 
       if (nid.eq.0) then 
+         call close_files(ifopen)
          dtmp1 = 0
          dtmp2 = 0
+         dtmp3 = 0
+         dtmp4 = getmaxrss()/1000/1000
          if(istep.gt.0) then
            dgp   = nvtot
-           dgp   = max(dgp,1.)*max(istep,1)
-           dtmp1 = dgp/(np*(ttime-tprep))
-           dtmp2 = (ttime-tprep)/max(istep,1)
+           dgp   = max(dgp,1.)
+           dtmp1 = np*ttime/(dgp*max(istep,1))
+           dtmp2 = ttime/max(istep,1)
+           dtmp3 = 1.*papi_flops/1e6
          endif 
+         write(6,*) ' '
+         write(6,'(A)') 'call exitt: dying ...'
+         write(6,*) ' '
+         call print_stack()
          write(6,*) ' '
          write(6,'(5(A,1p1e13.5,A,/))') 
      &       'total elapsed time             : ',ttotal, ' sec'
-     &      ,'total solver time w/o IO       : ',tsol,   ' sec'
+     &      ,'total solver time incl. I/O    : ',ttime , ' sec'
      &      ,'time/timestep                  : ',dtmp2 , ' sec'
-     &      ,'avg throughput per timestep    : ',dtmp1 , ' gridpts/CPUs'
-     &      ,'total max memory usage         : ',dtmp4 , ' GB'
+     &      ,'CPU seconds/timestep/gridpt    : ',dtmp1 , ' sec'
+     &      ,'max resident memory            : ',dtmp4 , ' MB'
 #ifdef PAPI
-         write(6,'(1(A,1p1e13.5,/))') 
-     &      ,'total Gflops/s                 : ',gflops
+         write(6,'(2(A,1g13.5,/))') 
+     &       'Gflops                         : ',dtmp3/1000.
+     &      ,'Gflops/s                       : ',papi_mflops/1000.
 #endif
       endif 
       call flush_io
 
-      return
-      end
-c-----------------------------------------------------------------------
-      subroutine nek_die(ierr)
-      include 'SIZE'
-      include 'mpif.h'
-
-      call mpi_finalize (ierr_)
+      call mpi_finalize (ierr)
 #ifdef EXTBAR
-      call exit_(ierr)
+      call exit_(0)
 #else
-      call exit(ierr)
+      call exit(0)
 #endif
- 
-      return
-      end
-c-----------------------------------------------------------------------
-      subroutine fgslib_userExitHandler(istatus)
-
-      call exitt
-
       return
       end
 c-----------------------------------------------------------------------
@@ -616,6 +604,23 @@ c
 
       call mpi_scan(x,r,1,mpi_integer,mpi_sum,nekcomm,ierr)
       igl_running_sum = r
+
+      return
+      end
+c-----------------------------------------------------------------------
+      function igl_running_sum_ex(in) !exclusive prefix sum, added by keke
+c
+      include 'mpif.h'
+      common /nekmpi/ nid,np,nekcomm,nekgroup,nekreal
+      integer status(mpi_status_size)
+      integer x,w,r
+
+      x = in  ! running sum
+      w = in  ! working buff
+      r = 0   ! recv buff
+
+      call mpi_exscan(x,r,1,mpi_integer,mpi_sum,nekcomm,ierr)
+      igl_running_sum_ex = r
 
       return
       end
@@ -1291,7 +1296,7 @@ c
       return
       end
 c-----------------------------------------------------------------------
-      subroutine close_files
+      subroutine close_files(ifopen)
       logical ifopen
 
       do ii=1,99

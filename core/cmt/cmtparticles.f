@@ -77,9 +77,9 @@ c        enddo
    
       if (time_integ .lt. 0) call pre_sim_collisions ! e.g., settling p
    
-      resetFindpts = 0
-c     call computeRatio
-c     call reinitialize
+      resetFindpts = 1
+      call computeRatio
+      call reinitialize
 c     call printVerify
 
       ntmp  = iglsum(n,1)
@@ -154,15 +154,15 @@ c           set global particle id (3 part tag)
          nread_part = 1
          do j=1,nread_part
             call read_parallel_restart_part
-            do i=1,n
-           !rpart(jv0,i) = 0.
-           !rpart(jv0+1,i) = 0.
-           !rpart(jv0+2,i) = 0.
-            ry = rpart(jy,i) + rpart(jrpe,i)
-            if (ry .gt. 0.025) then
+c           do i=1,n
+c           rpart(jv0,i) = 0.
+c           rpart(jv0+1,i) = 0.
+c           rpart(jv0+2,i) = 0.
+c           ry = rpart(jy,i) + rpart(jrpe,i)
+c           if (ry .gt. 0.020) then
 c               rpart(jy,i) = -1E8
-            endif
-            enddo
+c           endif
+c           enddo
             call update_particle_location   ! move outlier particles
             call move_particles_inproc
          enddo
@@ -2041,19 +2041,19 @@ c
       logical partl         ! dummy used in c_t_t()
 
 c     send ghost particles
-      call fgslib_crystal_tuple_transfer(i_cr_hndl,nfptsgp,llpart_gp
+      call crystal_tuple_transfer(i_cr_hndl,nfptsgp,llpart_gp
      $           , iptsgp,nigp,partl,0,rptsgp,nrgp,jgpps) ! jgpps is overwri
 
       ! first, sort by element for ghost particles for projection
       ! performance
-      call fgslib_crystal_tuple_sort    (i_cr_hndl,nfptsgp
+      call crystal_tuple_sort    (i_cr_hndl,nfptsgp
      $              , iptsgp,nigp,partl,0,rptsgp,nrgp,jgpes,1)
 
 c     sort ghost particles by jgpiic for quick discard in collision
 c     algorithm. Note that jgpiic loc in iptsgp has values of 0 (used
 c     in collisions) or 1 (not used in collisions, but for projection)
       if (two_way .gt. 2) then
-      call fgslib_crystal_tuple_sort    (i_cr_hndl,nfptsgp
+      call crystal_tuple_sort    (i_cr_hndl,nfptsgp
      $              , iptsgp,nigp,partl,0,rptsgp,nrgp,jgpiic,1)
       endif
 
@@ -2711,7 +2711,7 @@ c     face, edge, and corner number, x,y,z are all inline, so stride=3
       enddo
 
 c     get processor and local element number of neighboring elemetns
-      call fgslib_findpts(i_fp_hndl !  stride     !   call fgslib_findpts( ihndl,
+      call findpts(i_fp_hndl !  stride     !   call findpts( ihndl,
      $           , iimp(2,1),4        !   $             rcode,1,
      $           , iimp(1,1),4        !   &             proc,1,
      $           , iimp(3,1),4        !   &             elid,1,
@@ -2918,7 +2918,7 @@ c     face, edge, and corner number, x,y,z are all inline, so stride=3
       enddo
 
 c     get processor and local element number of neighboring elemetns
-      call fgslib_findpts(i_fp_hndl !  stride     !   call fgslib_findpts( ihndl,
+      call findpts(i_fp_hndl !  stride     !   call findpts( ihndl,
      $           , iimp(2,1),4        !   $             rcode,1,
      $           , iimp(1,1),4        !   &             proc,1,
      $           , iimp(3,1),4        !   &             elid,1,
@@ -3556,7 +3556,7 @@ c        ipart(jps,i) = count1(np-idum-1) -1
          ipart(jps,i) = idum
       enddo
       nl = 0
-      call fgslib_crystal_tuple_transfer(i_cr_hndl,n,llpart
+      call crystal_tuple_transfer(i_cr_hndl,n,llpart
      >                  , ipart,ni,partl,nl,rpart,nr,jps)
 
 ! -----------------------------------------
@@ -4210,8 +4210,8 @@ c----------------------------------------------------------------------
       icm = 1
 
       ! DZ FAKE
-      do while (rys .le. xdrange(2,2))
-c     do while (rys .le. 0.192)
+c     do while (rys .le. xdrange(2,2))
+      do while (rys .le. 0.192)
 
          do i=1,ny1
             rys = ryt + rygls(i)
@@ -4649,7 +4649,7 @@ c     if (icalld1.eq.0) then
          tolin = 1.e-12
          if (wdsize.eq.4) tolin = 1.e-6
          call intpts_setup  (tolin,i_fp_hndl)
-         call fgslib_crystal_setup (i_cr_hndl,nekcomm,np)
+         call crystal_setup (i_cr_hndl,nekcomm,np)
 
          if (resetFindpts .eq. 1) icalld1 = 0
       endif
@@ -4658,7 +4658,7 @@ c     if (icalld1.eq.0) then
 
 c     if (icalld1 .le. 2 .or. (resetFindpts .eq. 1)) then
          call particles_in_nid
-         call fgslib_findpts(i_fp_hndl !  stride     !   call fgslib_findpts( ihndl,
+         call findpts(i_fp_hndl !  stride     !   call findpts( ihndl,
      $           , ifpts(jrc,1),lif        !   $             rcode,1,
      $           , ifpts(jpt,1),lif        !   &             proc,1,
      $           , ifpts(je0,1),lif        !   &             elid,1,
@@ -4685,10 +4685,10 @@ c        using crystal router in log P time:
          do i=1,n        ! Can't use jpt because it messes up particle info
             ipart(jps,i) = ipart(jpt,i)
          enddo
-         call fgslib_crystal_tuple_transfer(i_cr_hndl,n,llpart
+         call crystal_tuple_transfer(i_cr_hndl,n,llpart
      $              , ipart,ni,partl,nl,rpart,nr,jps)
 c        Sort by element number - for improved local-eval performance
-         call fgslib_crystal_tuple_sort    (i_cr_hndl,n 
+         call crystal_tuple_sort    (i_cr_hndl,n 
      $              , ipart,ni,partl,nl,rpart,nr,je0,1)
       endif
 c        call reset_rst_part
@@ -4930,7 +4930,7 @@ c
       bb_t    = 0.1 ! relative size to expand bounding boxes by
 c
       if(nid.eq.0) write(6,*) 'initializing intpts(), tol=', tol
-      call fgslib_findpts_setup(ih,nekcomm,npp,ndim,
+      call findpts_setup(ih,nekcomm,npp,ndim,
      &                     xm1,ym1,zm1,nx1,ny1,nz1,
      &                     nelt,nxf,nyf,nzf,bb_t,n,n,
      &                     npt_max,tol)

@@ -1,6 +1,6 @@
       program exo2nek
 
-#     include "SIZE"
+      include 'SIZE'
 
       call read_input_name
       call exodus_read
@@ -11,7 +11,7 @@
 c-----------------------------------------------------------------------
       subroutine read_input_name
 
-#     include "SIZE"
+      include 'SIZE'
 
       character*1 re2nam1(80)
       character*1 exonam1(32)
@@ -40,7 +40,7 @@ c  It uses exodus fortran binding subroutines, which depend on
 c  the netcdf library for low level data access.
 c
       include 'exodusII.inc'
-#     include "SIZE"
+      include 'SIZE'
 
       integer exoid, cpu_ws, io_ws
 
@@ -62,9 +62,8 @@ c
         STOP
       endif
       write(6,*)
-      write(6,'(a32,a,f4.2)') 
-     &      exoname," is an EXODUSII file; version ",vers
-      write(6,'(a,i2)') "I/O word size", io_ws
+      write(6,'(2a,f4.2)') exoname," is an EXODUSII file; version ",vers
+      write(6,'(a,i2)')            "I/O word size", io_ws
 c
 c read database parameters
 c
@@ -75,12 +74,12 @@ c
         STOP
       endif
       write (6,    '(/"database parameters:"/ /
-     &               "title         = ", a81 / /
-     &               "num_dim       = ", i8 /
-     &               "num_nodes     = ", i8 /
-     &               "num_elem      = ", i8 /
-     &               "num_elem_blk  = ", i8 /
-     &               "num_side_sets = ", i8)')
+     &               "title = ", a81 / /
+     &               "num_dim = ", i8 /
+     &               "num_nodes = ", i8 /
+     &               "num_elem = ", i8 /
+     &               "num_elem_blk = ", i8 /
+     &               "num_side_sets = ", i3)')
      &               titl,num_dim, num_nodes, num_elem,
      &               num_elem_blk, num_side_sets
       write (6,*)
@@ -118,10 +117,10 @@ c
      &    "ERROR: cannot read parameters for block ",i," (exgelb)"
           STOP
         endif
-        write (6, '("element block id   = ", i8,/
-     &              "element type       = ", a8,/
-     &              "num_elem_in_block  = ", i8,/
-     &              "num_nodes_per_elem = ", i8)')
+        write (6, '("element block id = ", i2,/
+     &              "element type = ", a9,/
+     &              "num_elem_in_block = ", i8,/
+     &              "num_nodes_per_elem = ", i2)')
      &              idblk(i), typ, num_elem_in_block(i),
      &              num_nodes_per_elem(i)
         if (num_dim.eq.3.and.num_nodes_per_elem(i).ne.27) then
@@ -228,9 +227,10 @@ c  size lx1**3 (3D) or lx1**2 (2D) (lx1=3) with the hex27/quad9
 c  coordinates.
 c
       include 'exodusII.inc'
-#     include "SIZE"
-
+      include 'SIZE'
+c
 c node and face conversion (it works at least for cubit):
+c
       integer exo_to_nek_vert3D(27)
       data    exo_to_nek_vert3D
      &      / 19,  1,  7, 25, 21,  3,  9, 27, 10                  ! hex27 to nek numbering
@@ -246,11 +246,16 @@ c node and face conversion (it works at least for cubit):
       integer exo_to_nek_face2D(4)
       data    exo_to_nek_face2D  / 1, 2, 3, 4 /          ! symmetric face numbering
 
+      write(6,*)
+      write(6,'(A)') 'Converting elements ...'
+      write(6,*)
+
       nvert = 3**num_dim
 
-      write(6,'(A)') ' '
-      write(6,'(A)') 'Converting elements ... '
       do iel = 1, num_elem
+        if (mod(iel,100).eq.0.or.iel.eq.num_elem) then
+          write(6,'(A,I8)') 'Reading element ',iel
+        endif
         do ivert = 1, nvert
           if (num_dim.eq.2) then
             jvert = exo_to_nek_vert2D(ivert)
@@ -264,8 +269,6 @@ c node and face conversion (it works at least for cubit):
           endif
         enddo
       enddo
-      write(6,'(A)') 'done :: Converting elements '
-c
 c zero-out bc and curve sides arrays
       call blank   (cbc,3*2*ldim*max_num_elem)
       call rzero   (bc,5*2*ldim*max_num_elem)
@@ -276,17 +279,20 @@ c set bc's
 c
       if (num_side_sets.eq.0) return   ! no sidesets
 
-      write(6,'(a)') ''
-      write(6,'(a)') 'Converting SideSets ...'
+      write(6,'(a)') ""
+      write(6,'(a)') "Converting SidSets ..."
 c the expensive part, improve it...
       do iss=1,num_side_sets   ! loop over ss 
-        write(6,'(a)') ''
-        write(6,'(a,i2,a)') 'Sideset ',idss(iss), ' ...'
+        write(6,'(a)') ""
+        write(6,'(a,i2)') "Sideset ",idss(iss)
         do iel=1,num_elem
+          if (mod(iel,100).eq.0.or.iel.eq.num_elem) then
+            write(6,'(A,I8)') '  Element ',iel
+          endif
           do ifc=1,2*num_dim             ! loop over faces
             do i=1,num_sides_in_set(iss) ! loop over sides in ss
-              if    ( (iel.eq.elem_list(i,iss))
-     &        .and. (ifc.eq.side_list(i,iss)) ) then
+              if      ( (iel.eq.elem_list(i,iss))
+     &        .and.   (ifc.eq.side_list(i,iss)) ) then
                 if (num_dim.eq.2) then
                   jfc = exo_to_nek_face2D(ifc)
                 else
@@ -298,17 +304,14 @@ c the expensive part, improve it...
             enddo
           enddo
         enddo
-        write(6,'(A,I2)') 'done :: Sideset ',idss(iss)
       enddo
-      write(6,'(a)') ''
-      write(6,'(a)') 'done :: Converting SideSets '
 
       return
       end
 C--------------------------------------------------------------------
       subroutine gen_re2
 
-#     include "SIZE"
+      include 'SIZE'
 
       write(6,*)
       write(6,'(A,A)') 'writing ', re2name
@@ -324,15 +327,20 @@ C--------------------------------------------------------------------
 C--------------------------------------------------------------------
       subroutine open_re2
 
-#     include "SIZE"
+      include 'SIZE'
 
+      character*1 file(80)
       character*80  hdr
 
 
       real*4 test
       data   test  / 6.54321 /
 
-      call byte_open(re2name,ierr)
+      len = ltrunc(re2name,80)
+      call chcopy(file,re2name,80)
+      call chcopy(file(len+1),char(0),1) 
+
+      call byte_open(file,ierr)
             
 c  Write the header
       call blank     (hdr,80)    
@@ -346,7 +354,7 @@ c  Write the header
 C--------------------------------------------------------------------
       subroutine write_xyz
 
-#     include "SIZE"
+      include 'SIZE'
 
       real     xx(8), yy(8), zz(8)
       real*8   rgroup, buf2(30)
@@ -408,7 +416,7 @@ C--------------------------------------------------------------------
 C-----------------------------------------------------------------------
       subroutine write_curve
 
-#     include "SIZE"
+      include 'SIZE'
 
       real*8     buf2(30)
       real*8     rcurve
@@ -450,8 +458,8 @@ C-----------------------------------------------------------------------
       end
 C-----------------------------------------------------------------------
       subroutine write_bc
-      
-#     include "SIZE"
+       
+      include 'SIZE'
 
       real*8  rbc, buf2(30)
 
@@ -503,7 +511,7 @@ C-----------------------------------------------------------------------
 c-----------------------------------------------------------------------
       subroutine gen_rea_midside_e(e)
 
-#     include "SIZE"
+      include 'SIZE'
 
       real        len
       real        x3(27),y3(27),z3(27),xyz(3,3)
@@ -560,8 +568,8 @@ c-----------------------------------------------------------------------
       subroutine map2reg(ur,n,u,nel)
 c
 c     Map scalar field u() to regular n x n x n array ur
-
-#     include "SIZE"
+c
+      include 'SIZE'
 
       real    ur(1), u(3*3*3,1)
       integer e

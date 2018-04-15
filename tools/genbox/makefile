@@ -1,3 +1,6 @@
+FLAGS =  $(FFLAGS_IN)
+CFLAGS = $(CFLAGS_IN)
+LFLAGS = 
 prefix = $(bin_nek_tools)
 
 OBJS = genbox.o byte.o 
@@ -6,10 +9,10 @@ all: genbox
 
 
 genbox:	$(OBJS)
-	$(FC) $(FFLAGS) -o $(prefix)/genbox $(OBJS) $(LDFLAGS) 
+	$(F77) $(FLAGS) -o $(prefix)/genbox $(OBJS) $(LFLAGS) 
 
 clean:
-	@rm -f *.o
+	'rm' *.o
 
-genbox.o       : genbox.f		;  $(FC) -c $(FFLAGS) genbox.f
+genbox.o       : genbox.f		;  $(F77) -c $(FLAGS) genbox.f
 byte.o         : byte.c  		;  $(CC)  -c $(CFLAGS) byte.c

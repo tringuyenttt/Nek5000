@@ -35,12 +35,16 @@ c
      $               ,nconv,nconv_max
      $               ,ioinfodmp
 
-      real pi
-      common /tstep3/ pi
+      real pi,betag,gtheta
+      common /tstep3/ pi,betag,gtheta
       
       logical ifprnt,if_full_pres,ifoutfld
       common /tstep4/ ifprnt,if_full_pres,ifoutfld
       
+      COMMON /TTIME/ TTIME_STP, INIT_TIME!, lb_time, reinit_step !added by keke to determine when to load balance
+      real TTIME_STP, INIT_TIME!, lb_time
+      !integer reinit_step
+
 
       real lyap(3,lpert)
       common /tstep5/ lyap  !  lyapunov simulation history

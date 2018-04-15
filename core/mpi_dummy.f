@@ -263,7 +263,7 @@ c
 
       return
       end
-      subroutine mpi_cart_create ( comm, ldims, dims, periods,
+      subroutine mpi_cart_create ( comm, ndims, dims, periods,
      &  reorder, comm_cart, ierror )
 
 c*********************************************************************72
@@ -272,7 +272,7 @@ cc MPI_CART_CREATE creates a communicator for a Cartesian topology.
 c
       implicit none
 
-      integer ldims
+      integer ndims
 
       integer comm
       integer comm_cart
@@ -289,7 +289,7 @@ c
 
       return
       end
-      subroutine mpi_cart_get ( comm, ldims, dims, periods,
+      subroutine mpi_cart_get ( comm, ndims, dims, periods,
      &  coords, ierror )
 
 c*********************************************************************72
@@ -298,7 +298,7 @@ cc MPI_CART_GET returns the "Cartesian coordinates" of the calling process.
 c
       implicit none
 
-      integer ldims
+      integer ndims
 
       integer comm
       integer coords(*)
@@ -313,7 +313,7 @@ c
 
       ierror = MPI_SUCCESS
 
-      do i = 1, ldims
+      do i = 1, ndims
         coords(i) = 0
       end do
 

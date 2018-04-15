@@ -12,18 +12,18 @@ c
 c
       integer*8 tt
 
-#ifdef TIMER2
-      if (isclld.eq.0) then
-          isclld=1
-          nrout=nrout+1
-          myrout=nrout
-          rname(myrout) = 'mxm   '
-      endif
-      isbcnt = n1*n3*(2*n2-1)
-      dct(myrout) = dct(myrout) + (isbcnt)
-      ncall(myrout) = ncall(myrout) + 1
-      dcount = dcount + (isbcnt)
-      etime1 = dnekclock()
+#ifdef TIMER
+c      if (isclld.eq.0) then
+c          isclld=1
+c          nrout=nrout+1
+c          myrout=nrout
+c          rname(myrout) = 'mxm   '
+c      endif
+c      isbcnt = n1*n3*(2*n2-1)
+c      dct(myrout) = dct(myrout) + (isbcnt)
+c      ncall(myrout) = ncall(myrout) + 1
+c      dcount = dcount + (isbcnt)
+c      etime1 = dnekclock()
 #endif
 
 
@@ -80,16 +80,8 @@ c        .and. MOD(LOC(c),tt).eq.0 &
  101  call mxmf2(a,n1,b,n2,c,n3)
 
  111  continue
-#ifdef TIMER2
-      tmxmf = tmxmf + dnekclock() - etime1  
+#ifdef TIMER
+c      tmxmf = tmxmf + dnekclock() - etime1  
 #endif
-      return
-      end
-c-----------------------------------------------------------------------
-      subroutine fgslib_mxm(a,n1,b,n2,c,n3)
-      real a(n1,n2),b(n2,n3),c(n1,n3)
-
-      call mxmf2(a,n1,b,n2,c,n3)
-
       return
       end

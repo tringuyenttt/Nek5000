@@ -16,11 +16,9 @@ c
      $    ,cpgrp(-5:10,ldimt1,3)
      $    ,qinteg(ldimt3,maxobj)
      $    ,uparam(20)
-     $    ,atol(0:ldimt1)
-     $    ,restol(0:ldimt1)
-     $    ,filterType
+     $    ,atol(ldimt3)
       common /input1/ param,rstim,vnekton,cpfld,cpgrp,qinteg,uparam,
-     $                atol,restol,filterType
+     $                atol
 
       integer matype(-5:10,ldimt1)
      $       ,nktonv,nhis,lochis(4,lhis+maxobj)
@@ -34,9 +32,8 @@ c
       logical         if3d,ifflow,ifheat,iftran,ifaxis,ifstrs,ifsplit
      $               ,ifmgrid
      $               ,ifadvc(ldimt1),ifdiff(ldimt1),ifdeal(ldimt1)
-     $               ,ifprojfld(0:ldimt1)
      $               ,iftmsh(0:ldimt1),ifdgfld(0:ldimt1),ifdg
-     $               ,ifmvbd,ifchar,ifnonl(ldimt1)
+     $               ,ifmvbd,ifnatc,ifchar,ifnonl(ldimt1)
      $               ,ifvarp(ldimt1),ifpsco(ldimt1),ifvps
      $               ,ifmodel,ifkeps,ifintq,ifcons
      $               ,ifxyo,ifpo,ifvo,ifto,iftgo,ifpso(ldimt1),iffmtin
@@ -45,14 +42,12 @@ c
      $               ,ifcyclic,ifmoab,ifcoup, ifvcoup, ifusermv,ifreguo
      $               ,ifxyo_,ifaziv,ifneknek,ifneknekm
      $               ,ifcvfld(ldimt1),ifdp0dt
-     $               ,ifmpiio,ifrich
 
       common /input3/ if3d,ifflow,ifheat,iftran,ifaxis,ifstrs,ifsplit
      $               ,ifmgrid 
      $               ,ifadvc,ifdiff,ifdeal
-     $               ,ifprojfld
      $               ,iftmsh,ifdgfld,ifdg
-     $               ,ifmvbd,ifchar,ifnonl
+     $               ,ifmvbd,ifnatc,ifchar,ifnonl
      $               ,ifvarp        ,ifpsco        ,ifvps
      $               ,ifmodel,ifkeps,ifintq,ifcons
      $               ,ifxyo,ifpo,ifvo,ifto,iftgo,ifpso        ,iffmtin
@@ -61,7 +56,6 @@ c
      $               ,ifcyclic,ifmoab,ifcoup, ifvcoup, ifusermv,ifreguo
      $               ,ifxyo_,ifaziv,ifneknek,ifneknekm
      $               ,ifcvfld,ifdp0dt
-     $               ,ifmpiio,ifrich
 
       logical         ifnav
       equivalence    (ifnav, ifadvc(1))

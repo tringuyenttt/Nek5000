@@ -38,8 +38,10 @@ C
       IFTRAN    = .TRUE.
       IFCHAR    = .TRUE.
       CTARG     = 3.
-      IF (lx1.GE.10) THEN
+      IF (IFMODEL) CTARG = 2.
+      IF (NX1.GE.10) THEN
          CTARG = 5.
+         IF (IFMODEL) CTARG = 3.
       ENDIF
       CALL SETPROP
       TAUMIN = 1.E20
@@ -60,6 +62,8 @@ C
       IOSTEP    = 10000
 C
                    IFMODP = .TRUE.
+      IF (IFNATC)  IFMODP = .FALSE.
+      IF (IFMODEL) IFMODP = .FALSE.
                    IFSKIP = .TRUE.
                    NSSKIP = 1
 C
@@ -290,7 +294,7 @@ C
       MFIELD=1
       IF (.NOT.IFFLOW) MFIELD=2
       DO 100 IFIELD=MFIELD,NFIELD
-         NTOT  = lx1*ly1*lz1*NELFLD(IFIELD)
+         NTOT  = NX1*NY1*NZ1*NELFLD(IFIELD)
          TAU   = .02*TAUSS(IFIELD)
          DECAY = 1.+99.*EXP(-TIME/TAU)
          CALL CMULT (VDIFF(1,1,1,1,IFIELD),DECAY,NTOT)
@@ -313,7 +317,7 @@ C-------------------------------------------------------------
       INCLUDE 'TSTEP'
       real*8 X(1)
 C
-      NTOTV = lx1*ly1*lz1*NELV
+      NTOTV = NX1*NY1*NZ1*NELV
 C
       IF (IFFLOW) THEN
          DO 100 I=1,NTOTV
@@ -322,7 +326,7 @@ C
          DO 200 I=1,NTOTV
             X(I+NTOTV) = VY(I,1,1,1)
  200     CONTINUE
-         IF (ldim.EQ.3) THEN
+         IF (NDIM.EQ.3) THEN
             IOFF = 2*NTOTV
             DO 300 I=1,NTOTV
                X(I+IOFF) = VZ(I,1,1,1)
@@ -331,9 +335,9 @@ C
       ENDIF
 C
       IF (IFHEAT) THEN
-         IOFF = ldim*NTOTV
+         IOFF = NDIM*NTOTV
          DO 401 IFIELD=2,NFIELD
-            NTOT = lx1*ly1*lz1*NELFLD(IFIELD)
+            NTOT = NX1*NY1*NZ1*NELFLD(IFIELD)
             DO 400 I=1,NTOT
                X(I+IOFF) = T(I,1,1,1,IFIELD-1)
  400        CONTINUE
@@ -356,7 +360,7 @@ C------------------------------------------------------------------
       INCLUDE 'INPUT'
       real*8 X(1)
 C
-      NTOTV = lx1*ly1*lz1*NELV
+      NTOTV = NX1*NY1*NZ1*NELV
 C
       IF (IFFLOW) THEN
          DO 10 I=1,NTOTV
@@ -365,7 +369,7 @@ C
          DO 20 I=1,NTOTV
             VY(I,1,1,1) = X(I+NTOTV)
  20      CONTINUE
-         IF (ldim.EQ.3) THEN
+         IF (NDIM.EQ.3) THEN
             IOFF = 2*NTOTV
             DO 30 I=1,NTOTV
                VZ(I,1,1,1) = X(I+IOFF)
@@ -374,9 +378,9 @@ C
       ENDIF
 C
       IF (IFHEAT) THEN
-         IOFF = ldim*NTOTV
+         IOFF = NDIM*NTOTV
          DO 41 IFIELD=2,NFIELD
-            NTOT = lx1*ly1*lz1*NELFLD(IFIELD)
+            NTOT = NX1*NY1*NZ1*NELFLD(IFIELD)
             DO 40 I=1,NTOT
                T(I,1,1,1,IFIELD-1) = X(I+IOFF)
  40         CONTINUE
@@ -408,13 +412,14 @@ C
 C
          CTARG  = 1.
          IF (IFSPLIT) CTARG  = 1.
-         IF (lx1.GE.10) THEN
+         IF (NX1.GE.10) THEN
              CTARG  = 2.
              IF (IFSPLIT) CTARG = 2.
          ENDIF
 C
          KMAX   = 5
          NBDINP = 3
+         IF (IFMODEL) NBDINP = 2
          NSSKIP = 2
          IFSKIP = .TRUE.
          IFMODP = .FALSE.
@@ -426,13 +431,14 @@ C
 C
          CTARG = 1.
          IF (IFSPLIT) CTARG = 1.
-         IF (lx1.GE.10) THEN
+         IF (NX1.GE.10) THEN
             CTARG = 2.
             IF (IFSPLIT) CTARG = 2.
          ENDIF
 C
          KMAX   = 5
          NBDINP = 3
+         IF (IFMODEL) NBDINP = 2
          NSSKIP = 2
          IFSKIP = .TRUE.
          IFMODP = .FALSE.
@@ -473,6 +479,9 @@ C
          IF(.NOT.IFSTST(IFIELD)) IFSSVT = .FALSE.
          IF(.NOT.IFEXTR(IFIELD)) IFEXVT = .FALSE.
  200  CONTINUE
+      IF (IFNATC) THEN
+         IF (IFSTST(2).AND.(.NOT.IFSTST(1))) IFSTST(2) = .FALSE.
+      ENDIF
       RETURN
       END
 C
@@ -517,21 +526,21 @@ C
       CALL OPCOLV3(T1,T2,T3,W1,W2,W3,BINVM1)
       CALL OPHX   (W1,W2,W3,T1,T2,T3,H1,H2)
       CALL OPCOL2 (W1,W2,W3,DV1,DV2,DV3)
-      NTOT1  = lx1*ly1*lz1*NELV
+      NTOT1  = NX1*NY1*NZ1*NELV
       USNRM1 = GLSUM(W1,NTOT1)
       USNRM2 = GLSUM(W2,NTOT1)
       USNRM3 = 0.
-      IF (ldim.EQ.3) USNRM3 = GLSUM(W3,NTOT1)
+      IF (NDIM.EQ.3) USNRM3 = GLSUM(W3,NTOT1)
       USNORM = SQRT( (USNRM1+USNRM2+USNRM3)/VOLVM1 )
 C
-      NTOT2 = lx2*ly2*lz2*NELV
+      NTOT2 = NX2*NY2*NZ2*NELV
       CALL OPDIV (BDIVV,VX,VY,VZ)
       CALL COL3 (DIVV,BDIVV,BM2INV,NTOT2)
       DNORM = SQRT(GLSC2(DIVV,BDIVV,NTOT2)/VOLVM2)
 C
       TOLOLD = TOLPS
       CALL SETTOLV
-      TOLHV3 = TOLHV*(ldim)
+      TOLHV3 = TOLHV*(NDIM)
       IF (IFSTRS) TOLHV3 = TOLHV
       IF (NIO.EQ.0 .AND. IFPRINT) THEN
          WRITE (6,*) 'USNORM, TOLHV',USNORM,TOLHV3
@@ -585,7 +594,7 @@ C----------------------------------------------------------------------
       COMMON /CPRINT/ IFPRINT
       LOGICAL         IFPRINT
 C
-      NTOT = lx1*ly1*lz1*NELT
+      NTOT = NX1*NY1*NZ1*NELT
       CALL SUB3 (DELTAT(1,1,1,1),T(1,1,1,1,IFIELD-1),
      $                           TLAG(1,1,1,1,1,IFIELD-1),NTOT)
       CALL NORMSC (DVNNH1,DVNNSM,DVNNL2,DVNNL8,DELTAT,IMESH)
@@ -593,7 +602,7 @@ C
       ISD    = 1
       CALL SETHLM (H1,H2,INTYPE)
       CALL AXHELM (WA,DELTAT,H1,H2,IMESH,ISD)
-      CALL DSSUM  (WA,lx1,ly1,lz1)
+      CALL DSSUM  (WA,NX1,NY1,NZ1)
       CALL COL2   (WA,TMASK(1,1,1,1,IFIELD-1),NTOT)
       CALL COL3   (WB,WA,BINTM1,NTOT)
       CALL AXHELM (WA,WB,H1,H2,IMESH,ISD)
@@ -658,7 +667,7 @@ C-------------------------------------------------------------------
       INCLUDE 'SOLN'
       REAL LENGTH
 C
-      NTOT   = lx1*ly1*lz1*NELFLD(IFIELD)
+      NTOT   = NX1*NY1*NZ1*NELFLD(IFIELD)
       AVVISC = GLMIN(VDIFF(1,1,1,1,IFIELD),NTOT)
       AVDENS = GLMAX(VTRANS(1,1,1,1,IFIELD),NTOT)
 C
@@ -703,7 +712,7 @@ C-------------------------------------------------------------------
       INCLUDE 'SOLN'
       REAL LENGTH
 C
-      NTOT   = lx1*ly1*lz1*NELFLD(IFIELD)
+      NTOT   = NX1*NY1*NZ1*NELFLD(IFIELD)
       AVCOND = GLMIN (VDIFF(1,1,1,1,IFIELD),NTOT)
 C
       IF (IFTRAN) THEN
@@ -727,7 +736,7 @@ C
       INCLUDE 'TSTEP'
       COMMON /SCRMG/ DIVFLD (LX2,LY2,LZ2,LELV)
      $ ,             WORK   (LX2,LY2,LZ2,LELV)
-      NTOT2 = lx2*ly2*lz2*NELV
+      NTOT2 = NX2*NY2*NZ2*NELV
       CALL OPDIV   (DIVFLD,VX,VY,VZ)
       CALL COL3    (WORK,DIVFLD,BM2INV,NTOT2)
       CALL COL2    (WORK,DIVFLD,NTOT2)
@@ -752,17 +761,18 @@ C----------------------------------------------------------------------
       INCLUDE 'SIZE'
       INCLUDE 'INPUT'
       INCLUDE 'TSTEP'
-
-      REAL MAX_CFL_RK4
-      DATA MAX_CFL_RK4 /2.0/ ! stability limit for RK4 including safety factor
 C
       IF (IFCHAR) THEN
-         ICT    = MAX(INT(CTARG/MAX_CFL_RK4),1)
-         NTAUBD = ICT
-         DCT    = CTARG - ICT*MAX_CFL_RK4
-         IF (DCT.GT.0.1) NTAUBD = NTAUBD+1
-         IF (NIO.EQ.0 .AND. LOGLEVEL.GT.2) 
-     $      write(6,*) 'RK4 substeps:', ntaubd
+         ICT    = INT(CTARG)
+         RICT   = (ICT)
+         DCT    = CTARG-RICT
+         IF (DCT.EQ.0.) NTAUBD = ICT
+         IF (DCT.GT.0.) NTAUBD = ICT+1
+c        if (param(78).ne.0) then
+c             ntaupf=int(param(78))
+c             if (nid.eq.0) write(6,*) ' new ntaubd:',ntaubd,ntaupf
+c             ntaubd=max(ntaubd,ntaupf)
+c        endif
       ELSE
          NTAUBD = 0
          IF (CTARG.GT.0.5) THEN
@@ -796,8 +806,8 @@ C
       IF (NIO.EQ.0) WRITE(6,5)
     5 FORMAT(/,'  Project',/)
 C
-      NTOT1  = lx1*ly1*lz1*NELV
-      NTOT2  = lx2*ly2*lz2*NELV
+      NTOT1  = NX1*NY1*NZ1*NELV
+      NTOT2  = NX2*NY2*NZ2*NELV
       INTYPE = 1
       CALL RZERO   (H1,NTOT1)
       CALL RONE    (H2,NTOT1)

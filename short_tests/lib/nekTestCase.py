@@ -103,8 +103,9 @@ class NekTestCase(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
         # These can be overridden by self.get_opts
-        self.f77            = ""
-        self.cc             = ""
+        self.f77            = 'mpif77'
+        self.cc             = 'mpicc'
+        self.g              = ""
         self.pplist         = ""
         self.usr_lflags     = ""
         self.ifmpi          = True
@@ -117,7 +118,7 @@ class NekTestCase(unittest.TestCase):
         self.log_root       = ""
         self.verbose        = True
         self.serial_procs   = 1
-        self.parallel_procs = 2
+        self.parallel_procs = 4
         self.size_params    = {}
 
         # These are overridden by method decorators (pn_pn_serial, pn_pn_parallel,
@@ -150,13 +151,6 @@ class NekTestCase(unittest.TestCase):
             self._delayed_failures.append(msg)
         print(msg)
 
-    def assertIsNullDelayed(self, test_val, label):
-        if test_val:
-            msg = 'FAILURE: Found phrase "{0}" in logfile.'.format(label)
-            self._delayed_failures.append(msg)
-        else:
-            msg = 'SUCCESS: Did not find phrase "{0}" in logfile'.format(label)
-        print(msg)
 
     def assertDelayedFailures(self):
         if self._delayed_failures:
@@ -174,11 +168,12 @@ class NekTestCase(unittest.TestCase):
         print("Getting setup options...")
 
         # Get compiler options from env
-        self.f77            = os.environ.get('FC', self.f77)
+        self.f77            = os.environ.get('F77', self.f77)
         self.cc             = os.environ.get('CC', self.cc)
+        self.g              = os.environ.get('G', self.g)
         self.pplist         = os.environ.get('PPLIST', self.pplist)
         self.usr_lflags     = os.environ.get('USR_LFLAGS', self.usr_lflags)
-        self.ifmpi          = os.environ.get('MPI', self.ifmpi)
+        self.ifmpi          = str(os.environ.get('IFMPI', self.ifmpi)).lower() == 'true'
 
         # Get paths from env
         try:
@@ -204,8 +199,9 @@ class NekTestCase(unittest.TestCase):
 
         # Print everything out
         for varname, varval in (
-                ('FC', self.f77),
+                ('F77', self.f77),
                 ('CC', self.cc),
+                ('G', self.g),
                 ('PPLIST', self.pplist),
                 ('USR_LFLAGS', self.usr_lflags),
                 ('IFMPI', self.ifmpi),
@@ -239,8 +235,8 @@ class NekTestCase(unittest.TestCase):
             targets    = targets    if targets    else ('clean', 'genmap'),
             tools_root = tools_root if tools_root else self.tools_root,
             tools_bin  = tools_bin  if tools_bin  else self.tools_bin,
-            f77        = f77        ,
-            cc         = cc         ,
+            f77        = f77        if f77        else 'gfortran',
+            cc         = cc         if cc         else 'gcc',
             bigmem     = bigmem     if bigmem     else 'false',
             verbose    = verbose    if verbose    else self.verbose
         )
@@ -319,11 +315,12 @@ class NekTestCase(unittest.TestCase):
             usr_file = cls.case_name
 
         all_opts = dict(
-            FC = self.f77,
+            F77 = self.f77,
             CC = self.cc,
+            G = self.g,
             PPLIST = self.pplist,
             USR_LFLAGS = self.usr_lflags,
-            MPI = int(self.ifmpi),
+            IFMPI = str(self.ifmpi).lower(),
         )
         if opts:
             all_opts.update(opts)

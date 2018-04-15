@@ -62,7 +62,7 @@ c-----------------------------------------------------------------------
             call set_char_mask(hmsk,vx,vy,vz) ! mask for hyperbolic system 
          endif
 
-         n=lx1*ly1*lz1*nelv
+         n=nx1*ny1*nz1*nelv
          call rone(hmsk,n)          ! TEST: TURN OFF MASK
          call set_binv (bmnv, hmsk,n) ! Store binvm1*(hyperbolic mask)
          if(ifmvbd) then
@@ -119,8 +119,8 @@ c
       nc  = cs(0)            ! number of stored convecting fields
 
       ln  = lx1*ly1*lz1*lelt
-      n   = lx1*ly1*lz1*nelfld(ifield)
-      m   = lxd*lyd*lzd*nelc*ldim
+      n   = nx1*ny1*nz1*nelfld(ifield)
+      m   = nxd*nyd*nzd*nelc*ndim
 
 c      if(nid.eq.0) write(*,*) 'going into char_conv1 '
       call char_conv1 (p0,u,bmnv,n,ulag,ln,gsl,c,m,cs(1),nc,ct
@@ -161,8 +161,8 @@ c-----------------------------------------------------------------------
 !     -- + C.grad v = 0  t \in [t^n-q,t^n],   v(t^n-q,X) = u(t^n-q,X)
 !     dt
 
-!     n = lx1*ly1*lz1*nelv
-!     m = lxd*lyd*lzd*nelv
+!     n = nx1*ny1*nz1*nelv
+!     m = nxd*nyd*nzd*nelv
 
       tau = time-vlsum(dtlag,nbd)              ! initialize time for u^n-k
       call int_vel (ct  ,tau,c    ,m,nc,cs,nid) ! ct(t) = sum w_k c(.,k)
@@ -282,7 +282,7 @@ c
       include 'SIZE'
       include 'TOTAL'
 c
-c     apply convecting field c(1,ldim) to scalar field u(1)
+c     apply convecting field c(1,ndim) to scalar field u(1)
 c
       real du(1),u(1),c(1),bmsk(1),bdwt(1)
       integer gsl
@@ -292,7 +292,7 @@ c
 c     ifconv = .false.
       ifconv = .true.
 c
-      n = lx1*ly1*lz1*nelv
+      n = nx1*ny1*nz1*nelv
 
       if (ifdgfld(ifield)) then
 
@@ -302,15 +302,15 @@ c
       elseif (ifconv) then
 
          if (ifcons) then
-           if (if3d     ) call convop_cons_3d (du,u,c,lx1,lxd,nelv)
-           if (.not.if3d) call convop_cons_2d (du,u,c,lx1,lxd,nelv)
+           if (if3d     ) call convop_cons_3d (du,u,c,nx1,nxd,nelv)
+           if (.not.if3d) call convop_cons_2d (du,u,c,nx1,nxd,nelv)
          else
-           if (if3d     ) call convop_fst_3d  (du,u,c,lx1,lxd,nelv)
-           if (.not.if3d) call convop_fst_2d  (du,u,c,lx1,lxd,nelv)
+           if (if3d     ) call convop_fst_3d  (du,u,c,nx1,nxd,nelv)
+           if (.not.if3d) call convop_fst_2d  (du,u,c,nx1,nxd,nelv)
          endif
 
          call subcol3(du,bdwt,u,n)
-         call fgslib_gs_op (gsl,du,1,1,0)  !  +
+         call gs_op (gsl,du,1,1,0)  !  +
 
          call col2 (du,bmsk,n)     !  du = Binv * msk * du
 
@@ -639,7 +639,7 @@ c-----------------------------------------------------------------------
       logical ifnew              ! =true if shifting stack of fields
 
       numr      = lxd*lyd*lzd*lelv*ldim*(lorder+1)
-      denr      = lxd*lyd*lzd*nelv*ldim
+      denr      = nxd*nyd*nzd*nelv*ndim
       nconv_max = numr/denr
       if (nconv_max.lt.nbdinp+1) 
      $   call exitti(
@@ -648,7 +648,7 @@ c-----------------------------------------------------------------------
 
       nc = ct(0)
 
-      m  = lxd*lyd*lzd*nelc*ldim
+      m  = nxd*nyd*nzd*nelc*ndim
 
       call set_ct_cvx
      $    (ct,c,m,ux,uy,uz,tau,nc,nconv_max,nelc,ifnew)
@@ -685,8 +685,8 @@ c        Note:  "1" entry is most recent
 c     Save time and map the current velocity to rst coordinates.
 
       ix = 1
-      iy = ix + lxd*lyd*lzd*nelc
-      iz = iy + lxd*lyd*lzd*nelc
+      iy = ix + nxd*nyd*nzd*nelc
+      iz = iy + nxd*nyd*nzd*nelc
 
       if (ifcons) then
          call set_convect_cons(c(ix,1),c(iy,1),c(iz,1),u,v,w)
@@ -742,8 +742,8 @@ C
 
       call set_dealias_rx
 
-      nxyz1 = lx1*ly1*lz1
-      nxyzd = lxd*lyd*lzd
+      nxyz1 = nx1*ny1*nz1
+      nxyzd = nxd*nyd*nzd
 
       nxyzu = nxyz1
       if (ifuf) nxyzu = nxyzd
@@ -766,9 +766,9 @@ C
 
          else  ! map coarse velocity to fine mesh (C-->F)
 
-           call intp_rstd(fx,cx(ic),lx1,lxd,if3d,0) ! 0 --> forward
-           call intp_rstd(fy,cy(ic),lx1,lxd,if3d,0) ! 0 --> forward
-           if (if3d) call intp_rstd(fz,cz(ic),lx1,lxd,if3d,0) ! 0 --> forward
+           call intp_rstd(fx,cx(ic),nx1,nxd,if3d,0) ! 0 --> forward
+           call intp_rstd(fy,cy(ic),nx1,nxd,if3d,0) ! 0 --> forward
+           if (if3d) call intp_rstd(fz,cz(ic),nx1,nxd,if3d,0) ! 0 --> forward
 
            if (if3d) then  ! Convert convector F to r-s-t coordinates
 
@@ -790,10 +790,10 @@ C
          endif
 
          if (ifuf) then
-            call grad_rst(ur,us,ut,u(iu),lxd,if3d)
+            call grad_rst(ur,us,ut,u(iu),nxd,if3d)
          else
-            call intp_rstd(uf,u(iu),lx1,lxd,if3d,0) ! 0 --> forward
-            call grad_rst(ur,us,ut,uf,lxd,if3d)
+            call intp_rstd(uf,u(iu),nx1,nxd,if3d,0) ! 0 --> forward
+            call grad_rst(ur,us,ut,uf,nxd,if3d)
          endif
 
          if (if3d) then
@@ -805,7 +805,7 @@ C
                uf(i) = tr(i,1)*ur(i)+tr(i,2)*us(i)
             enddo
          endif
-         call intp_rstd(bdu(ib),uf,lx1,lxd,if3d,1) ! Project back to coarse
+         call intp_rstd(bdu(ib),uf,nx1,nxd,if3d,1) ! Project back to coarse
 
          ic = ic + nxyzc
          iu = iu + nxyzu
@@ -839,8 +839,8 @@ c     conservative form
 
       call set_dealias_rx
 
-      nxyz1 = lx1*ly1*lz1
-      nxyzd = lxd*lyd*lzd
+      nxyz1 = nx1*ny1*nz1
+      nxyzd = nxd*nyd*nzd
 
       nxyzu = nxyz1
       if (ifuf) nxyzu = nxyzd
@@ -854,10 +854,10 @@ c     conservative form
 
       do e=1,nelv
 
-        call intp_rstd(uf,u(iu),lx1,lxd,if3d,0) ! 0 --> forward
+        call intp_rstd(uf,u(iu),nx1,nxd,if3d,0) ! 0 --> forward
 
         call rzero(cu,nxyzd)
-        do i=1,ldim
+        do i=1,ndim
 
          if (ifcf) then  ! C is already on fine mesh
 
@@ -865,13 +865,13 @@ c     conservative form
 
          else  ! map coarse velocity to fine mesh (C-->F)
 
-           if (i.eq.1) call intp_rstd(cf,cx(ic),lx1,lxd,if3d,0) ! 0 --> forward
-           if (i.eq.2) call intp_rstd(cf,cy(ic),lx1,lxd,if3d,0) ! 0 --> forward
-           if (i.eq.3) call intp_rstd(cf,cz(ic),lx1,lxd,if3d,0) ! 0 --> forward
+           if (i.eq.1) call intp_rstd(cf,cx(ic),nx1,nxd,if3d,0) ! 0 --> forward
+           if (i.eq.2) call intp_rstd(cf,cy(ic),nx1,nxd,if3d,0) ! 0 --> forward
+           if (i.eq.3) call intp_rstd(cf,cz(ic),nx1,nxd,if3d,0) ! 0 --> forward
 
            call col2(cf,uf,nxyzd)   !  collocate C and u on fine mesh
 
-           call grad_rst(cr,cs,ct,cf,lxd,if3d)  ! d/dr (C_i*u)
+           call grad_rst(cr,cs,ct,cf,nxd,if3d)  ! d/dr (C_i*u)
 
            if (if3d) then
 
@@ -891,7 +891,7 @@ c     conservative form
          endif
         enddo
 
-        call intp_rstd(bdu(ib),cu,lx1,lxd,if3d,1) ! Project back to coarse
+        call intp_rstd(bdu(ib),cu,nx1,nxd,if3d,1) ! Project back to coarse
 
         ic = ic + nxyzc
         iu = iu + nxyzu
@@ -921,9 +921,9 @@ c     Put vx,vy,vz on fine mesh (for conservation form)
 
       do e=1,nelv    ! Map coarse velocity to fine mesh (C-->F)
 
-         call intp_rstd(cx(1,e),ux(1,e),lx1,lxd,if3d,0) ! 0 --> forward
-         call intp_rstd(cy(1,e),uy(1,e),lx1,lxd,if3d,0) ! 0 --> forward
-         if (if3d) call intp_rstd(cz(1,e),uz(1,e),lx1,lxd,if3d,0) ! 0 --> forward
+         call intp_rstd(cx(1,e),ux(1,e),nx1,nxd,if3d,0) ! 0 --> forward
+         call intp_rstd(cy(1,e),uy(1,e),nx1,nxd,if3d,0) ! 0 --> forward
+         if (if3d) call intp_rstd(cz(1,e),uz(1,e),nx1,nxd,if3d,0) ! 0 --> forward
 
       enddo
 
@@ -952,8 +952,8 @@ C
 
       call set_dealias_rx
 
-      nxyz1 = lx1*ly1*lz1
-      nxyzd = lxd*lyd*lzd
+      nxyz1 = nx1*ny1*nz1
+      nxyzd = nxd*nyd*nzd
 
       ic = 1    ! pointer to vector field C
 
@@ -961,9 +961,9 @@ C
 
 c        Map coarse velocity to fine mesh (C-->F)
 
-         call intp_rstd(fx,ux(1,e),lx1,lxd,if3d,0) ! 0 --> forward
-         call intp_rstd(fy,uy(1,e),lx1,lxd,if3d,0) ! 0 --> forward
-         if (if3d) call intp_rstd(fz,uz(1,e),lx1,lxd,if3d,0) ! 0 --> forward
+         call intp_rstd(fx,ux(1,e),nx1,nxd,if3d,0) ! 0 --> forward
+         call intp_rstd(fy,uy(1,e),nx1,nxd,if3d,0) ! 0 --> forward
+         if (if3d) call intp_rstd(fz,uz(1,e),nx1,nxd,if3d,0) ! 0 --> forward
 
 c        Convert convector F to r-s-t coordinates
 
@@ -1004,8 +1004,8 @@ c-----------------------------------------------------------------------
 
       integer e,f
 
-      nfaces= 2*ldim
-      ntot1 = lx1*ly1*lz1*nelv
+      nfaces= 2*ndim
+      ntot1 = nx1*ny1*nz1*nelv
       call rzero (work,ntot1)
       call rone  (mask,NTOT1)
 
@@ -1023,12 +1023,12 @@ c-----------------------------------------------------------------------
 
            call fcaver (vaver,work,e,f)
 
-           if (vaver.lt.0) call facev (mask,e,f,0.0,lx1,ly1,lz1)
+           if (vaver.lt.0) call facev (mask,e,f,0.0,nx1,ny1,nz1)
          endif
          if (cb(1:2).eq.'ws' .or. cb(1:2).eq.'WS') 
-     $   call facev (mask,e,f,0.0,lx1,ly1,lz1)
+     $   call facev (mask,e,f,0.0,nx1,ny1,nz1)
  100  continue
-      call dsop(mask,'*',lx1,ly1,lz1)
+      call dsop(mask,'*',nx1,ny1,nz1)
 
       return
       end
@@ -1060,7 +1060,7 @@ c
       etime1=dnekclock()
 
       dti = 1./dt
-      n   = lx1*ly1*lz1*nelv
+      n   = nx1*ny1*nz1*nelv
 
       call char_conv(phx,vx,vxlag,bm1,bm1lag,hmsk,c_vx,ct_vx,gsh_fld(1))
       call char_conv(phy,vy,vylag,bm1,bm1lag,hmsk,c_vx,ct_vx,gsh_fld(1))
@@ -1117,10 +1117,9 @@ c     operator-integrator-factor method (characteristics).
       nadvc=icalld
       etime1=dnekclock()
 
-      n   = lx1*ly1*lz1*nelv
+      n   = nx1*ny1*nz1*nelv
       dti = 1./dt
 
-      if(nid.eq.0 .and. loglevel.gt.2) write(6,*) 'convch', ifield
       call char_conv(phi,t(1,1,1,1,ifield-1),tlag(1,1,1,1,1,ifield-1)
      $        ,bm1,bm1lag,hmsk,c_vx,ct_vx,gsh_fld(1))
 
@@ -1167,7 +1166,7 @@ c     Assumes that current convecting field is on dealias mesh, in c()
          call intp_rstd (ju,u(1,e),mx,md,if3d,0) ! 0 = forward; on Gauss points!
          call rzero     (ud,nrstd)
 
-         do j=1,ldim
+         do j=1,ndim
             do i=1,nrstd
                tu(i)=c(i,e,j)*ju(i)   ! C_j*T
             enddo
@@ -1228,7 +1227,7 @@ c        call outmat(c(1,e,1),md,md,'fine u',e)
 c        call outmat(c(1,e,2),md,md,'fine v',e)
 c        call outmat(ju      ,md,md,'fine T',e)
 
-         do j=1,ldim
+         do j=1,ndim
             do i=1,nrstd
                tu(i)=c(i,e,j)*ju(i)   ! C_j*T
             enddo
@@ -1252,21 +1251,21 @@ c     call exitti('convop_cons_2d$',istep)
 c-----------------------------------------------------------------------
       subroutine iface_vert_int8(fa,va,jz0,jz1,nel)
       include 'SIZE'
-      integer*8 fa(lx1*lz1,2*ldim,nel),va(0:lx1+1,0:ly1+1,jz0:jz1,nel)
+      integer*8 fa(nx1*nz1,2*ndim,nel),va(0:nx1+1,0:ny1+1,jz0:jz1,nel)
       integer e,f
 
-      n = lx1*lz1*2*ldim*nel
+      n = nx1*nz1*2*ndim*nel
       call i8zero(fa,n)
 
-      mx1 = lx1+2
-      my1 = ly1+2
-      mz1 = lz1+2
-      if (ldim.eq.2) mz1=1
+      mx1 = nx1+2
+      my1 = ny1+2
+      mz1 = nz1+2
+      if (ndim.eq.2) mz1=1
 
-      nface = 2*ldim
+      nface = 2*ndim
       do e=1,nel
       do f=1,nface
-         call facind (kx1,kx2,ky1,ky2,kz1,kz2,lx1,ly1,lz1,f)
+         call facind (kx1,kx2,ky1,ky2,kz1,kz2,nx1,ny1,nz1,f)
 
          if     (f.eq.1) then ! EB notation
             ky1=ky1-1
@@ -1318,7 +1317,7 @@ c-----------------------------------------------------------------------
 
       call copy (bmnv,bm1,n)  ! Fill bmnv(1,1)
 
-      call fgslib_gs_op(gsh_fld(1),bmnv,1,1,0)  ! 1 ==> +; gsh_fld(1) is velocity
+      call gs_op(gsh_fld(1),bmnv,1,1,0)  ! 1 ==> +; gsh_fld(1) is velocity
 
       do i=1,n
          bmnv(i,1)=hmsk(i)/bmnv(i,1)
@@ -1395,11 +1394,11 @@ c     Global-to-local mapping for gs
       mz0 = 1
       mz1 = 1
       if (if3d) mz0 = 0
-      if (if3d) mz1 = lz1+1
+      if (if3d) mz1 = nz1+1
       call iface_vert_int8 (glo_num_face,glo_num_vol,mz0,mz1,nelt) 
 
-      nf = lx1*lz1*2*ldim*nelt !total number of points on faces
-      call fgslib_gs_setup(dgh,glo_num_face,nf,nekcomm,np)
+      nf = nx1*nz1*2*ndim*nelt !total number of points on faces
+      call gs_setup(dgh,glo_num_face,nf,nekcomm,np)
 
       return
       end
@@ -1413,12 +1412,12 @@ c     Set up pointer to restrict u to faces ! NOTE: compact
 
       integer e,f,ef
 
-      call dsset(lx1,ly1,lz1) ! set skpdat
+      call dsset(nx1,ny1,nz1) ! set skpdat
 
-      nxyz  = lx1*ly1*lz1
-      nxz   = lx1*lz1
-      nface = 2*ldim
-      nxzf  = lx1*lz1*nface ! red'd mod to area, unx, etc.
+      nxyz  = nx1*ny1*nz1
+      nxz   = nx1*nz1
+      nface = 2*ndim
+      nxzf  = nx1*nz1*nface ! red'd mod to area, unx, etc.
 
       k = 0
 
@@ -1439,7 +1438,7 @@ c     Set up pointer to restrict u to faces ! NOTE: compact
 
             i = i+1
             k = i+nxz*(ef-1)+nxzf*(e-1)           ! face   numbering
-            dg_face(k) = j1+lx1*(j2-1)+nxyz*(e-1) ! global numbering
+            dg_face(k) = j1+nx1*(j2-1)+nxyz*(e-1) ! global numbering
 
          enddo
          enddo
@@ -1478,7 +1477,7 @@ c-----------------------------------------------------------------------
       real     vol_ary(lx1,ly1,lz1,lelt)
       integer  i,j
 
-      n=lx1*ly1*lz1*nelfld(ifield)
+      n=nx1*ny1*nz1*nelfld(ifield)
       call rzero(vol_ary,n)
 
       do j=1,ndg_facex
@@ -1511,7 +1510,7 @@ c
       include 'SIZE'
       include 'TOTAL'
 
-c     Apply convecting field c(1,ldim) to scalar field u(1).
+c     Apply convecting field c(1,ndim) to scalar field u(1).
 
       real du(1),u(1),c(1)
 
@@ -1520,16 +1519,16 @@ c     Apply convecting field c(1,ldim) to scalar field u(1).
 
       integer e,f
 
-      n  = lx1*ly1*lz1*nelv
-      nf = lx1*lz1*2*ldim*nelt
+      n  = nx1*ny1*nz1*nelv
+      nf = nx1*nz1*2*ndim*nelt
 
 
       if (ifcons) then
-        if (if3d     ) call convop_cons_3d (du,u,c,lx1,lxd,nelv)
-        if (.not.if3d) call convop_cons_2d (du,u,c,lx1,lxd,nelv)
+        if (if3d     ) call convop_cons_3d (du,u,c,nx1,nxd,nelv)
+        if (.not.if3d) call convop_cons_2d (du,u,c,nx1,nxd,nelv)
       else
-        if (if3d     ) call convop_fst_3d  (du,u,c,lx1,lxd,nelv)
-        if (.not.if3d) call convop_fst_2d  (du,u,c,lx1,lxd,nelv)
+        if (if3d     ) call convop_fst_3d  (du,u,c,nx1,nxd,nelv)
+        if (.not.if3d) call convop_fst_2d  (du,u,c,nx1,nxd,nelv)
       endif
 
       call full2face(uf ,u )
@@ -1544,8 +1543,8 @@ c     Apply convecting field c(1,ldim) to scalar field u(1).
       beta_u = param(98)
       if (istep.le.5.and.nio.eq.0) write(6,*) beta_u,' dg upwind'
 
-      nface = 2*ldim
-      nxz   = lx1*lz1
+      nface = 2*ndim
+      nxz   = nx1*nz1
       k     = 0
       do e=1,nelt
       do f=1,nface
@@ -1568,7 +1567,7 @@ c     Apply convecting field c(1,ldim) to scalar field u(1).
       enddo
       enddo
       
-      call fgslib_gs_op(dg_hndlx,uf,1,1,0)  ! 1 ==> +
+      call gs_op(dg_hndlx,uf,1,1,0)  ! 1 ==> +
       call col2 (uf,upwind_wgt,nf)  ! Inefficient, but ok for now.
                                     ! Should be combined with
       call add_face2full( du , uf)  ! <--- this stmt.
@@ -1640,7 +1639,7 @@ c-----------------------------------------------------------------------
 
       integer e
 
-      n = lx1*ly1*lz1*nelfld(ifield)
+      n = nx1*ny1*nz1*nelfld(ifield)
 
       do i=1,n                            ! FOR NOW, USE DIAGONAL MASS
          rhs(i,1,1,1)=rhs(i,1,1,1)/bm1(i,1,1,1)   ! MATRIX.   pff, 10/10/15
@@ -1684,25 +1683,25 @@ c-----------------------------------------------------------------------
 
          icalld = 1
 
-         call zwgl(zptf,wgtf,lxd)
+         call zwgl(zptf,wgtf,nxd)
          if (if3d) then
             k=0
-            do j=1,ly1
-            do i=1,lx1
+            do j=1,ny1
+            do i=1,nx1
                k=k+1
                wghtc(k)=wxm1(i)*wzm1(j)
             enddo
             enddo
             k=0
-            do j=1,lyd
-            do i=1,lxd
+            do j=1,nyd
+            do i=1,nxd
                k=k+1
                wghtf(k)=wgtf(i)*wgtf(j)
             enddo
             enddo
          else
-            call copy(wghtc,wxm1,lx1)
-            call copy(wghtf,wgtf,lxd)
+            call copy(wghtc,wxm1,nx1)
+            call copy(wghtf,wgtf,nxd)
          endif
       endif
 
@@ -1714,7 +1713,7 @@ c
       include 'SIZE'
       include 'TOTAL'
 
-c     Apply convecting field c(1,ldim) to scalar field u(1).
+c     Apply convecting field c(1,ndim) to scalar field u(1).
 
       parameter(ldd=lxd*lyd*lzd)
       real du(1),u(1),c(ldd*lelv,3)
@@ -1747,7 +1746,7 @@ c     Apply convecting field c(1,ldim) to scalar field u(1).
       beta_u = param(98)
       if (istep.le.5.and.nio.eq.0) write(6,*) beta_u,' dg upwind'
 
-      nface = 2*ldim
+      nface = 2*ndim
       nxz   = lx1*lz1
       nxzd  = lxd*lzd
       k     = 0
@@ -1772,20 +1771,20 @@ c     Apply convecting field c(1,ldim) to scalar field u(1).
 
         enddo
 
-        fdim = ldim-1 ! Dimension of face
-        call map_faced(beta_f,beta_c  ,lx1,lxd,fdim,0) ! Dealiased quadrature,
-        call map_faced(jaco_f,jaco_c  ,lx1,lxd,fdim,0) ! 0 --> coarse to fine,
-        call map_faced(ufine,uf(kface),lx1,lxd,fdim,0) !   ufine = J uf
+        fdim = ndim-1 ! Dimension of face
+        call map_faced(beta_f,beta_c  ,nx1,nxd,fdim,0) ! Dealiased quadrature,
+        call map_faced(jaco_f,jaco_c  ,nx1,nxd,fdim,0) ! 0 --> coarse to fine,
+        call map_faced(ufine,uf(kface),nx1,nxd,fdim,0) !   ufine = J uf
 
         do i=1,nxzd
            ufine(i)=wghtf(i)*jaco_f(i)*beta_f(i)*ufine(i)
         enddo
-        call map_faced(uf(kface),ufine,lx1,lxd,fdim,1)  ! 1 --> uf = J^T ufine
+        call map_faced(uf(kface),ufine,nx1,nxd,fdim,1)  ! 1 --> uf = J^T ufine
 
       enddo
       enddo
 
-      call fgslib_gs_op(dg_hndlx,uf,1,1,0)  ! 1 ==> +
+      call gs_op(dg_hndlx,uf,1,1,0)  ! 1 ==> +
 
       call col2 (uf,upwind_wgt,nf)  ! Inefficient, but ok for now.
                                     ! Should be combined with
@@ -1865,7 +1864,7 @@ c
       include 'SIZE'
       include 'TOTAL'
 
-c     Apply convecting field c(1,ldim) to scalar field u(1).
+c     Apply convecting field c(1,ndim) to scalar field u(1).
 
       real du(1),u(1)
 
@@ -1880,8 +1879,8 @@ c     Apply convecting field c(1,ldim) to scalar field u(1).
 
       integer e,f,fdim
 
-      n  = lx1*ly1*lz1*nelv
-      nf = lx1*lz1*2*ldim*nelt
+      n  = nx1*ny1*nz1*nelv
+      nf = nx1*nz1*2*ndim*nelt
 
       call full2face(uf ,u )
       call full2face(uxf,vx)
@@ -1891,9 +1890,9 @@ c     Apply convecting field c(1,ldim) to scalar field u(1).
 
       beta_u = 1.00 ! 1=full upwind; 0=central flux
 
-      nface = 2*ldim
-      nxz   = lx1*lz1
-      nxzd  = lxd*lzd
+      nface = 2*ndim
+      nxz   = nx1*nz1
+      nxzd  = nxd*nzd
       k     = 0
       do e=1,nelt         ! This formula for upwind weights appears to
       do f=1,nface        ! assume that U is continuous, or at least of
@@ -1917,15 +1916,15 @@ c     Apply convecting field c(1,ldim) to scalar field u(1).
 
         enddo
 
-        fdim = ldim-1 ! Dimension of face
-        call map_faced(beta_f,beta_c  ,lx1,lxd,fdim,0) ! Dealiased quadrature,
-        call map_faced(jaco_f,jaco_c  ,lx1,lxd,fdim,0) ! 0 --> coarse to fine,
-        call map_faced(ufine,uf(kface),lx1,lxd,fdim,0) !   ufine = J uf
+        fdim = ndim-1 ! Dimension of face
+        call map_faced(beta_f,beta_c  ,nx1,nxd,fdim,0) ! Dealiased quadrature,
+        call map_faced(jaco_f,jaco_c  ,nx1,nxd,fdim,0) ! 0 --> coarse to fine,
+        call map_faced(ufine,uf(kface),nx1,nxd,fdim,0) !   ufine = J uf
 
         do i=1,nxzd
            ufine(i)=wghtf(i)*jaco_f(i)*beta_f(i)*ufine(i)
         enddo
-        call map_faced(uf(kface),ufine,lx1,lxd,fdim,1)  ! 1 --> uf = J^T ufine
+        call map_faced(uf(kface),ufine,nx1,nxd,fdim,1)  ! 1 --> uf = J^T ufine
 
        else
         do i=1,nxz
@@ -1952,7 +1951,7 @@ c
       include 'SIZE'
       include 'TOTAL'
 
-c     Apply convecting field c(1,ldim) to scalar field u(1).
+c     Apply convecting field c(1,ndim) to scalar field u(1).
 
       real du(1),u(1),cr(1),cs(1),ct(1)
 
@@ -1971,7 +1970,7 @@ c     Apply convecting field c(1,ldim) to scalar field u(1).
       nf = lx1*lz1*2*ldim*lelt
 
 
-      call convop_weak (du,u,cr,cs,ct,lx1,lxd,nelv)  ! Volumetric term
+      call convop_weak (du,u,cr,cs,ct,nx1,nxd,nelv)  ! Volumetric term
 
       call full2face(uf ,u )
       call full2face(uxf,vx)
@@ -2010,20 +2009,20 @@ c     Apply convecting field c(1,ldim) to scalar field u(1).
         enddo
 
         fdim = ldim-1 ! Dimension of face
-        call map_faced(beta_f,beta_c  ,lx1,lxd,fdim,0) ! Dealiased quadrature,
-        call map_faced(jaco_f,jaco_c  ,lx1,lxd,fdim,0) ! 0 --> coarse to fine,
-        call map_faced(ufine,uf(kface),lx1,lxd,fdim,0) !   ufine = J uf
+        call map_faced(beta_f,beta_c  ,nx1,nxd,fdim,0) ! Dealiased quadrature,
+        call map_faced(jaco_f,jaco_c  ,nx1,nxd,fdim,0) ! 0 --> coarse to fine,
+        call map_faced(ufine,uf(kface),nx1,nxd,fdim,0) !   ufine = J uf
 
         do i=1,nxzd
            ufine(i)=wghtf(i)*jaco_f(i)*beta_f(i)*ufine(i)
         enddo
-        call map_faced(uf(kface),ufine,lx1,lxd,fdim,1)  ! 1 --> uf = J^T ufine
+        call map_faced(uf(kface),ufine,nx1,nxd,fdim,1)  ! 1 --> uf = J^T ufine
         call copy     (us(kface),uf(kface),lx1*lz1)     ! Save uf for later recombination
 
       enddo
       enddo
 
-      call fgslib_gs_op(dg_hndlx,uf,1,1,0)  ! 1 ==> +  :   uf <-- uf^- + uf^+
+      call gs_op(dg_hndlx,uf,1,1,0)  ! 1 ==> +  :   uf <-- uf^- + uf^+
 
       do j=1,ndg_facex
          i=dg_face(j)

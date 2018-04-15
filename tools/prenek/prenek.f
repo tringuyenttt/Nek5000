@@ -19,7 +19,7 @@ c     PreProcessor for Spectral element code.  Inputs geometry and
 c     flow data from keyboard or graphics tablet interactively or 
 c     from instruction file.  - Ed Bullister
 
-#     include "basics.inc"
+      include 'basics.inc'
 
       character file*17
       common /cfilold/ filold
@@ -97,7 +97,7 @@ c     from instruction file.  - Ed Bullister
       end
 c-----------------------------------------------------------------------
       subroutine read_params
-#     include "basics.inc"
+      include 'basics.inc'
       character*40 s40
 
 C       Do this read twice to get parameter values and comments
@@ -180,9 +180,7 @@ C       If something missing, then go to 300
       end
 c-----------------------------------------------------------------------
       subroutine build_options
-#     include "basics.inc"
-
-      character*32 cpcommand
+      include 'basics.inc'
 
       common /cfilold/ filold
       character filold*17
@@ -298,14 +296,11 @@ c           GO TO 1080
          endif
       endif
 
-      write(cpcommand,'(A3,A17,A12)') 'cp ',filenm,' tmp.000.rea'
-      call system(cpcommand)
-
       return
       end
 c-----------------------------------------------------------------------
       subroutine after_build
-#     include "basics.inc"
+      include 'basics.inc'
 
 
 C     {If interactive} Ask with Menu whether you want to:
@@ -385,7 +380,7 @@ c     ITEM(NCHOIC)='RSB'
 
       IF(choice.eq.'EXIT') then
 C        Exit Prenek
-         call prexit(0)
+         call prexit
 c        call rsb_xxt_set(2,nel)
          call session_exit
 c     elseif(choice.eq.'RSB') then
@@ -425,7 +420,7 @@ c        call rsb_xxt_set(1,nel)
       end
 c-----------------------------------------------------------------------
       subroutine reauni
-#     include "basics.inc"
+      include 'basics.inc'
       LOGICAL IFSTRT,IFEND
       CHARACTER*80 LINE80
       INTEGER IICORN(8)
@@ -587,15 +582,12 @@ c-----------------------------------------------------------------------
       return
       end
 c-----------------------------------------------------------------------
-      subroutine wrtpar(cflag,cont)
-#     include "basics.inc"
+      subroutine wrtpar(cflag)
+      include 'basics.inc'
 
       CHARACTER FILE*10,CFLAG*10
       CHARACTER*1 s401(40)
-      character*4 ntsave
-      integer cont
       COMMON/INOUT/  IEXT
-      common /fsave/ itsave
 C
 C     Write out parameter stuff
 C     First check B.C.'s to set logical switches
@@ -616,26 +608,11 @@ C              Test for moving mesh in solid
 C
       M=IEXT
       n=m+3
-
-      if (cont.eq.2) then
-         itsave=itsave+1
-         filenm = 'tmp.          '
-         if (itsave.le.9) then
-            write(ntsave,'(A2,I1)') '00',itsave
-         else if (itsave.le.99) then
-            write(ntsave,'(A1,I2)') '0',itsave
-         else ! assume itsave.le.999
-            write(ntsave,'(I3)') itsave
-         endif
-         filenm(5:7) = ntsave
-         filenm(8:11) = '.rea'
-      else
-         filenm = sesion
-         filenm(m:n) ='.rea'
-      endif
+      filenm = sesion
 C
+      FILENM(M:N) ='.rea'
       CALL OPENF(10,FILENM,'NEW',1,IERR)
-      if (cont.ne.2) call prs('Writing Parameters to file$')
+      CALL PRS('Writing Parameters to file$')
       write(10,*,err=60)'****** PARAMETERS *****'
       WRITE(10,*,err=60)VNEKTON,' NEKTON VERSION '
       WRITE(10,*,err=60)NDIM,   ' DIMENSIONAL RUN'
@@ -676,7 +653,7 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine seteqt
-#     include "basics.inc"
+      include 'basics.inc'
       CHARACTER*26 ITEMON
       CHARACTER*120 LSET
 C     Sets equation type based on logical parameters
@@ -999,7 +976,7 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine chkeqt(ierr)
-#     include "basics.inc"
+      include 'basics.inc'
 C
 C     Checks for illegal equation settings.  IERR=1 if any were found.
       IERR=0
@@ -1020,7 +997,7 @@ C     Checks for illegal equation settings.  IERR=1 if any were found.
       end
 c-----------------------------------------------------------------------
       subroutine setreq
-#     include "basics.inc"
+      include 'basics.inc'
 C
 C     REQD(IPARAM)  =I Irrelevant
 C                           =O Optional
@@ -1097,7 +1074,7 @@ C     MultiGrid
 c-----------------------------------------------------------------------
       subroutine setpar
 C     Based on EQTYPE and  and IF3D, Prompt for Parameters to be set
-#     include "basics.inc"
+      include 'basics.inc'
       CHARACTER*19 BOXLAB
 
       return   !  edit file to set params
@@ -1311,7 +1288,7 @@ C     Now get rid (permanently) of the stuff in segment 10 (the gwrited stuff)
       end
 c-----------------------------------------------------------------------
       subroutine ckpar(mode,ierr)
-#     include "basics.inc"
+      include 'basics.inc'
 C     This was stolen from above setpar routine
       CHARACTER*26 BOXLAB
       CHARACTER*5 MODE
@@ -1368,7 +1345,7 @@ c           endif
 c-----------------------------------------------------------------------
 c-----------------------------------------------------------------------
       subroutine readln(locate)
-#     include "basics.inc"
+      include 'basics.inc'
 C
 C       Reads a line of text.  Jumps to appropriate place on help.
 C
@@ -1395,22 +1372,20 @@ c      WRITE(10,'(A70)',ERR=60)  LINE
       end
 c-----------------------------------------------------------------------
 c-----------------------------------------------------------------------
-      subroutine prexit(cont)
-#     include "basics.inc"
+      subroutine prexit
+      include 'basics.inc'
       CHARACTER CTEMP*80,CHAR1*1,CHTEMP*3
-      integer cont ! 0 -> write and end,
-                   ! 1 -> write and continue,
-                   ! 2 -> autosave
 c      LOGICAL IFMVBD
       COMMON/FORTRN/ IDRIVF,INITCS,IPFLAG,IFFLAG,IQFLAG
       COMMON/INOUT/  IEXT
 
+
       write(6,*) nel,' this is nel in prexit'
       call curcnt  ! Recount number of curved sides
 
-      if (cont.eq.0) call cleara
 
-      call wrtpar('FULL DUMP ',cont)
+      CALL CLEARA
+      CALL WRTPAR('FULL DUMP ')
       sesion(11:14) ='   '
       WRITE(10,'(4G14.6,'' XFAC,YFAC,XZERO,YZERO'')')
      $XFACO,YFACO,XZEROO,YZEROO
@@ -1693,8 +1668,6 @@ C     Sort so that integrals are last
 C
       CLOSE(UNIT=10)
 
-      if (cont.ne.0) return
-
       call session_exit
 
       return
@@ -1731,7 +1704,7 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine init
-#     include "basics.inc"
+      include 'basics.inc'
       CHARACTER HLBNM*40,OPSYS*10,TERMIN*10
       CHARACTER*10 ARGS(5)
       CHARACTER*10 s10
@@ -1739,14 +1712,12 @@ c-----------------------------------------------------------------------
       character*80 file_prefix
       COMMON/INOUT/  IEXT
       COMMON /PFFLG/  ILGRNG,ISCND,IENTRP,INEWTX
-      common /fsave/ itsave
 C
       XPHY0=0.0
       YPHY0=0.0
       ILGRNG=0
       ISCND =0
       IENTRP=0
-      itsave=0
 
       ifmerge        = .false.
       ifconj_merge   = .false.
@@ -1897,7 +1868,7 @@ C       Perpendicular to above two
       end
 c-----------------------------------------------------------------------
       subroutine output
-#     include "basics.inc"
+      include 'basics.inc'
       CHARACTER KEY,STRING*5,NEWNAM*5
       CHARACTER*26 ITEMON
 C! DEFAULT
@@ -2019,7 +1990,7 @@ C     Before returning to main menu,
       end
 c-----------------------------------------------------------------------
       subroutine histry
-#     include "basics.inc"
+      include 'basics.inc'
       CHARACTER*26 ITEMON
 C     Local logicals
       LOGICAL IFPART,IFPNT,IFVH,IFTH,IFPH,IFPS1H,IFPS2H
@@ -2265,7 +2236,7 @@ C       Hilite historical point
       end
 c-----------------------------------------------------------------------
       subroutine integq
-#     include "basics.inc"
+      include 'basics.inc'
 1     CONTINUE
       DO 18 ISOBJ=1,NSOBJS
          ITEM(ISOBJ)=SOBJ(ISOBJ)
@@ -2312,7 +2283,7 @@ C     Character flags
       end
 c-----------------------------------------------------------------------
       subroutine objec
-#     include "basics.inc"
+      include 'basics.inc'
       CHARACTER*26 ITEMON
       CHARACTER*80 LINE80,ITEMD
       CHARACTER CHFACE*1
@@ -2455,7 +2426,7 @@ C                 of faces by one
       end
 c-----------------------------------------------------------------------
       subroutine delobj(isobjt)
-#     include "basics.inc"
+      include 'basics.inc'
       CHARACTER CHFACE
 C
 C     Label new number of former highest; blank location of former ISOBJ
@@ -2491,7 +2462,7 @@ C     ISOBJ??
       end
 c-----------------------------------------------------------------------
       subroutine getfac(iface,iel,cflag,isobjt)
-#     include "basics.inc"
+      include 'basics.inc'
       CHARACTER*6 CFLAG
       CHARACTER CHFACE
       CALL PRS(' Enter element side with mouse:$')
@@ -2559,7 +2530,7 @@ C       Hilite side
       end
 c-----------------------------------------------------------------------
       subroutine drivef
-#     include "basics.inc"
+      include 'basics.inc'
       COMMON/FORTRN/ IDRIVF,INITCS,IPFLAG,IFFLAG,IQFLAG
       IDRIVF=1
       CALL PRS('          *** DRIVE FORCE MENU ***$')
@@ -2586,7 +2557,7 @@ C               You can drive the fluid
       end
 c-----------------------------------------------------------------------
       subroutine drivfc(ipscal)
-#     include "basics.inc"
+      include 'basics.inc'
       COMMON/FORTRN/ IDRIVF,INITCS,IPFLAG,IFFLAG,IQFLAG
       character*80 CH
       DATA CH /' '/
@@ -2663,7 +2634,7 @@ C        Read 2 more lines for forcing function
 C     End of PRENEK ****************************************
 c-----------------------------------------------------------------------
       subroutine intcnd
-#     include "basics.inc"
+      include 'basics.inc'
 C
 C     Initial condions menu
 C
@@ -2691,7 +2662,7 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine initfun
-#     include "basics.inc"
+      include 'basics.inc'
       character*80 CH
       INTEGER ICALLD
       SAVE    ICALLD
@@ -2764,7 +2735,7 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine initpre
-#     include "basics.inc"
+      include 'basics.inc'
       CHARACTER*1 OPTS(80),INITP1(80)
       EQUIVALENCE (INITP1,INITP)
 C
@@ -2843,7 +2814,7 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine initres
-#     include "basics.inc"
+      include 'basics.inc'
       CHARACTER*80 FNAME
       CHARACTER*1  OPTS(80),INITP1(80,15)
       EQUIVALENCE (INITP1,INITP)
@@ -2958,41 +2929,8 @@ C
       return
       end
 c-----------------------------------------------------------------------
-      subroutine save_mesh
-
-#     include "basics.inc"
-
-      character*50 p1
-      character*70 p2
-
-      common /inout/ iext
-
-      p1 = ' Choose a session name for this save (default:'
-      write(p2,'(A50,A,A2)') p1,sesion,')$'
-
-      call prs(p2)
-      call res(line,70)
-
-      if (line.ne.'          ') then
-         call blank(sesion,14)
-         sesion=line
-         do i=10,1,-1
-             if(sesion(i:i).ne.' ')then
-                lastch=i
-                go to 1
-             endif
-         enddo
-1        continue
-         iext=lastch+1
-         open(unit=4,file='session.name')
-         write(4,'(a14)') sesion
-      endif
-
-      return
-      end
-c-----------------------------------------------------------------------
       subroutine helper(routine,ientry)
-#     include "basics.inc"
+      include 'basics.inc'
       CHARACTER ROUTINE*(*)
 C
       if (ROUTINE.EQ.'INITPRE'.AND.IENTRY.EQ.1) THEN
@@ -3058,7 +2996,7 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine initdef
-#     include "basics.inc"
+      include 'basics.inc'
       CHARACTER*1 OPTS(80),INITP1(80)
       EQUIVALENCE (INITP1,INITP)
 C
@@ -3080,7 +3018,7 @@ C
       end
 c-----------------------------------------------------------------------
       subroutine exitt
-#     include "basics.inc"
+      include 'basics.inc'
       write(6,*) 'stopping in exitt'
       nz = 1/(nx-ny)
       zzz = -nel
@@ -3096,7 +3034,7 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine init_param ! Initialize parameters
-#     include "basics.inc"
+      include 'basics.inc'
 
       call init_cparam ! Initialize parameter names
       call init_vparam ! Initialize parameter values
@@ -3105,7 +3043,7 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine init_cparam ! Initialize parameters
-#     include "basics.inc"
+      include 'basics.inc'
 
       do i=1,500
          call blank(cparam(i),40)
@@ -3214,7 +3152,7 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine init_vparam ! Initialize parameters
-#     include "basics.inc"
+      include 'basics.inc'
 
       call rzero(param,500)
 

@@ -1,7 +1,7 @@
 C     Utilities to be included in all subroutines in Preprocessor Program
 C     BASICS.INC
 
-      parameter (nelm=MAXNEL,nxm=7,nym=7,nzm=7,maxfld=5)
+      parameter (nelm=0 500 000,nxm=7,nym=7,nzm=7,maxfld=5)
       parameter (lx1=nxm,ly1=nym,lz1=nzm)
 
       PARAMETER ( MAXCRV=4,MAXIBC=4,MAXHIS=2,MPSCAL=4)
@@ -27,10 +27,10 @@ C     BASICS.INC
 
       LOGICAL      IFXYO,IFXYH,IFPO,IFVO,IFTO,IFTGO,IFMOVB,IFPLAN
      $            ,IFPROJ,IFDMSH,IFZOOM,IFGNGM,IFCFBD,IFCLRB,IFMLTI
-     $            ,IFFMTIN,ifptplt,ifauto,if_unstructure,ifundo
+     $            ,IFFMTIN,ifptplt,ifauto,if_unstructure
       COMMON /LOGO/IFXYO,IFXYH,IFPO,IFVO,IFTO,IFTGO,IFMOVB,IFPLAN
      $            ,IFPROJ,IFDMSH,IFZOOM,IFGNGM,IFCFBD,IFCLRB,IFMLTI
-     $            ,IFFMTIN,ifptplt,ifauto,if_unstructure,ifundo
+     $            ,IFFMTIN,ifptplt,ifauto,if_unstructure
 
       common /nek2r/ curve(6,12,nelm),bc(5,6,nelm,0:maxfld)
      $         ,pi,theta,phi,vhobs(3),xhobs(3),yhobs(3)
