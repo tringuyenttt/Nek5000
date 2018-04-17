@@ -51,7 +51,7 @@ c----------------------------------------------------------------------
       call update_particle_location   ! move outlier particles
       call set_check_spl_params ! in case spl/collisions are set
       call move_particles_inproc          ! initialize fp & cr comm handles
-      if (red_part .le. 2) call init_interpolation ! barycentric weights for interpolation
+      if (red_interp .le. 2) call init_interpolation ! barycentric weights for interpolation
       if (two_way.gt.1) then
          call compute_neighbor_el_proc    ! compute list of neigh. el. ranks 
          call create_extra_particles
