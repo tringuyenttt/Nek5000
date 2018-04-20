@@ -51,7 +51,7 @@ c----------------------------------------------------------------------
       call update_particle_location   ! move outlier particles
       call set_check_spl_params ! in case spl/collisions are set
       call move_particles_inproc          ! initialize fp & cr comm handles
-      if (red_interp .le. 2) call init_interpolation ! barycentric weights for interpolation
+      if (red_interp .eq. 1) call init_interpolation ! barycentric weights for interpolation
       if (two_way.gt.1) then
          call compute_neighbor_el_proc    ! compute list of neigh. el. ranks 
          call create_extra_particles
@@ -3322,6 +3322,8 @@ c-----------------------------------------------------------------------
       common /point2gridc/ p2gc
       real   p2gc(lx1,ly1,lz1,lelt,4)
 
+      if (red_interp .eq. 0) goto 1511
+
       nxyz = nx1*ny1*nz1
         do i=1,n
            rrdum = 1.0
@@ -3329,7 +3331,7 @@ c-----------------------------------------------------------------------
            ie  =  ipart(je0,i) + 1
 
            ! Barycentric or reduced barycentric lagrange interpolation
-           if (red_interp .le. 2) then 
+           if (red_interp .eq. 1) then 
 
            call init_baryinterp(rpart(jr,i),rpart(jr+1,i),rrdum,nxyz)
 
@@ -3347,7 +3349,7 @@ c-----------------------------------------------------------------------
 c          call baryinterp(p2gc(1,1,1,ie,4),rpart(jgam,i),nxyz)   !gam
 
            ! trilinear interpolation between grid points
-           else
+           elseif (red_interp .eq. 2) then
               call triinterp(xm1(1,1,1,ie),ym1(1,1,1,ie),
      >                       zm1(1,1,1,ie),vx(1,1,1,ie),
      >                       rpart(jx,i),rpart(jy,i),rpart(jz,i),
@@ -3403,6 +3405,8 @@ c    >                       ie,rpart(jgam,i))
            endif
 
         enddo
+
+ 1511 continue
 
       return
       end
