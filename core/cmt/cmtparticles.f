@@ -4232,8 +4232,8 @@ c----------------------------------------------------------------------
       icm = 1
 
       ! DZ FAKE
-c     do while (rys .le. xdrange(2,2))
-      do while (rys .le. 0.23)
+      do while (rys .le. xdrange(2,2))
+c     do while (rys .le. 0.23)
 
          do i=1,ny1
             rys = ryt + rygls(i)
@@ -4678,7 +4678,6 @@ c     if (icalld1.eq.0) then
 
       icalld1 = icalld1 + 1
 
-c     if (icalld1 .le. 2 .or. (resetFindpts .eq. 1)) then
          call particles_in_nid
          call fgslib_findpts(i_fp_hndl !  stride     !   call fgslib_findpts( ihndl,
      $           , ifpts(jrc,1),lif        !   $             rcode,1,
@@ -4690,9 +4689,6 @@ c     if (icalld1 .le. 2 .or. (resetFindpts .eq. 1)) then
      $           , rfpts(jy ,1),lrf        !   &             pts(  n+1),1,
      $           , rfpts(jz ,1),lrf ,nfpts)    !   &             pts(2*n+1),1,n)
          call update_findpts_info
-c     else
-c        call findpts_box
-c     endif
 
       nmax = iglmax(n,1)
       if (nmax.gt.llpart) then
@@ -4713,151 +4709,6 @@ c        Sort by element number - for improved local-eval performance
          call fgslib_crystal_tuple_sort    (i_cr_hndl,n 
      $              , ipart,ni,partl,nl,rpart,nr,je0,1)
       endif
-c        call reset_rst_part
-
-      return
-      end
-c-----------------------------------------------------------------------
-      subroutine reset_rst_part
-c
-      include 'SIZE'
-      include 'TOTAL'
-      include 'CMTDATA'
-      include 'CMTPART'
-
-      do ip=1,n
-         xloc = rpart(jx,ip)
-         yloc = rpart(jy,ip)
-         zloc = rpart(jz,ip)
-         ie = ipart(je0,ip) + 1
-         rloc = -1.0 + 2.0*(xloc - xerange(1,1,ie))/
-     $          (xerange(2,1,ie)-xerange(1,1,ie))
-         sloc = -1.0 + 2.0*(yloc - xerange(1,2,ie))/
-     $          (xerange(2,2,ie)-xerange(1,2,ie))
-         tloc = -1.0 + 2.0*(zloc - xerange(1,3,ie))/
-     $          (xerange(2,3,ie)-xerange(1,3,ie))
-         rpart(jr  ,ip) = rloc
-         rpart(jr+1,ip) = sloc
-         rpart(jr+2,ip) = tloc
-
-      enddo
-
-      return
-      end
-c-----------------------------------------------------------------------
-      subroutine findpts_box
-c
-c     this routine will create ghost particles by checking if particle
-c     is within d2chk of element faces
-c
-c     ghost particle x,y,z list will be in rptsgp(jgpx,j),rptsgp(jgpy,j),
-c     rptsgp(jgpz,j), while processor and local element id are in
-c     iptsgp(jgppt,j) and iptsgp(jgpes,j)
-c
-      include 'SIZE'
-      include 'TOTAL'
-      include 'CMTDATA'
-      include 'CMTPART'
-
-      do i=1,n
-         ie = ipart(je0,i) + 1
-
-         iip1 = 0
-         iip2 = 0
-         iip3 = 0
-
-         rxdum1 = rpart(jx,i) - xerange(1,1,ie)
-         rxdum2 = rpart(jx,i) - xerange(2,1,ie)
-         if ((rpart(jx,i) .lt. xerange(2,1,ie)) .and.
-     >       (rpart(jx,i) .gt. xerange(1,1,ie))) goto 123
-         if (abs(rxdum1).lt. abs(rxdum2)) iip1 = -1
-         if (abs(rxdum2).lt. abs(rxdum1)) iip1 =  1
- 123  continue
-
-         rxdum1 = rpart(jy,i) - xerange(1,2,ie)
-         rxdum2 = rpart(jy,i) - xerange(2,2,ie)
-         if ((rpart(jy,i) .lt. xerange(2,2,ie)) .and.
-     >       (rpart(jy,i) .gt. xerange(1,2,ie))) goto 124
-         if (abs(rxdum1).lt. abs(rxdum2)) iip2 = -1
-         if (abs(rxdum2).lt. abs(rxdum1)) iip2 =  1
- 124  continue
-
-         rxdum1 = rpart(jz,i) - xerange(1,3,ie)
-         rxdum2 = rpart(jz,i) - xerange(2,3,ie)
-         if ((rpart(jz,i) .lt. xerange(2,3,ie)) .and.
-     >       (rpart(jz,i) .gt. xerange(1,3,ie))) goto 125
-         if (abs(rxdum1).lt. abs(rxdum2)) iip3 = -1
-         if (abs(rxdum2).lt. abs(rxdum1)) iip3 =  1
- 125  continue
-
-         itype = abs(iip1) + abs(iip2) + abs(iip3)
-         if (itype .eq. 0) then
-            ier  = ipart(je0,i)
-            impi = ipart(jpt,i)
-            goto 1511
-         elseif (itype .eq. 1) then
-            do j=1,3*nfacegp-2,3   ! faces
-               ii = el_face_num(j) 
-               jj = el_face_num(j+1) 
-               kk = el_face_num(j+2) 
-
-               if (ii .eq. iip1) then
-               if (jj .eq. iip2) then
-               if (kk .eq. iip3) then
-                  jdum = j/3+1
-                  ier=el_face_el_map(ie,jdum)
-                  impi=el_face_proc_map(ie,jdum)
-                  goto 1511
-               endif
-               endif
-               endif
-            enddo
-         elseif (itype .eq. 2) then
-            do j=1,3*nedgegp-2,3   ! edges
-               ii = el_edge_num(j) 
-               jj = el_edge_num(j+1) 
-               kk = el_edge_num(j+2) 
-
-               if (ii .eq. iip1) then
-               if (jj .eq. iip2) then
-               if (kk .eq. iip3) then
-                  jdum = j/3+1
-                  ier=el_edge_el_map(ie,jdum)
-                  impi=el_edge_proc_map(ie,jdum)
-                  goto 1511
-               endif
-               endif
-               endif
-            enddo
-         elseif (itype .eq. 3) then
-            do j=1,3*ncornergp-2,3   ! corners
-               ii = el_corner_num(j) 
-               jj = el_corner_num(j+1) 
-               kk = el_corner_num(j+2) 
-
-               if (ii .eq. iip1) then
-               if (jj .eq. iip2) then
-               if (kk .eq. iip3) then
-                  jdum = j/3+1
-                  ier=el_corner_el_map(ie,jdum)
-                  impi=el_corner_proc_map(ie,jdum)
-                  goto 1511
-               endif
-               endif
-               endif
-            enddo
-         endif
-         
- 1511 continue
-         ipart(jpt,i) = impi
-         ipart(je0,i) = ier
-         ipart(jrc,i) = 0
-         rpart(jd,i)  = 1.0
-
-         if (impi .lt. 0) rpart(jx,i) = 1E12 ! kill the particle
-         if (ier .lt. 0) rpart(jx,i) = 1E12 ! kill the particle
-
-      enddo
 
       return
       end
