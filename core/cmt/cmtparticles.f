@@ -51,7 +51,7 @@ c----------------------------------------------------------------------
       call update_particle_location   ! move outlier particles
       call set_check_spl_params ! in case spl/collisions are set
       call move_particles_inproc          ! initialize fp & cr comm handles
-      if (red_interp .le. 2) call init_interpolation ! barycentric weights for interpolation
+      if (red_interp .eq. 1) call init_interpolation ! barycentric weights for interpolation
       if (two_way.gt.1) then
          call compute_neighbor_el_proc    ! compute list of neigh. el. ranks 
          call create_extra_particles
@@ -159,7 +159,7 @@ c           set global particle id (3 part tag)
            !rpart(jv0+1,i) = 0.
            !rpart(jv0+2,i) = 0.
             ry = rpart(jy,i) + rpart(jrpe,i)
-            if (ry .gt. 0.025) then
+            if (ry .gt. 0.03) then
 c               rpart(jy,i) = -1E8
             endif
             enddo
@@ -321,7 +321,7 @@ c----------------------------------------------------------------------
       ! now, check this filter width against collision width
       if (two_way .gt. 2) then
 
-         rdeff_max = dp(2)
+         rdeff_max = dp(2)/2.
          do i = 1,n
             if (rpart(jrpe,i) .gt. rdeff_max) rdeff_max=rpart(jrpe,i)
          enddo
@@ -1142,7 +1142,7 @@ c     local mpi rank effects
 
       endif
 
-c     wght = 1.0
+c     wght = 0.5
 c     ncut = 1
 c     call filter_s0(ptw(1,1,1,1,4),wght,ncut,'phip') 
 
@@ -3261,6 +3261,7 @@ c     used for 3d trilinear interpolation
 c
       include 'SIZE'
       include 'CMTPART'
+      include 'INPUT'
 
       real field(nx1,ny1,nz1),xf(nx1,ny1,nz1),yf(nx1,ny1,nz1),
      >                        zf(nx1,ny1,nz1)
@@ -3270,23 +3271,40 @@ c
       sdelta = 2./(ny1-1.)
       tdelta = 2./(nz1-1.)
 
-      mxx = floor((1.+r)/rdelta)+1
-      myy = floor((1.+s)/sdelta)+1
-      mzz = floor((1.+t)/tdelta)+1
+c     mxx = floor((1.+r)/rdelta)+1
+c     myy = floor((1.+s)/sdelta)+1
+c     mzz = floor((1.+t)/tdelta)+1
+
+      mxx = 0
+      myy = 0
+      mzz = 0
+
+      do k=1,nz1
+      do j=1,ny1
+      do i=1,nx1
+         if (xf(i,j,k) .lt. x) mxx = max(mxx,i)
+         if (yf(i,j,k) .lt. y) myy = max(myy,j)
+         if (zf(i,j,k) .lt. z) mzz = max(mzz,k)
+      enddo
+      enddo
+      enddo
+      if (.not.if3d) mzz = 1
 
       xd = (x - xf(mxx,myy,mzz))/(xf(mxx+1,myy,mzz)-xf(mxx,myy,mzz))
       yd = (y - yf(mxx,myy,mzz))/(yf(mxx,myy+1,mzz)-yf(mxx,myy,mzz))
-      zd = (z - zf(mxx,myy,mzz))/(zf(mxx,myy,mzz+1)-zf(mxx,myy,mzz))
-
       c00=field(mxx,myy,mzz)*(1.-xd)+field(mxx+1,myy,mzz)*xd
-      c01=field(mxx,myy,mzz+1)*(1.-xd)+field(mxx+1,myy,mzz+1)*xd
       c10=field(mxx,myy+1,mzz)*(1.-xd)+field(mxx+1,myy+1,mzz)*xd
-      c11=field(mxx,myy+1,mzz+1)*(1.-xd)+field(mxx+1,myy+1,mzz+1)*xd
-
       c1_0 = c00*(1.-yd) + c10*yd
-      c1_1 = c01*(1.-yd) + c11*yd
+      pval = c1_0
 
-      pval = c1_0*(1.-zd) + c1_1*zd
+      if (if3d) then
+         zd = (z - zf(mxx,myy,mzz))/(zf(mxx,myy,mzz+1)-zf(mxx,myy,mzz))
+         c01=field(mxx,myy,mzz+1)*(1.-xd)+field(mxx+1,myy,mzz+1)*xd
+         c11=field(mxx,myy+1,mzz+1)*(1.-xd)+field(mxx+1,myy+1,mzz+1)*xd
+         c1_1 = c01*(1.-yd) + c11*yd
+         pval = c1_0*(1.-zd) + c1_1*zd
+      endif
+
 
       return
       end
@@ -3304,6 +3322,8 @@ c-----------------------------------------------------------------------
       common /point2gridc/ p2gc
       real   p2gc(lx1,ly1,lz1,lelt,4)
 
+      if (red_interp .eq. 0) goto 1511
+
       nxyz = nx1*ny1*nz1
         do i=1,n
            rrdum = 1.0
@@ -3311,7 +3331,7 @@ c-----------------------------------------------------------------------
            ie  =  ipart(je0,i) + 1
 
            ! Barycentric or reduced barycentric lagrange interpolation
-           if (red_interp .le. 2) then 
+           if (red_interp .eq. 1) then 
 
            call init_baryinterp(rpart(jr,i),rpart(jr+1,i),rrdum,nxyz)
 
@@ -3329,7 +3349,7 @@ c-----------------------------------------------------------------------
 c          call baryinterp(p2gc(1,1,1,ie,4),rpart(jgam,i),nxyz)   !gam
 
            ! trilinear interpolation between grid points
-           else
+           elseif (red_interp .eq. 2) then
               call triinterp(xm1(1,1,1,ie),ym1(1,1,1,ie),
      >                       zm1(1,1,1,ie),vx(1,1,1,ie),
      >                       rpart(jx,i),rpart(jy,i),rpart(jz,i),
@@ -3385,6 +3405,8 @@ c    >                       ie,rpart(jgam,i))
            endif
 
         enddo
+
+ 1511 continue
 
       return
       end
@@ -4210,8 +4232,8 @@ c----------------------------------------------------------------------
       icm = 1
 
       ! DZ FAKE
-      do while (rys .le. xdrange(2,2))
-c     do while (rys .le. 0.192)
+c     do while (rys .le. xdrange(2,2))
+      do while (rys .le. 0.23)
 
          do i=1,ny1
             rys = ryt + rygls(i)
