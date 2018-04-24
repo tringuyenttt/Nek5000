@@ -56,21 +56,6 @@ c----------------------------------------------------------------------
          call compute_neighbor_el_proc    ! compute list of neigh. el. ranks 
          call create_extra_particles
          call send_ghost_particles
-c        call point_to_grid_corr_init    ! for gamma correction integrat
-         call spread_props_grid           ! put particle props on grid
-   
-c        do i = 1,nitspl
-c           call interp_props_part_location ! interpolate
-c           call correct_spl
-c           call create_extra_particles
-c           call send_ghost_particles
-c           call spread_props_grid           ! put particle props on grid
-c           if (nid.eq.0) write(6,*) i,'Pre-SPL iteration'
-c        enddo
-         
-         call set_check_spl_params        !  in case spl has changed!
-         call create_extra_particles
-         call send_ghost_particles
          call spread_props_grid           ! put particle props on grid
       endif
       call interp_props_part_location ! interpolate again for two-way
@@ -267,7 +252,7 @@ c     setup items
       call rzero(pttime,iptlen)
 
 c     filter width setup (note deltax is implicit in expressions b4 def)
-      rtmp_rle = 0.0 ! dummy number, max value it can be
+      rtmp = 0.0 ! dummy number, max value it can be
 
       ! do nothing, no spreading
       if (npro_method .eq. 0) then
@@ -278,34 +263,18 @@ c     filter width setup (note deltax is implicit in expressions b4 def)
       ! gaussian set by user input parameters
       elseif (npro_method .eq. 2) then
 
-         rtmp_rle = dfilt/2.*sqrt(-log(ralphdecay)/log(2.))
+         rtmp = dfilt/2.*sqrt(-log(ralphdecay)/log(2.))
 
-         if (rtmp_rle .gt. 0.5) then
-
-            if (rtmp_rle .lt. 1.0) then
-            if (nrect_assume .eq. 2) then
-               goto 123
-            else
-               deathmessage = 'Resetting to full projection for filter'
-               if (nid.eq. 0) write(6,*) deathmessage
-               nrect_assume = 2
-               goto 123
-            endif
-            endif
-
-            deathmessage = 'WARNING filter width is too large'
-            if (nid.eq. 0)write(6,*) deathmessage,rtmp_rle,icalld
-            call exittr(deathmessage,rtmp_rle,icalld)
-  123 continue
-         endif
+         ! will need to add checks here at some point for
+         ! nrect_assume...
 
       endif
 
-      d2chk(1) = rtmp_rle*rleng
+      d2chk(1) = rtmp
       d2chk(2) = d2chk(1)
       d2chk(3) = d2chk(1)
 
-      rsig     = dfilt*rleng/(2.*sqrt(2.*log(2.))) ! gaussian filter std.
+      rsig     = dfilt/(2.*sqrt(2.*log(2.))) ! gaussian filter std. * DP
 
       return
       end
@@ -318,8 +287,6 @@ c----------------------------------------------------------------------
 
       character*132 deathmessage
 
-      ! now, check this filter width against collision width
-      if (two_way .gt. 2) then
 
          rdeff_max = dp(2)/2.
          do i = 1,n
@@ -328,46 +295,16 @@ c----------------------------------------------------------------------
          rdeff_max = glmax(rdeff_max,1)
          rdeff_max = rdeff_max*2. ! to get diameter
 
-         rtmp_rle2 = d2chk(1)/rleng
-         rtmp_rle_col = rdeff_max*1.00/rleng
+         rtmp_col = rdeff_max*1.00
 
-         if ( abs(npro_method) .gt. 1) then
-         if ( rtmp_rle_col .gt. rtmp_rle2) then
-            if (rtmp_rle_col .gt. 0.5) then
-               if (nrect_assume .eq. 2) then
-                  if (rtmp_rle_col .gt. 1) then
-                     goto 1234
-                  else
-                     deathmessage =  
-     >                  'Collision > filter width-Resetting width'
-                     if (nid.eq. 0)write(6,*) deathmessage
-                  endif
-               elseif (nrect_assume .eq. 1) then
-                  deathmessage =  
-     >              'Collision > filter width-Using full project now'
-                  if (nid.eq. 0)write(6,*) deathmessage
-                  nrect_assume = 2
-               endif
-             endif
-         endif
-            rtmp_rle2 = max(rtmp_rle_col,rtmp_rle2)
-         else
-            ! no filter dependent spreading, so use collision width
-            rtmp_rle2 = rtmp_rle_col ! note r/Le > 0.5 is already caught
-         endif
-      endif
-      goto 1237
+         d2chk(1)  = d2chk(1)*rdeff_max
 
- 1234 continue
-            deathmessage =  
-     >        'Collision/filter width is too large!'
-            if (nid.eq. 0)write(6,*) deathmessage,rdeff_max,icalld
-            call exittr(deathmessage,rdeff_max,icalld)
- 1237 continue
+         ! again need to add checks for nrect_assume cartesian
 
-      d2chk(1) = max(d2chk(1),rtmp_rle2*rleng)
+
+      d2chk(1) = max(d2chk(1),rtmp_col)
       d2chk(2) = d2chk(2)
-      d2chk(3) = rtmp_rle_col*rleng
+      d2chk(3) = rtmp_col
 
       return
       end
@@ -2075,10 +2012,14 @@ c
       character*132 deathmessage
 
 c     create ghost particles
-      if (if3d) then
-         call create_ghost_particles_rect_3d
-      else
-         call create_ghost_particles_rect_2d
+      if (nrect_assume .eq. 0 ) then
+c        call create_ghost_particles_full !DZGP
+      elseif (nrect_assume .eq. 1 .or. nrect_assume .eq. 2) then
+         if (if3d) then
+            call create_ghost_particles_rect_3d
+         else
+            call create_ghost_particles_rect_2d
+         endif
       endif
 
       nmax   = iglmax(n,1)
@@ -4678,6 +4619,17 @@ c     if (icalld1.eq.0) then
 
       icalld1 = icalld1 + 1
 
+      if (nrect_assume .eq. 0) then
+         call fgslib_findpts(i_fp_hndl !  stride     !   call fgslib_findpts( ihndl,
+     $           , ipart(jrc,1),li        !   $             rcode,1,
+     $           , ipart(jpt,1),li        !   &             proc,1,
+     $           , ipart(je0,1),li        !   &             elid,1,
+     $           , rpart(jr ,1),lr        !   &             rst,ndim,
+     $           , rpart(jd ,1),lr        !   &             dist,1,
+     $           , rpart(jx ,1),lr        !   &             pts(    1),1,
+     $           , rpart(jy ,1),lr        !   &             pts(  n+1),1,
+     $           , rpart(jz ,1),lr ,n)    !   &             pts(2*n+1),1,n)
+      elseif (nrect_assume .eq. 1 .or. nrect_assume .eq. 2) then
          call particles_in_nid
          call fgslib_findpts(i_fp_hndl !  stride     !   call fgslib_findpts( ihndl,
      $           , ifpts(jrc,1),lif        !   $             rcode,1,
@@ -4689,6 +4641,7 @@ c     if (icalld1.eq.0) then
      $           , rfpts(jy ,1),lrf        !   &             pts(  n+1),1,
      $           , rfpts(jz ,1),lrf ,nfpts)    !   &             pts(2*n+1),1,n)
          call update_findpts_info
+      endif
 
       nmax = iglmax(n,1)
       if (nmax.gt.llpart) then
