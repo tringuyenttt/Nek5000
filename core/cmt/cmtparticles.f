@@ -53,6 +53,7 @@ c----------------------------------------------------------------------
       call move_particles_inproc          ! initialize fp & cr comm handles
       if (red_interp .eq. 1) call init_interpolation ! barycentric weights for interpolation
       if (two_way.gt.1) then
+         call compute_gp_list
          call compute_neighbor_el_proc    ! compute list of neigh. el. ranks 
          call create_extra_particles
          call send_ghost_particles
@@ -2506,6 +2507,171 @@ c              nfptsgp=nfptsgp-1
       enddo
  1511 continue
 
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine compute_gp_list
+      include 'SIZE'
+      include 'TOTAL'
+      include 'CMTDATA'
+      include 'CMTPART'
+
+      common /myparth/ i_fp_hndl, i_cr_hndl
+
+      parameter (nbox_gp=100*lelt)
+      parameter (ngpvc  = 1000)
+      integer nlist, ngp_vals(ngpvc,nbox_gp),ndxgp,ndygp,ndzgp
+      common /new_gpi/ nlist,ndxgp,ndygp,ndzgp,ngp_vals
+      real    rdxgp, rdygp, rdzgp, rxst, ryst, rzst
+      common /new_gpr/ rdxgp, rdygp, rdzgp, rxst, ryst, rzst
+
+      logical keeploop
+
+c     face, edge, and corner number, x,y,z are all inline, so stride=3
+      el_face_num = (/ -1,0,0, 1,0,0, 0,-1,0, 0,1,0,    0,0,0,0,0,0/)
+      el_edge_num = (/ -1,-1,0, 1,-1,0, 1,1,0, -1,1,0,
+     >              0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0/)
+      nfacegp   = 4  ! number of faces
+      nedgegp   = 4  ! number of edges
+      ncornergp = 0  ! number of corners
+
+      ! how many spacings in each direction
+      ndxgp = floor( (xdrange(2,1) - xdrange(1,1))/d2chk(1)) + 1
+      ndygp = floor( (xdrange(2,2) - xdrange(1,2))/d2chk(1)) + 1
+      ndzgp = 1
+      if (if3d) ndzgp = floor( (xdrange(2,3) - xdrange(1,3))/d2chk(1))+1
+
+
+      nreach = floor(real(ndxgp*ndygp*ndzgp)/real(np)) ! includes 1 xtra
+                                                       ! b/c stride
+                                                       ! start at 0
+
+      ! grid spacing for that many spacings
+      rdxgp = (xdrange(2,1) - xdrange(1,1))/real(ndxgp-1)
+      rdygp = (xdrange(2,2) - xdrange(1,2))/real(ndygp-1)
+      rdzgp = 1.
+      if (if3d) rdzgp = (xdrange(2,3) - xdrange(1,3))/real(ndzgp-1)
+
+      ! give some breathing room on either side
+      rxst = xdrange(1,1)-rdxgp/2.
+      ryst = xdrange(1,2)-rdygp/2.
+      rzst = xdrange(1,3)-rdzgp/2.
+
+      nlist = 0
+
+      do ie=1,nelt
+      do k=1,nz1
+      do j=1,ny1
+      do i=1,nx1
+         rxval = xm1(i,j,k,ie) - rxst
+         ryval = ym1(i,j,k,ie) - ryst
+         rzval = zm1(i,j,k,ie) - rzst
+
+         ii    = floor(rxval/rdxgp) 
+         jj    = floor(ryval/rdygp) 
+         kk    = floor(rzval/rdzgp) 
+
+         nlist = nlist + 1
+         if (nlist .gt. nbox_gp) then
+            write(6,*)'Increase nbox_gp. Need more sub-box storage',
+     $                      nbox_gp, nlist, nid, ie
+            call exitt
+         endif
+         ngp_vals(1,nlist) = ii 
+         ngp_vals(2,nlist) = jj 
+         ngp_vals(3,nlist) = kk 
+         ngp_vals(4,nlist) = nid
+         ndum = ngp_vals(1,nlist)                          +
+     >               (ndxgp)*ngp_vals(2,nlist)             +
+     >               (ndxgp)*(ndygp)*ngp_vals(3,nlist)
+         ngp_vals(5,nlist) = floor(real(ndum)/real(nreach))
+         ngp_vals(6,nlist) = ndum
+
+         if (nlist .gt. 1) then
+         do il=1,nlist-1
+            if (ngp_vals(1,il) .eq. ii) then
+            if (ngp_vals(2,il) .eq. jj) then
+            if (ngp_vals(3,il) .eq. kk) then
+               nlist = nlist - 1
+               goto 1234
+            endif
+            endif
+            endif
+         enddo
+         endif
+ 1234 continue
+      enddo
+      enddo
+      enddo
+      enddo
+
+c     write(6,*) 'before', nid,nlist
+      nps   = 5 ! index of new proc for doing stuff
+      nglob = 6 ! unique key to sort by
+      nkey  = 1
+      call fgslib_crystal_ituple_transfer(i_cr_hndl,ngp_vals,
+     >                 ngpvc,nlist,nbox_gp,nps)
+      call fgslib_crystal_ituple_sort(i_cr_hndl,ngp_vals,
+     >                 ngpvc,nlist,nglob,nkey)
+c     write(6,*) 'after', nid, nlist
+
+c     do i=1,nlist
+c        write(6,*) nid,ngp_vals(6,i), ngp_vals(4,i)
+c     enddo
+
+
+      ! now that it is ordered, we can map the indices to the right locs
+
+      nlist_new = 0
+
+c     nic = 7
+
+c     do i=1,nlist
+c        ! first for self
+c        ic = 0
+c        do j=1,nlist
+c           if (ngp_vals(6,i) .eq. ngp_vals(6,j)) then
+c              ic = ic + 1
+c              ngp_vals(nic+ic,i) = ngp_vals(4,j)
+c           endif
+c        enddo
+c        ngp_vals(nic,i) = ic
+c     enddo
+               
+
+                
+
+
+
+c        ! then for faces
+c        do j=1,nfacegp
+c           ic = ic + 1
+c        enddo
+
+c        ! then for edges
+c        do j=1,nedgegp
+c           ic = ic + 1
+c        enddo
+
+c      enddo
+
+
+
+
+
+
+      call exitt
+
+      ! then locallally organize by cell and what processors have the
+      ! cell
+
+      ! then send process
+
+
+
+
+
+c
       return
       end
 c-----------------------------------------------------------------------
