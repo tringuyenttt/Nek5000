@@ -2518,12 +2518,17 @@ c-----------------------------------------------------------------------
 
       common /myparth/ i_fp_hndl, i_cr_hndl
 
+      parameter (ngpvc  = 6)
       parameter (nbox_gp=100*lelt)
-      parameter (ngpvc  = 1000)
-      integer nlist, ngp_vals(ngpvc,nbox_gp),ndxgp,ndygp,ndzgp
-      common /new_gpi/ nlist,ndxgp,ndygp,ndzgp,ngp_vals
+      integer nlist, ngp_valsp(ngpvc,nbox_gp),ngp_valse(2,nbox_gp),
+     >            ndxgp,ndygp,ndzgp, nliste
+      common /new_gpi/nlist,ndxgp,ndygp,ndzgp,ngp_valsp,ngp_valse,nliste
       real    rdxgp, rdygp, rdzgp, rxst, ryst, rzst
       common /new_gpr/ rdxgp, rdygp, rdzgp, rxst, ryst, rzst
+
+      integer mod_gp_grid(lx1,ly1,lz1,lelt,4)
+
+      real multfc, multfci
 
       logical keeploop
 
@@ -2535,6 +2540,9 @@ c     face, edge, and corner number, x,y,z are all inline, so stride=3
       nedgegp   = 4  ! number of edges
       ncornergp = 0  ! number of corners
 
+! -------------------------------------------------------
+c SETUP 3D BACKGROUND GRID PARAMETERS FOR GHOST PARTICLES
+! -------------------------------------------------------
       ! how many spacings in each direction
       ndxgp = floor( (xdrange(2,1) - xdrange(1,1))/d2chk(1)) + 1
       ndygp = floor( (xdrange(2,2) - xdrange(1,2))/d2chk(1)) + 1
@@ -2557,19 +2565,33 @@ c     face, edge, and corner number, x,y,z are all inline, so stride=3
       ryst = xdrange(1,2)-rdygp/2.
       rzst = xdrange(1,3)-rdzgp/2.
 
-      nlist = 0
+c     !debugging only
+c     if (nid.eq.0) 
+c    >   write(6,*) 'Even grid stuff:',rdxgp,rdygp,ndxgp,ndygp,rxst,ryst
 
+! ------------------------------------------------------------
+c Connect boxes to 1D processor map they should be arranged on
+! ------------------------------------------------------------
+      ! Add my own box and what rank(s) it is in the 1D proc map
+      nlist = 0
       do ie=1,nelt
       do k=1,nz1
       do j=1,ny1
       do i=1,nx1
          rxval = xm1(i,j,k,ie) - rxst
          ryval = ym1(i,j,k,ie) - ryst
-         rzval = zm1(i,j,k,ie) - rzst
+         rzval = 0.
+         if(if3d) rzval = zm1(i,j,k,ie) - rzst
 
          ii    = floor(rxval/rdxgp) 
          jj    = floor(ryval/rdygp) 
          kk    = floor(rzval/rdzgp) 
+         ndum  = ii + ndxgp*jj + ndxgp*ndygp*kk
+
+         mod_gp_grid(i,j,k,ie,1) = ii
+         mod_gp_grid(i,j,k,ie,2) = jj
+         mod_gp_grid(i,j,k,ie,3) = kk
+         mod_gp_grid(i,j,k,ie,4) = ndum
 
          nlist = nlist + 1
          if (nlist .gt. nbox_gp) then
@@ -2577,101 +2599,335 @@ c     face, edge, and corner number, x,y,z are all inline, so stride=3
      $                      nbox_gp, nlist, nid, ie
             call exitt
          endif
-         ngp_vals(1,nlist) = ii 
-         ngp_vals(2,nlist) = jj 
-         ngp_vals(3,nlist) = kk 
-         ngp_vals(4,nlist) = nid
-         ndum = ngp_vals(1,nlist)                          +
-     >               (ndxgp)*ngp_vals(2,nlist)             +
-     >               (ndxgp)*(ndygp)*ngp_vals(3,nlist)
-         ngp_vals(5,nlist) = floor(real(ndum)/real(nreach))
-         ngp_vals(6,nlist) = ndum
+
+
+         ngp_valsp(1,nlist) = nid
+         ngp_valsp(2,nlist) = ndum
+         ngp_valsp(3,nlist) = ii
+         ngp_valsp(4,nlist) = jj
+         ngp_valsp(5,nlist) = kk
+         ngp_valsp(6,nlist) = floor(real(ndum)/real(nreach))
+
 
          if (nlist .gt. 1) then
          do il=1,nlist-1
-            if (ngp_vals(1,il) .eq. ii) then
-            if (ngp_vals(2,il) .eq. jj) then
-            if (ngp_vals(3,il) .eq. kk) then
+            if (ngp_valsp(2,il) .eq. ndum) then
                nlist = nlist - 1
                goto 1234
             endif
-            endif
-            endif
          enddo
          endif
+
  1234 continue
       enddo
       enddo
       enddo
       enddo
 
-c     write(6,*) 'before', nid,nlist
-      nps   = 5 ! index of new proc for doing stuff
-      nglob = 6 ! unique key to sort by
-      nkey  = 1
-      call fgslib_crystal_ituple_transfer(i_cr_hndl,ngp_vals,
+      ! Add connecting boxes and what rank(s) they are in the 1D proc map
+      nlist_save = nlist
+      do i=1,nlist_save
+         ii = ngp_valsp(3,i)
+         jj = ngp_valsp(4,i)
+         kk = ngp_valsp(5,i)
+
+         ! faces
+         do ifc=1,nfacegp
+            nlist = nlist + 1
+
+            ist = (ifc-1)*3
+            ii1 = ii + el_face_num(ist+1) 
+            jj1 = jj + el_face_num(ist+2)
+            kk1 = kk + el_face_num(ist+3)
+
+            ngp_valsp(3,nlist) = ii1
+            ngp_valsp(4,nlist) = jj1
+            ngp_valsp(5,nlist) = kk1
+
+            ! periodic if out of domain
+            if (ii1 .lt. 0 .or. ii1 .gt. ndxgp-1) ii1 =modulo(ii1,ndxgp)
+            if (jj1 .lt. 0 .or. jj1 .gt. ndygp-1) jj1 =modulo(jj1,ndygp)
+            if (kk1 .lt. 0 .or. kk1 .gt. ndzgp-1) kk1 =modulo(kk1,ndzgp)
+
+            ndumn = ii1 + ndxgp*jj1 + ndxgp*ndygp*kk1
+
+            ngp_valsp(1,nlist) = nid
+            ngp_valsp(2,nlist) = ndumn
+            ngp_valsp(6,nlist) = floor(real(ndumn)/real(nreach))
+         enddo
+         ! edges
+         do ifc=1,nedgegp
+            nlist = nlist + 1
+
+            ist = (ifc-1)*3
+            ii1 = ii + el_edge_num(ist+1) 
+            jj1 = jj + el_edge_num(ist+2)
+            kk1 = kk + el_edge_num(ist+3)
+
+            ngp_valsp(3,nlist) = ii1
+            ngp_valsp(4,nlist) = jj1
+            ngp_valsp(5,nlist) = kk1
+
+            ! periodic if out of domain
+            if (ii1 .lt. 0 .or. ii1 .gt. ndxgp-1) ii1 =modulo(ii1,ndxgp)
+            if (jj1 .lt. 0 .or. jj1 .gt. ndygp-1) jj1 =modulo(jj1,ndygp)
+            if (kk1 .lt. 0 .or. kk1 .gt. ndzgp-1) kk1 =modulo(kk1,ndzgp)
+
+            ndumn = ii1 + ndxgp*jj1 + ndxgp*ndygp*kk1
+
+            ngp_valsp(1,nlist) = nid
+            ngp_valsp(2,nlist) = ndumn
+            ngp_valsp(6,nlist) = floor(real(ndumn)/real(nreach))
+         enddo
+      enddo
+
+! ------------------------
+c SEND TO 1D PROCESSOR MAP
+! ------------------------
+      nps   = 6 ! index of new proc for doing stuff
+      nglob = 2 ! unique key to sort by
+      nkey  = 1 ! number of keys (just 1 here)
+      call fgslib_crystal_ituple_transfer(i_cr_hndl,ngp_valsp,
      >                 ngpvc,nlist,nbox_gp,nps)
-      call fgslib_crystal_ituple_sort(i_cr_hndl,ngp_vals,
+      call fgslib_crystal_ituple_sort(i_cr_hndl,ngp_valsp,
      >                 ngpvc,nlist,nglob,nkey)
-c     write(6,*) 'after', nid, nlist
 
-c     do i=1,nlist
-c        write(6,*) nid,ngp_vals(6,i), ngp_vals(4,i)
+      ! create dupicates to send to remote processors
+      nlist_save = nlist
+      do i=1,nlist_save
+         do j=1,nlist_save
+            if (i.ne.j) then
+            if (ngp_valsp(2,i) .eq. ngp_valsp(2,j)) then
+               nlist = nlist + 1
+               do ic=1,6
+                  ngp_valsp(ic,nlist) = ngp_valsp(ic,i)
+               enddo
+               ngp_valsp(6,nlist) = ngp_valsp(1,j)
+            endif
+            endif
+         enddo
+      enddo
+
+! --------------------------
+c SEND TO ALL PROCESSORS NOW
+! --------------------------
+      nps   = 6 ! index of new proc for doing stuff
+      nglob = 2 ! unique key to sort by
+      nkey  = 1 ! number of keys (just 1 here)
+      call fgslib_crystal_ituple_transfer(i_cr_hndl,ngp_valsp,
+     >                 ngpvc,nlist,nbox_gp,nps)
+      call fgslib_crystal_ituple_sort(i_cr_hndl,ngp_valsp,
+     >                 ngpvc,nlist,nglob,nkey)
+
+! --------------------------------------------
+c ORGANIZE MAP OF REMOTE PROCESSORS TO SEND TO
+! --------------------------------------------
+      nliste=0
+      do i=1,nlist
+         if (i .eq. 1) then
+            nliste = nliste + 1
+            ngp_valse(1,nliste) = nid
+            ngp_valse(2,nliste) = -1
+         else
+
+            iflg = 0
+            do j=1,nliste
+               if (ngp_valse(1,j) .eq. ngp_valsp(1,i)) then
+                  iflg = 1
+                  goto 1511
+               endif
+            enddo
+ 1511 continue
+            if (iflg .eq. 0) then
+               nliste = nliste + 1
+               ngp_valse(1,nliste) = ngp_valsp(1,i)
+               ngp_valse(2,nliste) = -1
+            endif
+         endif
+      enddo
+
+! ------------------------
+c CREATING GHOST PARTICLES
+! ------------------------
+      nfptsgp = 0
+      do i=1,n
+
+         rxval = rpart(jx,i) - rxst
+         ryval = rpart(jy,i) - ryst
+         rzval = 0.
+         if(if3d) rzval = rpart(jz,i) - rzst
+
+         ii    = floor(rxval/rdxgp) 
+         jj    = floor(ryval/rdygp) 
+         kk    = floor(rzval/rdzgp) 
+         ndum  = ii + ndxgp*jj + ndxgp*ndygp*kk
+
+         do j=1,nlist
+            if (ndum .eq. ngp_valsp(2,j)) then
+            if (nid  .ne. ngp_valsp(1,j)) then
+            
+            do k=1,nliste ! don't double create gp for same remote rank
+               if (ngp_valsp(1,j) .eq. ngp_valse(1,k)) then
+               if ( ngp_valse(2,k) .ne. i) then
+
+                  nfptsgp = nfptsgp + 1
+                  ngp_valse(2,k) = i
+            
+                  rptsgp(jgpx,nfptsgp)    = rpart(jx,i)           ! x loc
+                  rptsgp(jgpy,nfptsgp)    = rpart(jy,i)           ! y log
+                  rptsgp(jgpz,nfptsgp)    = rpart(jz,i)           ! z log
+                  rptsgp(jgpfh,nfptsgp)   = rpart(jf0,i)   ! hyd. force x
+                  rptsgp(jgpfh+1,nfptsgp) = rpart(jf0+1,i) ! hyd. force y
+                  rptsgp(jgpfh+2,nfptsgp) = rpart(jf0+2,i) ! hyd. force z
+                  rptsgp(jgpvol,nfptsgp)  = rpart(jvol,i)  ! particle volum
+                  rptsgp(jgprpe,nfptsgp)  = rpart(jrpe,i)  ! particle rp eff
+                  rptsgp(jgpspl,nfptsgp)  = rpart(jspl,i)  ! spl
+                  rptsgp(jgpg0,nfptsgp)   = rpart(jg0,i)   ! work done by forc
+                  rptsgp(jgpq0,nfptsgp)   = rpart(jq0,i)   ! heating from part 
+                  rptsgp(jgpv0,nfptsgp)   = rpart(jv0,i)   ! particle velocity
+                  rptsgp(jgpv0+1,nfptsgp) = rpart(jv0+1,i) ! particle velocity
+                  rptsgp(jgpv0+2,nfptsgp) = rpart(jv0+2,i) ! particle velocity
+                  iptsgp(jgpiic,nfptsgp)  = 0            ! use in collisions
+                  iptsgp(jgpps,nfptsgp)   = ngp_valsp(1,j)  ! overwritten mpi
+                  iptsgp(jgppt,nfptsgp)   = ngp_valsp(1,j)  ! dest. mpi rank
+                  iptsgp(jgpes,nfptsgp)   = -1! dummy?    ! dest. elment
+
+               endif
+               endif
+
+            enddo
+
+            endif
+            endif
+         enddo
+      enddo
+
+c     do i=1,nfptsgp
+c        write(6,*) 'send gp from ', nid, 'to ',iptsgp(jgpps,i)
 c     enddo
+      call send_ghost_particles
+
+! -----------------
+c PROJECTION BEGINS
+! -----------------
+      nlxyze = lx1*ly1*lz1*lelt
+      nxyze  = nx1*ny1*nz1*nelt
+      call rzero(ptw,nlxyze*8)
+
+      ! real projection
+      do ip=1,n
+         rsigp   = rsig*rpart(jrpe,ip)*2.
+         multfci = 1./(sqrt(2.*pi)**2 * rsigp**2) ! exponential
+         if (if3d) multfci = multfci**(1.5d+0)
+         ralph   = dfilt/2.*sqrt(-log(ralphdecay)/log(2.))*
+     >           rpart(jrpe,ip)*2.
+         ralph2   = ralph**2
+         rbexpi   = 1./(-2.*rsigp**2)
+         multfc = multfci
+         if (.not. if3d) multfc = multfc/(2.*rpart(jrpe,ip))
+
+         ii    = floor((rpart(jx,ip)-rxst)/rdxgp) 
+         jj    = floor((rpart(jy,ip)-ryst)/rdygp) 
+         kk    = floor((rpart(jz,ip)-rzst)/rdzgp) 
+      do ie=1,nelt
+      do k=1,nz1
+      do j=1,ny1
+      do i=1,nx1
+
+      if (     mod_gp_grid(i,j,k,ie,1).ge.ii-1
+     >   .and. mod_gp_grid(i,j,k,ie,1).le.ii+1) then
+      if (     mod_gp_grid(i,j,k,ie,2).ge.jj-1
+     >   .and. mod_gp_grid(i,j,k,ie,2).le.jj+1) then
+      if (     mod_gp_grid(i,j,k,ie,3).ge.kk-1
+     >   .and. mod_gp_grid(i,j,k,ie,3).le.kk+1) then
+
+         rdist2  = (xm1(i,j,k,ie) - rpart(jx,ip))**2 +
+     >           (ym1(i,j,k,ie) - rpart(jy,ip))**2 
+         if (if3d) rdist2 = rdist2 + (zm1(i,j,k,ie) - rpart(jz,ip))**2 
+         ptw(i,j,k,ie,2) = ptw(i,j,k,ie,2) +
+     >                   rpart(jvol,ip)*multfc*exp(rdist2*rbexpi)
+
+      endif
+      endif
+      endif
+
+      enddo
+      enddo
+      enddo
+      enddo
+      enddo
+
+      ! ghost projection
+      do ip=1,nfptsgp
+
+         rsigp   = rsig*rptsgp(jgprpe,ip)*2.
+         multfci = 1./(sqrt(2.*pi)**2 * rsigp**2) ! exponential
+         if (if3d) multfci = multfci**(1.5d+0)
+         ralph   = dfilt/2.*sqrt(-log(ralphdecay)/log(2.))*
+     >           rptsgp(jgprpe,ip)*2.
+         ralph2   = ralph**2
+         rbexpi   = 1./(-2.*rsigp**2)
+         multfc = multfci
+         if (.not. if3d) multfc = multfc/(2.*rptsgp(jgprpe,ip))
+
+         ii    = floor((rptsgp(jgpx,ip)-rxst)/rdxgp) 
+         jj    = floor((rptsgp(jgpy,ip)-ryst)/rdygp) 
+         kk    = floor((rptsgp(jgpz,ip)-rzst)/rdzgp) 
+      do ie=1,nelt
+      do k=1,nz1
+      do j=1,ny1
+      do i=1,nx1
+
+      if (     mod_gp_grid(i,j,k,ie,1).ge.ii-1
+     >   .and. mod_gp_grid(i,j,k,ie,1).le.ii+1) then
+      if (     mod_gp_grid(i,j,k,ie,2).ge.jj-1
+     >   .and. mod_gp_grid(i,j,k,ie,2).le.jj+1) then
+      if (     mod_gp_grid(i,j,k,ie,3).ge.kk-1
+     >   .and. mod_gp_grid(i,j,k,ie,3).le.kk+1) then
+
+         rdist2  = (xm1(i,j,k,ie) - rptsgp(jgpx,ip))**2 +
+     >           (ym1(i,j,k,ie) - rptsgp(jgpy,ip))**2 
+         if (if3d) rdist2 = rdist2 + (zm1(i,j,k,ie)-rptsgp(jgpz,ip))**2 
+         ptw(i,j,k,ie,2) = ptw(i,j,k,ie,2) +
+     >                   rptsgp(jgpvol,ip)*multfc*exp(rdist2*rbexpi)
+
+      endif
+      endif
+      endif
+
+      enddo
+      enddo
+      enddo
+      enddo
+      enddo
 
 
-      ! now that it is ordered, we can map the indices to the right locs
+! ----------------
+c DEBUGGING OUTPUT
+! ----------------
+      ! set proc map to be temperature field in ptw files
+      do ie=1,nelt
+      do k=1,nz1
+      do j=1,ny1
+      do i=1,nx1
+         ptw(i,j,k,ie,5) = nid
+      enddo
+      enddo
+      enddo
+      enddo
 
-      nlist_new = 0
-
-c     nic = 7
-
-c     do i=1,nlist
-c        ! first for self
-c        ic = 0
-c        do j=1,nlist
-c           if (ngp_vals(6,i) .eq. ngp_vals(6,j)) then
-c              ic = ic + 1
-c              ngp_vals(nic+ic,i) = ngp_vals(4,j)
-c           endif
-c        enddo
-c        ngp_vals(nic,i) = ic
-c     enddo
-               
-
-                
-
-
-
-c        ! then for faces
-c        do j=1,nfacegp
-c           ic = ic + 1
-c        enddo
-
-c        ! then for edges
-c        do j=1,nedgegp
-c           ic = ic + 1
-c        enddo
-
-c      enddo
-
-
-
-
-
-
+      itmp = 1
+      call outpost2(ptw(1,1,1,1,1),         ! fhyd_x
+     >              ptw(1,1,1,1,2),         ! fhyd_y
+     >              ptw(1,1,1,1,3),         ! fhyd_z
+     >              ptw(1,1,1,1,4),         ! phi_p 
+     >              ptw(1,1,1,1,5),         ! procmap
+     >              itmp          ,        
+     >              'ptw')
+      call output_parallel_lagrangian_parts
+         
       call exitt
 
-      ! then locallally organize by cell and what processors have the
-      ! cell
-
-      ! then send process
-
-
-
-
-
-c
       return
       end
 c-----------------------------------------------------------------------
