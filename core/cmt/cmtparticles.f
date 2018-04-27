@@ -2520,8 +2520,8 @@ c-----------------------------------------------------------------------
 
       parameter (ngpvc  = 6)
       parameter (nbox_gp=100*lelt)
-      integer nlist, ngp_valsp(ngpvc,nbox_gp),ngp_valse(3,nbox_gp),
-     >            ndxgp,ndygp,ndzgp, nliste
+      integer nlist, ngp_valsp(ngpvc,nbox_gp),ngp_valse(9,nbox_gp),
+     >            ndxgp,ndygp,ndzgp, nliste, ntypesl(7)
       common /new_gpi/nlist,ndxgp,ndygp,ndzgp,ngp_valsp,ngp_valse,nliste
       real    rdxgp, rdygp, rdzgp, rxst, ryst, rzst
       common /new_gpr/ rdxgp, rdygp, rdzgp, rxst, ryst, rzst
@@ -2682,6 +2682,11 @@ c Connect boxes to 1D processor map they should be arranged on
             ngp_valsp(1,nlist) = nid
             ngp_valsp(2,nlist) = ndumn
             ngp_valsp(6,nlist) = floor(real(ndumn)/real(nreach))
+            if (nid .eq. 3) then
+            write(6,*) 'yo',ngp_valsp(1,nlist),ngp_valsp(2,nlist),
+     >      ngp_valsp(3,nlist),ngp_valsp(4,nlist),
+     >      ngp_valsp(5,nlist),ngp_valsp(6,nlist)
+            endif
          enddo
       enddo
 
@@ -2740,6 +2745,12 @@ c ORGANIZE MAP OF REMOTE PROCESSORS TO SEND TO
             ngp_valse(1,nliste) = nid
             ngp_valse(2,nliste) = -1
             ngp_valse(3,nliste) = -1
+            ngp_valse(4,nliste) = -1
+            ngp_valse(5,nliste) = -1
+            ngp_valse(6,nliste) = -1
+            ngp_valse(7,nliste) = -1
+            ngp_valse(8,nliste) = -1
+            ngp_valse(9,nliste) = -1
          else
 
             iflg = 0
@@ -2755,6 +2766,12 @@ c ORGANIZE MAP OF REMOTE PROCESSORS TO SEND TO
                ngp_valse(1,nliste) = ngp_valsp(1,i)
                ngp_valse(2,nliste) = -1
                ngp_valse(3,nliste) = -1
+               ngp_valse(4,nliste) = -1
+               ngp_valse(5,nliste) = -1
+               ngp_valse(6,nliste) = -1
+               ngp_valse(7,nliste) = -1
+               ngp_valse(8,nliste) = -1
+               ngp_valse(9,nliste) = -1
             endif
          endif
       enddo
@@ -2827,10 +2844,6 @@ c CREATING GHOST PARTICLES
       enddo
 
 ! now do periodic boundary conditions
-      do i=1,nliste
-         ngp_valse(2,i) = -1
-      enddo
-
       do i=1,n
 
          rxval = rpart(jx,i) - rxst
@@ -2913,13 +2926,26 @@ c                 xloc = xloc +xdlen
                   endif
   125 continue
 
-                  itype = 0
-                  if (iitmp1 .eq. 1) itype = 1 + 1
-                  if (iitmp2 .eq. 1) itype = 1 + 2
+                  ntypes = 0
+                  if (iitmp1 .eq. 1) then
+                     ntypes      = 1
+                     ntypesl(1)  = 3
+                     if (iitmp2 .eq. 1) then
+                        ntypes      = 3
+                        ntypesl(2)  = 4
+                        ntypesl(3)  = 6
+                     endif
+                   elseif(iitmp2 .eq. 1) then
+                     ntypes      = 1
+                     ntypesl(1)  = 4
+                   endif
 
             do k=1,nliste ! don't double create gp for same remote rank
                if (ngp_valsp(1,j) .eq. ngp_valse(1,k)) then
-               if (itype .gt. 0) then
+               if (ntypes .gt. 0) then
+               
+               do it=1,ntypes
+                  itype = ntypesl(it)
                if (ngp_valse(itype,k) .ne. i) then
 
 c                   write(6,*) 'Moving particle from ', rpart(jx,i),
@@ -2927,7 +2953,6 @@ c    >                         'to ', xloc,
 c    >                         'from rank', nid, 'to',ngp_valsp(1,j)
 
                   nfptsgp = nfptsgp + 1
-
                   ngp_valse(itype,k) = i
             
                   rptsgp(jgpx,nfptsgp)    = xloc           ! x loc
@@ -2950,6 +2975,8 @@ c    >                         'from rank', nid, 'to',ngp_valsp(1,j)
                   iptsgp(jgpes,nfptsgp)   = -1! dummy?    ! dest. elment
 
                endif
+               enddo
+
                endif
                endif
             enddo
