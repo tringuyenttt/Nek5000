@@ -2520,7 +2520,7 @@ c-----------------------------------------------------------------------
 
       parameter (ngpvc  = 6)
       parameter (nbox_gp=100*lelt)
-      integer nlist, ngp_valsp(ngpvc,nbox_gp),ngp_valse(2,nbox_gp),
+      integer nlist, ngp_valsp(ngpvc,nbox_gp),ngp_valse(3,nbox_gp),
      >            ndxgp,ndygp,ndzgp, nliste
       common /new_gpi/nlist,ndxgp,ndygp,ndzgp,ngp_valsp,ngp_valse,nliste
       real    rdxgp, rdygp, rdzgp, rxst, ryst, rzst
@@ -2739,6 +2739,7 @@ c ORGANIZE MAP OF REMOTE PROCESSORS TO SEND TO
             nliste = nliste + 1
             ngp_valse(1,nliste) = nid
             ngp_valse(2,nliste) = -1
+            ngp_valse(3,nliste) = -1
          else
 
             iflg = 0
@@ -2753,6 +2754,7 @@ c ORGANIZE MAP OF REMOTE PROCESSORS TO SEND TO
                nliste = nliste + 1
                ngp_valse(1,nliste) = ngp_valsp(1,i)
                ngp_valse(2,nliste) = -1
+               ngp_valse(3,nliste) = -1
             endif
          endif
       enddo
@@ -2852,27 +2854,28 @@ c CREATING GHOST PARTICLES
 c           if (ngp_valsp(3,j).lt.0) then
 
 
-            do k=1,nliste ! don't double create gp for same remote rank
-               if (ngp_valsp(1,j) .eq. ngp_valse(1,k)) then
-c           write(6,*) 'yooo', k, ngp_valse(1,k),ngp_valse(2,k)
-               if (ngp_valse(2,k) .ne. i) then
 
                   xloc = rpart(jx,i)
                   yloc = rpart(jy,i)
                   zloc = rpart(jz,i) 
 c                 xloc = xloc +xdlen
 
+                  iitmp1 = 0
+                  iitmp2 = 0
+                  iitmp3 = 0
                   ! note that it is backwards becasue of where you came
                   ! from...
                   if (xdlen .gt. 0 ) then
                   if (ngp_valsp(3,j) .ge. ndxgp) then
                        xloc = rpart(jx,i) + xdlen
+                       iitmp1 = 1
                        goto 123
                   endif
                   endif
                   if (xdlen .gt. 0 ) then
                   if (ngp_valsp(3,j) .lt. 0) then
                        xloc = rpart(jx,i) - xdlen
+                       iitmp1 = 1
                        goto 123
                   endif
                   endif
@@ -2880,12 +2883,14 @@ c                 xloc = xloc +xdlen
                   if (ydlen .gt. 0 ) then
                   if (ngp_valsp(4,j) .ge. ndygp) then
                        yloc = rpart(jy,i) + ydlen
+                       iitmp2 = 1
                        goto 124
                   endif
                   endif
                   if (ydlen .gt. 0 ) then
                   if (ngp_valsp(4,j) .lt. 0) then
                        yloc = rpart(jy,i) - ydlen
+                       iitmp2 = 1
                        goto 124
                   endif
                   endif
@@ -2894,17 +2899,28 @@ c                 xloc = xloc +xdlen
                   if (zdlen .gt. 0 ) then
                   if (ngp_valsp(5,j) .ge. ndzgp) then
                        zloc = rpart(jz,i) + zdlen
+                       iitmp3 = 1
                        goto 125
                   endif
                   endif
                   if (zdlen .gt. 0 ) then
                   if (ngp_valsp(5,j) .lt. 0) then
                        zloc = rpart(jz,i) - zdlen
+                       iitmp3 = 1
                        goto 125
                   endif
                   endif
                   endif
   125 continue
+
+                  itype = 0
+                  if (iitmp1 .eq. 1) itype = 1 + 1
+                  if (iitmp2 .eq. 1) itype = 1 + 2
+
+            do k=1,nliste ! don't double create gp for same remote rank
+               if (ngp_valsp(1,j) .eq. ngp_valse(1,k)) then
+               if (itype .gt. 0) then
+               if (ngp_valse(itype,k) .ne. i) then
 
 c                   write(6,*) 'Moving particle from ', rpart(jx,i),
 c    >                         'to ', xloc, 
@@ -2912,7 +2928,7 @@ c    >                         'from rank', nid, 'to',ngp_valsp(1,j)
 
                   nfptsgp = nfptsgp + 1
 
-                  ngp_valse(2,k) = i
+                  ngp_valse(itype,k) = i
             
                   rptsgp(jgpx,nfptsgp)    = xloc           ! x loc
                   rptsgp(jgpy,nfptsgp)    = yloc           ! y log
@@ -2933,6 +2949,7 @@ c    >                         'from rank', nid, 'to',ngp_valsp(1,j)
                   iptsgp(jgppt,nfptsgp)   = ngp_valsp(1,j)  ! dest. mpi rank
                   iptsgp(jgpes,nfptsgp)   = -1! dummy?    ! dest. elment
 
+               endif
                endif
                endif
             enddo
