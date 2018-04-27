@@ -2528,9 +2528,8 @@ c-----------------------------------------------------------------------
 
       integer mod_gp_grid(lx1,ly1,lz1,lelt,4)
 
-      real multfc, multfci
-
-      logical keeploop
+      real pfx,pfy,pfz,vol,qgqf,rvx,rvy,rvz,rexp,multfc,multfci,rx2(3)
+     >     ,rxyzp(6,3)
 
 c     face, edge, and corner number, x,y,z are all inline, so stride=3
       el_face_num = (/ -1,0,0, 1,0,0, 0,-1,0, 0,1,0,    0,0,0,0,0,0/)
@@ -2708,6 +2707,13 @@ c SEND TO 1D PROCESSOR MAP
          enddo
       enddo
 
+      if (nid.eq.3) then
+         do i=1,nlist
+            write(6,*) ngp_valsp(1,i),ngp_valsp(2,i),ngp_valsp(3,i),
+     >                 ngp_valsp(4,i),ngp_valsp(5,i),ngp_valsp(6,i)
+         enddo
+      endif
+
 ! --------------------------
 c SEND TO ALL PROCESSORS NOW
 ! --------------------------
@@ -2749,6 +2755,14 @@ c ORGANIZE MAP OF REMOTE PROCESSORS TO SEND TO
 ! ------------------------
 c CREATING GHOST PARTICLES
 ! ------------------------
+      xdlen = xdrange(2,1) - xdrange(1,1)
+      ydlen = xdrange(2,2) - xdrange(1,2)
+      zdlen = 0.
+      if (if3d) zdlen = xdrange(2,3) - xdrange(1,3)
+      if (abs(bc_part(1)) + abs(bc_part(2)) .ne. 0) xdlen = -1
+      if (abs(bc_part(3)) + abs(bc_part(4)) .ne. 0) ydlen = -1
+      if (abs(bc_part(5)) + abs(bc_part(6)) .ne. 0) zdlen = -1
+
       nfptsgp = 0
       do i=1,n
 
@@ -2763,19 +2777,69 @@ c CREATING GHOST PARTICLES
          ndum  = ii + ndxgp*jj + ndxgp*ndygp*kk
 
          do j=1,nlist
-            if (ndum .eq. ngp_valsp(2,j)) then
+c           if (ndum .eq. ngp_valsp(2,j)) then
             if (nid  .ne. ngp_valsp(1,j)) then
             
+
+               xloc = rpart(jx,i)
+               yloc = rpart(jy,i)
+               zloc = rpart(jz,i) 
+               ! note that altering locs is for bc in periodic ..
+               ! some day.... should be flagged at higher level when map
+               if (xdlen .gt. 0 ) then
+               if (ngp_valsp(3,j) .ge. ndxgp) then
+                    xloc = rpart(jx,i) - xdlen
+                    goto 123
+               endif
+               endif
+               if (xdlen .gt. 0 ) then
+               if (ngp_valsp(3,j) .lt. 0) then
+                    xloc = rpart(jx,i) + xdlen
+                    goto 123
+               endif
+               endif
+  123 continue
+               if (ydlen .gt. 0 ) then
+               if (ngp_valsp(4,j) .ge. ndygp) then
+                    yloc = rpart(jy,i) - ydlen
+                    goto 124
+               endif
+               endif
+               if (ydlen .gt. 0 ) then
+               if (ngp_valsp(4,j) .lt. 0) then
+                    yloc = rpart(jy,i) + ydlen
+                    goto 124
+               endif
+               endif
+  124 continue
+             if (if3d) then
+             if (zdlen .gt. 0 ) then
+             if (ngp_valsp(5,j) .ge. ndzgp) then
+                  zloc = rpart(jz,i) - zdlen
+                  goto 125
+             endif
+             endif
+             if (zdlen .gt. 0 ) then
+             if (ngp_valsp(5,j) .lt. 0) then
+                  zloc = rpart(jz,i) + zdlen
+                  goto 125
+            endif
+            endif
+            endif
+  125 continue
+
+
             do k=1,nliste ! don't double create gp for same remote rank
                if (ngp_valsp(1,j) .eq. ngp_valse(1,k)) then
-               if ( ngp_valse(2,k) .ne. i) then
+               if (ngp_valse(2,k) .ne. i) then
 
                   nfptsgp = nfptsgp + 1
-                  ngp_valse(2,k) = i
+
+                     ngp_valse(2,k) = i
             
-                  rptsgp(jgpx,nfptsgp)    = rpart(jx,i)           ! x loc
-                  rptsgp(jgpy,nfptsgp)    = rpart(jy,i)           ! y log
-                  rptsgp(jgpz,nfptsgp)    = rpart(jz,i)           ! z log
+                  rptsgp(jgpx,nfptsgp)    = xloc           ! x loc
+                  rptsgp(jgpy,nfptsgp)    = yloc           ! y log
+                  rptsgp(jgpz,nfptsgp)    = zloc           ! z log
                   rptsgp(jgpfh,nfptsgp)   = rpart(jf0,i)   ! hyd. force x
                   rptsgp(jgpfh+1,nfptsgp) = rpart(jf0+1,i) ! hyd. force y
                   rptsgp(jgpfh+2,nfptsgp) = rpart(jf0+2,i) ! hyd. force z
@@ -2794,17 +2858,20 @@ c CREATING GHOST PARTICLES
 
                endif
                endif
-
             enddo
 
             endif
-            endif
+c           endif
          enddo
       enddo
 
 c     do i=1,nfptsgp
 c        write(6,*) 'send gp from ', nid, 'to ',iptsgp(jgpps,i)
 c     enddo
+
+! ------------------------
+c SEND THE GHOST PARTICLES
+! ------------------------
       call send_ghost_particles
 
 ! -----------------
@@ -2814,7 +2881,7 @@ c PROJECTION BEGINS
       nxyze  = nx1*ny1*nz1*nelt
       call rzero(ptw,nlxyze*8)
 
-      ! real projection
+      ! real particle projection
       do ip=1,n
          rsigp   = rsig*rpart(jrpe,ip)*2.
          multfci = 1./(sqrt(2.*pi)**2 * rsigp**2) ! exponential
@@ -2826,9 +2893,62 @@ c PROJECTION BEGINS
          multfc = multfci
          if (.not. if3d) multfc = multfc/(2.*rpart(jrpe,ip))
 
+         pfx = -rpart(jf0,ip)*multfc
+         pfy = -rpart(jf0+1,ip)*multfc
+         pfz = -rpart(jf0+2,ip)*multfc
+         vol = rpart(jvol,ip)*multfc
+         qgqf= -(rpart(jg0,ip) + rpart(jq0,ip))*multfc
+         rvx = rpart(jv0  ,ip)*vol
+         rvy = rpart(jv0+1,ip)*vol
+         rvz = rpart(jv0+2,ip)*vol
+
          ii    = floor((rpart(jx,ip)-rxst)/rdxgp) 
          jj    = floor((rpart(jy,ip)-ryst)/rdygp) 
          kk    = floor((rpart(jz,ip)-rzst)/rdzgp) 
+
+         ! adding wall effects
+         ic = 0
+         do j = 1,ndim*2
+            if (bc_part(j) .eq. -1) then
+               nj1 = mod(j,2)
+               if (nj1.ne.0) nj1 = 1
+               if (nj1.eq.0) nj1 = 2
+               nj2 = int((j-1)/2) + 1
+
+               rx2(1) = rpart(jx  ,ip)
+               rx2(2) = rpart(jx+1,ip)
+               rx2(3) = rpart(jx+2,ip)
+               rx2(nj2) = xdrange(nj1,nj2)
+
+               ! compute distance and normal to wall
+               rx2(1) = rx2(1) - rpart(jx,ip)
+               rx2(2) = rx2(2) - rpart(jy,ip)
+               if (if3d) then
+                   rx2(3) = rx2(3) - rpart(jz,ip)
+                   rdist = sqrt(rx2(1)**2 + rx2(2)**2 + rx2(3)**2)
+               else
+                   rdist = sqrt(rx2(1)**2 + rx2(2)**2)
+               endif
+               if (rdist .lt. d2chk(2)) then
+                  ic = ic + 1
+
+                  rnx = rx2(1)/rdist
+                  rxyzp(ic,1) = rpart(jx,ip)
+                  rxyzp(ic,1) = rpart(jx,ip) + rnx*rdist*2.
+
+                  rny = rx2(2)/rdist
+                  rxyzp(ic,2) = rpart(jy,ip)
+                  rxyzp(ic,2) = rpart(jy,ip) + rny*rdist*2.
+
+                  if (if3d) then
+                     rnz = rx2(3)/rdist
+                     rxyzp(ic,3) = rpart(jz,ip)
+                     rxyzp(ic,3) = rpart(jz,ip) + rnz*rdist*2.
+                  endif
+              endif
+            endif
+         enddo
+
       do ie=1,nelt
       do k=1,nz1
       do j=1,ny1
@@ -2844,8 +2964,34 @@ c PROJECTION BEGINS
          rdist2  = (xm1(i,j,k,ie) - rpart(jx,ip))**2 +
      >           (ym1(i,j,k,ie) - rpart(jy,ip))**2 
          if (if3d) rdist2 = rdist2 + (zm1(i,j,k,ie) - rpart(jz,ip))**2 
-         ptw(i,j,k,ie,2) = ptw(i,j,k,ie,2) +
-     >                   rpart(jvol,ip)*multfc*exp(rdist2*rbexpi)
+
+
+         rexp = exp(rdist2*rbexpi)
+
+         if (ic .gt. 0) then
+            do jjj=1,ic
+               rx22 = (xm1(i,j,k,ie) - rxyzp(jjj,1))**2
+               ry22 = (ym1(i,j,k,ie) - rxyzp(jjj,2))**2
+               rtmp2 = rx22 + ry22
+               if (if3d) then
+                  rz22 = (zm1(i,j,k,ie) - rxyzp(jjj,3))**2
+                  rtmp2 = rtmp2 + rz22
+               endif
+
+               rexp = rexp + exp(rtmp2*rbexpi)
+
+            enddo
+         endif
+
+         ptw(i,j,k,ie,1) = ptw(i,j,k,ie,1) + pfx*rexp
+         ptw(i,j,k,ie,2) = ptw(i,j,k,ie,2) + pfy*rexp
+         ptw(i,j,k,ie,3) = ptw(i,j,k,ie,3) + pfz*rexp
+         ptw(i,j,k,ie,4) = ptw(i,j,k,ie,4) + vol*rexp
+         ptw(i,j,k,ie,5) = ptw(i,j,k,ie,5) + qgqf*rexp
+         ptw(i,j,k,ie,6) = ptw(i,j,k,ie,6) + rvx*rexp
+         ptw(i,j,k,ie,7) = ptw(i,j,k,ie,7) + rvy*rexp
+         ptw(i,j,k,ie,8) = ptw(i,j,k,ie,8) + rvz*rexp
+
 
       endif
       endif
@@ -2857,7 +3003,7 @@ c PROJECTION BEGINS
       enddo
       enddo
 
-      ! ghost projection
+      ! ghost particle projection
       do ip=1,nfptsgp
 
          rsigp   = rsig*rptsgp(jgprpe,ip)*2.
@@ -2870,9 +3016,62 @@ c PROJECTION BEGINS
          multfc = multfci
          if (.not. if3d) multfc = multfc/(2.*rptsgp(jgprpe,ip))
 
+         pfx = -rptsgp(jgpfh,ip)*multfc
+         pfy = -rptsgp(jgpfh+1,ip)*multfc
+         pfz = -rptsgp(jgpfh+2,ip)*multfc
+         vol = rptsgp(jgpvol,ip)*multfc
+         qgqf= -(rptsgp(jgpg0,ip) + rptsgp(jgpq0,ip))*multfc
+         rvx = rptsgp(jgpv0  ,ip)*vol
+         rvy = rptsgp(jgpv0+1,ip)*vol
+         rvz = rptsgp(jgpv0+2,ip)*vol
+
          ii    = floor((rptsgp(jgpx,ip)-rxst)/rdxgp) 
          jj    = floor((rptsgp(jgpy,ip)-ryst)/rdygp) 
          kk    = floor((rptsgp(jgpz,ip)-rzst)/rdzgp) 
+
+         ! adding wall effects
+         ic = 0
+         do j = 1,ndim*2
+            if (bc_part(j) .eq. -1) then
+               nj1 = mod(j,2)
+               if (nj1.ne.0) nj1 = 1
+               if (nj1.eq.0) nj1 = 2
+               nj2 = int((j-1)/2) + 1
+
+               rx2(1) = rptsgp(jgpx,ip)
+               rx2(2) = rptsgp(jgpy,ip)
+               rx2(3) = rptsgp(jgpz,ip)
+               rx2(nj2) = xdrange(nj1,nj2)
+
+               ! compute distance and normal to wall
+               rx2(1) = rx2(1) - rptsgp(jgpx,ip)
+               rx2(2) = rx2(2) - rptsgp(jgpy,ip)
+               if (if3d) then
+                   rx2(3) = rx2(3) - rptsgp(jgpz,ip)
+                   rdist = sqrt(rx2(1)**2 + rx2(2)**2 + rx2(3)**2)
+               else
+                   rdist = sqrt(rx2(1)**2 + rx2(2)**2)
+               endif
+               if (rdist .lt. d2chk(2)) then
+                  ic = ic + 1
+
+                  rnx = rx2(1)/rdist
+                  rxyzp(ic,1) = rptsgp(jgpx,ip)
+                  rxyzp(ic,1) = rptsgp(jgpx,ip) + rnx*rdist*2.
+
+                  rny = rx2(2)/rdist
+                  rxyzp(ic,2) = rptsgp(jgpy,ip)
+                  rxyzp(ic,2) = rptsgp(jgpy,ip) + rny*rdist*2.
+
+                  if (if3d) then
+                     rnz = rx2(3)/rdist
+                     rxyzp(ic,3) = rptsgp(jgpz,ip)
+                     rxyzp(ic,3) = rptsgp(jgpz,ip) + rnz*rdist*2.
+                  endif
+              endif
+            endif
+         enddo
+
       do ie=1,nelt
       do k=1,nz1
       do j=1,ny1
@@ -2888,8 +3087,32 @@ c PROJECTION BEGINS
          rdist2  = (xm1(i,j,k,ie) - rptsgp(jgpx,ip))**2 +
      >           (ym1(i,j,k,ie) - rptsgp(jgpy,ip))**2 
          if (if3d) rdist2 = rdist2 + (zm1(i,j,k,ie)-rptsgp(jgpz,ip))**2 
-         ptw(i,j,k,ie,2) = ptw(i,j,k,ie,2) +
-     >                   rptsgp(jgpvol,ip)*multfc*exp(rdist2*rbexpi)
+
+         rexp = exp(rdist2*rbexpi)
+
+         if (ic .gt. 0) then
+            do jjj=1,ic
+               rx22 = (xm1(i,j,k,ie) - rxyzp(jjj,1))**2
+               ry22 = (ym1(i,j,k,ie) - rxyzp(jjj,2))**2
+               rtmp2 = rx22 + ry22
+               if (if3d) then
+                  rz22 = (zm1(i,j,k,ie) - rxyzp(jjj,3))**2
+                  rtmp2 = rtmp2 + rz22
+               endif
+
+               rexp = rexp + exp(rtmp2*rbexpi)
+
+            enddo
+         endif
+
+         ptw(i,j,k,ie,1) = ptw(i,j,k,ie,1) + pfx*rexp
+         ptw(i,j,k,ie,2) = ptw(i,j,k,ie,2) + pfy*rexp
+         ptw(i,j,k,ie,3) = ptw(i,j,k,ie,3) + pfz*rexp
+         ptw(i,j,k,ie,4) = ptw(i,j,k,ie,4) + vol*rexp
+         ptw(i,j,k,ie,5) = ptw(i,j,k,ie,5) + qgqf*rexp
+         ptw(i,j,k,ie,6) = ptw(i,j,k,ie,6) + rvx*rexp
+         ptw(i,j,k,ie,7) = ptw(i,j,k,ie,7) + rvy*rexp
+         ptw(i,j,k,ie,8) = ptw(i,j,k,ie,8) + rvz*rexp
 
       endif
       endif
@@ -2900,7 +3123,6 @@ c PROJECTION BEGINS
       enddo
       enddo
       enddo
-
 
 ! ----------------
 c DEBUGGING OUTPUT
