@@ -2843,9 +2843,12 @@ c CREATING GHOST PARTICLES
 
 
          do j=1,nlist
-            if (ngp_valsp(3,j).lt.0.or.ngp_valsp(3,j).gt.ndxgp-1   .or.
-     >           ngp_valsp(4,j).lt.0.or.ngp_valsp(4,j).gt.ndygp-1  .or. 
-     >           ngp_valsp(5,j).lt.0.or.ngp_valsp(5,j).gt.ndzgp-1) then
+            if (ngp_valsp(3,j).lt.0        .and. xdlen .gt. 0 .or. 
+     >           ngp_valsp(3,j).gt.ndxgp-1 .and. xdlen .gt. 0 .or. 
+     >           ngp_valsp(4,j).lt.0       .and. ydlen .gt. 0 .or.
+     >           ngp_valsp(4,j).gt.ndygp-1 .and. ydlen .gt. 0 .or. 
+     >           ngp_valsp(5,j).lt.0       .and. zdlen .gt. 0 .or.
+     >           ngp_valsp(5,j).gt.ndzgp-1 .and. zdlen .gt. 0 ) then
 c           if (ngp_valsp(3,j).lt.0) then
 
 
