@@ -2544,8 +2544,8 @@ c     face, edge, and corner number, x,y,z are all inline, so stride=3
 c SETUP 3D BACKGROUND GRID PARAMETERS FOR GHOST PARTICLES
 ! -------------------------------------------------------
       ! how many spacings in each direction
-      ndxgp = floor( (xdrange(2,1) - xdrange(1,1))/d2chk(1)) + 1
-      ndygp = floor( (xdrange(2,2) - xdrange(1,2))/d2chk(1)) + 1
+      ndxgp = floor( (xdrange(2,1) - xdrange(1,1))/d2chk(1)) +1
+      ndygp = floor( (xdrange(2,2) - xdrange(1,2))/d2chk(1))+1
       ndzgp = 1
       if (if3d) ndzgp = floor( (xdrange(2,3) - xdrange(1,3))/d2chk(1))+1
 
@@ -2556,10 +2556,10 @@ c                                                      ! b/c stride
 c                                                      ! start at 0
 
       ! grid spacing for that many spacings
-      rdxgp = (xdrange(2,1) - xdrange(1,1))/real(ndxgp-1)
-      rdygp = (xdrange(2,2) - xdrange(1,2))/real(ndygp-1)
+      rdxgp = (xdrange(2,1) - xdrange(1,1))/real(ndxgp)
+      rdygp = (xdrange(2,2) - xdrange(1,2))/real(ndygp)
       rdzgp = 1.
-      if (if3d) rdzgp = (xdrange(2,3) - xdrange(1,3))/real(ndzgp-1)
+      if (if3d) rdzgp = (xdrange(2,3) - xdrange(1,3))/real(ndzgp)
 
       ! give some breathing room on either side
 c     rxst = xdrange(1,1)-rdxgp/2.
@@ -2570,8 +2570,8 @@ c     rzst = xdrange(1,3)-rdzgp/2.
       rzst = 0.
 
 c     !debugging only
-c     if (nid.eq.0) 
-c    >   write(6,*) 'Even grid stuff:',rdxgp,rdygp,ndxgp,ndygp,rxst,ryst
+      if (nid.eq.0) 
+     >   write(6,*) 'Even grid stuff:',rdxgp,rdygp,ndxgp,ndygp,rxst,ryst
 
 ! ------------------------------------------------------------
 c Connect boxes to 1D processor map they should be arranged on
@@ -2596,6 +2596,13 @@ c Connect boxes to 1D processor map they should be arranged on
          mod_gp_grid(i,j,k,ie,2) = jj
          mod_gp_grid(i,j,k,ie,3) = kk
          mod_gp_grid(i,j,k,ie,4) = ndum
+
+c        !DEBUGG
+c        ptw(i,j,k,ie,1) = real(mod_gp_grid(i,j,k,ie,1))
+c        ptw(i,j,k,ie,2) = real(mod_gp_grid(i,j,k,ie,2))
+c        ptw(i,j,k,ie,3) = real(mod_gp_grid(i,j,k,ie,3))
+c        ptw(i,j,k,ie,4) = real(mod_gp_grid(i,j,k,ie,4))
+c        ptw(i,j,k,ie,5) = real(nid)
 
          nlist = nlist + 1
          if (nlist .gt. nbox_gp) then
@@ -2627,6 +2634,19 @@ c Connect boxes to 1D processor map they should be arranged on
       enddo
       enddo
       enddo
+
+
+
+c     itmp = 1
+c     call outpost2(ptw(1,1,1,1,1),         ! fhyd_x
+c    >              ptw(1,1,1,1,2),         ! fhyd_y
+c    >              ptw(1,1,1,1,3),         ! fhyd_z
+c    >              ptw(1,1,1,1,4),         ! phi_p 
+c    >              ptw(1,1,1,1,5),         ! procmap
+c    >              itmp          ,        
+c    >              'ptw')
+
+c     call exitt
 
       ! Add connecting boxes and what rank(s) they are in the 1D proc map
       nlist_save = nlist
@@ -2672,6 +2692,8 @@ c Connect boxes to 1D processor map they should be arranged on
             ngp_valsp(4,nlist) = jj1
             ngp_valsp(5,nlist) = kk1
 
+c           write(6,*) ii,jj,ii1,jj1,el_edge_num(ist+1),
+c    >                                      el_edge_num(ist+2)
             ! periodic if out of domain
             if (ii1 .lt. 0 .or. ii1 .gt. ndxgp-1) ii1 =modulo(ii1,ndxgp)
             if (jj1 .lt. 0 .or. jj1 .gt. ndygp-1) jj1 =modulo(jj1,ndygp)
@@ -2682,11 +2704,6 @@ c Connect boxes to 1D processor map they should be arranged on
             ngp_valsp(1,nlist) = nid
             ngp_valsp(2,nlist) = ndumn
             ngp_valsp(6,nlist) = floor(real(ndumn)/real(nreach))
-            if (nid .eq. 3) then
-            write(6,*) 'yo',ngp_valsp(1,nlist),ngp_valsp(2,nlist),
-     >      ngp_valsp(3,nlist),ngp_valsp(4,nlist),
-     >      ngp_valsp(5,nlist),ngp_valsp(6,nlist)
-            endif
          enddo
       enddo
 
@@ -2756,8 +2773,17 @@ c ORGANIZE MAP OF REMOTE PROCESSORS TO SEND TO
             iflg = 0
             do j=1,nliste
                if (ngp_valse(1,j) .eq. ngp_valsp(1,i)) then
-                  iflg = 1
-                  goto 1511
+                   ii1 = ngp_valsp(3,i)
+                   jj1 = ngp_valsp(4,i)
+                   kk1 = ngp_valsp(5,i)
+                   if (ii1.ge.0.or.ii1.le.ndxgp-1) then
+                   if (jj1.ge.0.or.jj1.le.ndygp-1) then
+                   if (kk1.ge.0.or.kk1.le.ndzgp-1) then
+                      iflg = 1
+                      goto 1511
+                   endif 
+                   endif 
+                   endif 
                endif
             enddo
  1511 continue
@@ -2781,7 +2807,7 @@ c CREATING GHOST PARTICLES
 ! ------------------------
       xdlen = xdrange(2,1) - xdrange(1,1)
       ydlen = xdrange(2,2) - xdrange(1,2)
-      zdlen = 0.
+      zdlen = -1.
       if (if3d) zdlen = xdrange(2,3) - xdrange(1,3)
       if (abs(bc_part(1)) + abs(bc_part(2)) .ne. 0) xdlen = -1
       if (abs(bc_part(3)) + abs(bc_part(4)) .ne. 0) ydlen = -1
@@ -2940,13 +2966,22 @@ c                 xloc = xloc +xdlen
                      ntypesl(1)  = 4
                    endif
 
+c           write(6,*) ii,jj,ngp_valsp(3,j),ngp_valsp(4,j)
+
             do k=1,nliste ! don't double create gp for same remote rank
                if (ngp_valsp(1,j) .eq. ngp_valse(1,k)) then
                if (ntypes .gt. 0) then
                
                do it=1,ntypes
                   itype = ntypesl(it)
+                  if(itype.eq.6)write(6,*)'yoob',nid,itype,xloc,yloc
+                  if(itype.eq.6)
+     >    write(6,*)'yoob',ngp_valsp(3,j),ngp_valsp(4,j),ndxgp,ndygp
                if (ngp_valse(itype,k) .ne. i) then
+c                  if (itype .eq. 3) then
+c                      write(6,*)'yoob',nid,itype,xloc,yloc
+c                  endif
+c                      if (itype .eq. 6) xloc = 1.7E-3
 
 c                   write(6,*) 'Moving particle from ', rpart(jx,i),
 c    >                         'to ', xloc, 
