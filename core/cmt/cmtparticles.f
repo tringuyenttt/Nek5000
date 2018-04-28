@@ -53,7 +53,6 @@ c----------------------------------------------------------------------
       call move_particles_inproc          ! initialize fp & cr comm handles
       if (red_interp .eq. 1) call init_interpolation ! barycentric weights for interpolation
       if (two_way.gt.1) then
-         call compute_gp_list
          call compute_neighbor_el_proc    ! compute list of neigh. el. ranks 
          call create_extra_particles
          call send_ghost_particles
@@ -2313,6 +2312,55 @@ c
       return
       end
 c-----------------------------------------------------------------------
+      subroutine add_a_ghost_particle(rxnew,iadd,i)
+c
+c     this routine will create a ghost particle and append its position
+c     to rptsgp and its processor and element to iptsgp. nfptsgp will then
+c     be incremented. Note that ghost particles will not be created if 
+c     they are to be created on the same processor. In the near future, 
+c     this might not be true if periodic conditions are needed.
+c
+c     el_tmp_num holds vector coordinates of tmp=face,edge, or corners
+c     el_tmp_proc_map holds MPI rank of neighbor elements in el_tmp_num
+c                     order
+c     el_tmp_el_map holds local element number of neighbor elements
+c
+c     ii,jj,kk are vectors that tell what element a ghost particle
+c     should be sent to
+c
+c     i is which particle is creating the ghost particle from rpart,etc
+c
+      include 'SIZE'
+      include 'TOTAL'
+      include 'CMTDATA'
+      include 'CMTPART'
+
+      real    rxnew(3)
+      integer iadd(3)
+
+      rptsgp(jgpx,nfptsgp)    = rxnew(1)       ! x loc
+      rptsgp(jgpy,nfptsgp)    = rxnew(2)       ! y loc
+      rptsgp(jgpz,nfptsgp)    = rxnew(3)       ! z loc
+      rptsgp(jgpfh,nfptsgp)   = rpart(jf0,i)   ! hyd. force x
+      rptsgp(jgpfh+1,nfptsgp) = rpart(jf0+1,i) ! hyd. force y
+      rptsgp(jgpfh+2,nfptsgp) = rpart(jf0+2,i) ! hyd. force z
+      rptsgp(jgpvol,nfptsgp)  = rpart(jvol,i)  ! particle volum
+      rptsgp(jgprpe,nfptsgp)  = rpart(jrpe,i)  ! particle rp eff
+      rptsgp(jgpspl,nfptsgp)  = rpart(jspl,i)  ! spl
+      rptsgp(jgpg0,nfptsgp)   = rpart(jg0,i)   ! work done by forc
+      rptsgp(jgpq0,nfptsgp)   = rpart(jq0,i)   ! heating from part 
+      rptsgp(jgpv0,nfptsgp)   = rpart(jv0,i)   ! particle velocity
+      rptsgp(jgpv0+1,nfptsgp) = rpart(jv0+1,i) ! particle velocity
+      rptsgp(jgpv0+2,nfptsgp) = rpart(jv0+2,i) ! particle velocity
+
+      iptsgp(jgpiic,nfptsgp)  = iadd(1)        ! use in collisions
+      iptsgp(jgpps,nfptsgp)   = iadd(2)        ! overwritten mpi
+      iptsgp(jgppt,nfptsgp)   = iadd(2)        ! dest. mpi rank
+      iptsgp(jgpes,nfptsgp)   = iadd(3)        ! dest. elment
+
+      return
+      end
+c-----------------------------------------------------------------------
       subroutine gp_create(ii,jj,kk,iic,i,
      >             nnl,el_tmp_num,el_tmp_proc_map,el_tmp_el_map)
 c
@@ -2343,7 +2391,8 @@ c
       integer el_tmp_proc_map(lelt,12)  ,el_tmp_el_map(lelt,12),
      >        el_tmp_num(36)
 
-      real rdumpos(3)
+      real rdumpos(3),rxnew(3)
+      integer iadd(3)
 
       xdlen = xdrange(2,1) - xdrange(1,1)
       ydlen = xdrange(2,2) - xdrange(1,2)
@@ -2362,7 +2411,7 @@ c
          ic = ic + 1
          if (el_tmp_num(j)  .eq.ii) then
          if (el_tmp_num(j+1).eq.jj) then
-             if ((if3d .and. el_tmp_num(j+2).eq.kk) .or. 
+         if ((if3d .and. el_tmp_num(j+2).eq.kk) .or. 
      >           (.not. if3d .and. el_tmp_num(j+2) .eq. 0)) then
 
             nfptsgp = nfptsgp + 1
@@ -2410,95 +2459,72 @@ c
             endif
   125 continue
 
-            rptsgp(jgpx,nfptsgp)    = xloc           ! x loc
-            rptsgp(jgpy,nfptsgp)    = yloc           ! y log
-            rptsgp(jgpz,nfptsgp)    = zloc           ! z log
-            rptsgp(jgpfh,nfptsgp)   = rpart(jf0,i)   ! hyd. force x
-            rptsgp(jgpfh+1,nfptsgp) = rpart(jf0+1,i) ! hyd. force y
-            rptsgp(jgpfh+2,nfptsgp) = rpart(jf0+2,i) ! hyd. force z
-            rptsgp(jgpvol,nfptsgp)  = rpart(jvol,i)  ! particle volum
-            rptsgp(jgprpe,nfptsgp)  = rpart(jrpe,i)  ! particle rp eff
-            rptsgp(jgpspl,nfptsgp)  = rpart(jspl,i)  ! spl
-            rptsgp(jgpg0,nfptsgp)   = rpart(jg0,i)   ! work done by forc
-            rptsgp(jgpq0,nfptsgp)   = rpart(jq0,i)   ! heating from part 
-            rptsgp(jgpv0,nfptsgp)   = rpart(jv0,i)   ! particle velocity
-            rptsgp(jgpv0+1,nfptsgp) = rpart(jv0+1,i) ! particle velocity
-            rptsgp(jgpv0+2,nfptsgp) = rpart(jv0+2,i) ! particle velocity
-
-            iptsgp(jgpiic,nfptsgp)  = iic            ! use in collisions
-
-            ipdum  = el_tmp_proc_map(ie,ic)
-            iedum  = el_tmp_el_map(ie,ic)
-
-            if (ipdum .lt. 0 .or. iedum .lt.0) then
+            if (el_tmp_proc_map(ie,ic) .lt. 0   .or.
+     >          el_tmp_el_map(ie,ic)   .lt.0)   then
                nfptsgp=nfptsgp-1
                goto 1511
             endif
-
-            iptsgp(jgpps,nfptsgp)   = ipdum  ! overwritten mpi
-            iptsgp(jgppt,nfptsgp)   = ipdum  ! dest. mpi rank
-            iptsgp(jgpes,nfptsgp)   = iedum    ! dest. elment
 
 c           check if extra particles have been created on the same mpi
 c           rank and also take care of boundary particles
             ibctype = abs(bc_part(1))+abs(bc_part(3))+abs(bc_part(5))
 
-
 c           take care of periodic stuff first
-            if (nid.eq.iptsgp(jgppt,nfptsgp)) then ! dont create gp on own rank 
-                                                   ! unless moved and periodic
+            if (nid.eq.iptsgp(jgppt,nfptsgp)) then 
             if (ibctype .eq. 0) then            ! all three sides periodic
                if (iitmp1+iitmp2+iitmp3 .eq.0) then
-c                 nfptsgp=nfptsgp-1
-                  iptsgp(jgpiic,nfptsgp) = 0
+                  iic = 0
                   goto 1511
                endif
             elseif (ibctype .eq. 1) then        ! only two sides periodic
                if (abs(bc_part(1)) .eq. 1) then
                   if (iitmp2+iitmp3 .eq. 0) then
-c                    nfptsgp=nfptsgp-1
-                     iptsgp(jgpiic,nfptsgp) = 0
+                     iic = 0
                      goto 1511
                   endif
                elseif (abs(bc_part(3)) .eq. 1) then
                   if (iitmp1+iitmp3 .eq. 0) then
-c                    nfptsgp=nfptsgp-1
-                     iptsgp(jgpiic,nfptsgp) = 0
+                     iic = 0
                      goto 1511
                   endif
                elseif (abs(bc_part(5)) .eq. 1) then
                   if (iitmp1+iitmp2 .eq. 0) then
-c                    nfptsgp=nfptsgp-1
-                     iptsgp(jgpiic,nfptsgp) = 0
+                     iic = 0
                      goto 1511
                   endif
                endif
             elseif (ibctype .eq. 2) then        ! only one side periodic
                if (bc_part(1) .eq. 0) then
                   if (iitmp1 .eq. 0) then
-c                    nfptsgp=nfptsgp-1
-                     iptsgp(jgpiic,nfptsgp) = 0
+                     iic = 0
                      goto 1511
                   endif
                elseif (bc_part(3) .eq. 0) then
                   if (iitmp2 .eq. 0) then
-c                    nfptsgp=nfptsgp-1
-                     iptsgp(jgpiic,nfptsgp) = 0
+                     iic = 0
                      goto 1511
                   endif
                elseif (bc_part(5) .eq. 0) then
                   if (iitmp3 .eq. 0) then
-c                    nfptsgp=nfptsgp-1
-                     iptsgp(jgpiic,nfptsgp) = 0
+                     iic = 0
                      goto 1511
                   endif
                endif
             elseif (ibctype .eq. 3) then        ! no sides periodic 
-c              nfptsgp=nfptsgp-1
-               iptsgp(jgpiic,nfptsgp) = 0
+               iic = 0
                goto 1511
             endif
             endif ! end if(nid.eq. ...)
+
+            rxnew(1) = xloc
+            rxnew(2) = yloc
+            rxnew(3) = zloc
+
+            iadd(1)  = iic
+            iadd(2)  = el_tmp_proc_map(ie,ic)
+            iadd(3)  = el_tmp_el_map(ie,ic)
+
+            call add_a_ghost_particle(rxnew,iadd,i)
 
             goto 1511
          endif
@@ -2506,6 +2532,48 @@ c              nfptsgp=nfptsgp-1
          endif
       enddo
  1511 continue
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine compute_neighbor_el_proc
+      include 'SIZE'
+      include 'TOTAL'
+      include 'CMTDATA'
+      include 'CMTPART'
+c
+c     This routine is called once at the beginning of the particle
+c     simulation. At the end of this routine, the common blocks
+c     /neighbor_proc/ & /neighbor_el_number/ are set. The idea behind
+c     this routine is to know what processor owns neighboring spectral
+c     elements and what local element number the neighboring element is.
+c
+c     el_*_proc_map holds: *(face,edge,corner) neighboring element 
+c                           MPI rank number
+c     el_*_el_map holds:   *(face,edge,corner) neighboring element
+c                           local numbers
+c
+c     The ordering of faces, edges, and corners are given in el_*_num
+c
+c     el_*_proc_map(i,j) and el_*_el_map(i,j) are ordered by elements 
+c     1 <= i <= nelt, and 1 <= j <= 26, where j=1,nfacegp are element
+c     faces, j=nfacegp+1,nfacegp+nedgegp are element edges, and 
+c     j = nfacegp+nedgegp+1,nfacegp+nedgegp+ncornergp are corners
+
+      ! non-Cartesian meshes
+      if (nrect_assume .eq. 0) then
+         call compute_gp_list
+
+      ! Cartesian meshes
+      else
+         ! 2D
+         if (.not.if3d) then
+             call compute_neighbor_el_proc_2d
+         ! 3D
+         else
+             call compute_neighbor_el_proc_3d
+         endif
+      endif
 
       return
       end
@@ -2518,19 +2586,12 @@ c-----------------------------------------------------------------------
 
       common /myparth/ i_fp_hndl, i_cr_hndl
 
-      parameter (ngpvc  = 6)
-      parameter (nbox_gp=100*lelt)
-      integer nlist, ngp_valsp(ngpvc,nbox_gp),ngp_valse(9,nbox_gp),
-     >            ndxgp,ndygp,ndzgp, nliste, ntypesl(7)
-      common /new_gpi/nlist,ndxgp,ndygp,ndzgp,ngp_valsp,ngp_valse,nliste
-      real    rdxgp, rdygp, rdzgp, rxst, ryst, rzst
-      common /new_gpr/ rdxgp, rdygp, rdzgp, rxst, ryst, rzst
-
-      integer mod_gp_grid(lx1,ly1,lz1,lelt,4)
-
       real pfx,pfy,pfz,vol,qgqf,rvx,rvy,rvz,rexp,multfc,multfci,rx2(3)
      >     ,rxyzp(6,3)
-      integer pmove,pmove_store(3,27)
+      integer ntypesl(7)
+
+      real    rxnew(3), rxdrng(3)
+      integer iadd(3)
 
 c     face, edge, and corner number, x,y,z are all inline, so stride=3
       el_face_num = (/ -1,0,0, 1,0,0, 0,-1,0, 0,1,0,    0,0,0,0,0,0/)
@@ -2549,29 +2610,13 @@ c SETUP 3D BACKGROUND GRID PARAMETERS FOR GHOST PARTICLES
       ndzgp = 1
       if (if3d) ndzgp = floor( (xdrange(2,3) - xdrange(1,3))/d2chk(1))+1
 
-
       nreach = floor(real(ndxgp*ndygp*ndzgp)/real(np)) - 1
-c     nreach = floor(real(ndxgp*ndygp*ndzgp)/real(np)) ! includes 1 xtra
-c                                                      ! b/c stride
-c                                                      ! start at 0
 
       ! grid spacing for that many spacings
       rdxgp = (xdrange(2,1) - xdrange(1,1))/real(ndxgp)
       rdygp = (xdrange(2,2) - xdrange(1,2))/real(ndygp)
       rdzgp = 1.
       if (if3d) rdzgp = (xdrange(2,3) - xdrange(1,3))/real(ndzgp)
-
-      ! give some breathing room on either side
-c     rxst = xdrange(1,1)-rdxgp/2.
-c     ryst = xdrange(1,2)-rdygp/2.
-c     rzst = xdrange(1,3)-rdzgp/2.
-      rxst = 0.
-      ryst = 0.
-      rzst = 0.
-
-c     !debugging only
-      if (nid.eq.0) 
-     >   write(6,*) 'Even grid stuff:',rdxgp,rdygp,ndxgp,ndygp,rxst,ryst
 
 ! ------------------------------------------------------------
 c Connect boxes to 1D processor map they should be arranged on
@@ -2582,10 +2627,10 @@ c Connect boxes to 1D processor map they should be arranged on
       do k=1,nz1
       do j=1,ny1
       do i=1,nx1
-         rxval = xm1(i,j,k,ie) - rxst
-         ryval = ym1(i,j,k,ie) - ryst
+         rxval = xm1(i,j,k,ie)
+         ryval = ym1(i,j,k,ie)
          rzval = 0.
-         if(if3d) rzval = zm1(i,j,k,ie) - rzst
+         if(if3d) rzval = zm1(i,j,k,ie)
 
          ii    = floor(rxval/rdxgp) 
          jj    = floor(ryval/rdygp) 
@@ -2596,13 +2641,6 @@ c Connect boxes to 1D processor map they should be arranged on
          mod_gp_grid(i,j,k,ie,2) = jj
          mod_gp_grid(i,j,k,ie,3) = kk
          mod_gp_grid(i,j,k,ie,4) = ndum
-
-c        !DEBUGG
-c        ptw(i,j,k,ie,1) = real(mod_gp_grid(i,j,k,ie,1))
-c        ptw(i,j,k,ie,2) = real(mod_gp_grid(i,j,k,ie,2))
-c        ptw(i,j,k,ie,3) = real(mod_gp_grid(i,j,k,ie,3))
-c        ptw(i,j,k,ie,4) = real(mod_gp_grid(i,j,k,ie,4))
-c        ptw(i,j,k,ie,5) = real(nid)
 
          nlist = nlist + 1
          if (nlist .gt. nbox_gp) then
@@ -2628,25 +2666,11 @@ c        ptw(i,j,k,ie,5) = real(nid)
             endif
          enddo
          endif
-
  1234 continue
       enddo
       enddo
       enddo
       enddo
-
-
-
-c     itmp = 1
-c     call outpost2(ptw(1,1,1,1,1),         ! fhyd_x
-c    >              ptw(1,1,1,1,2),         ! fhyd_y
-c    >              ptw(1,1,1,1,3),         ! fhyd_z
-c    >              ptw(1,1,1,1,4),         ! phi_p 
-c    >              ptw(1,1,1,1,5),         ! procmap
-c    >              itmp          ,        
-c    >              'ptw')
-
-c     call exitt
 
       ! Add connecting boxes and what rank(s) they are in the 1D proc map
       nlist_save = nlist
@@ -2692,8 +2716,30 @@ c     call exitt
             ngp_valsp(4,nlist) = jj1
             ngp_valsp(5,nlist) = kk1
 
-c           write(6,*) ii,jj,ii1,jj1,el_edge_num(ist+1),
-c    >                                      el_edge_num(ist+2)
+            ! periodic if out of domain
+            if (ii1 .lt. 0 .or. ii1 .gt. ndxgp-1) ii1 =modulo(ii1,ndxgp)
+            if (jj1 .lt. 0 .or. jj1 .gt. ndygp-1) jj1 =modulo(jj1,ndygp)
+            if (kk1 .lt. 0 .or. kk1 .gt. ndzgp-1) kk1 =modulo(kk1,ndzgp)
+
+            ndumn = ii1 + ndxgp*jj1 + ndxgp*ndygp*kk1
+
+            ngp_valsp(1,nlist) = nid
+            ngp_valsp(2,nlist) = ndumn
+            ngp_valsp(6,nlist) = floor(real(ndumn)/real(nreach))
+         enddo
+         ! corners
+         do ifc=1,ncornergp
+            nlist = nlist + 1
+
+            ist = (ifc-1)*3
+            ii1 = ii + el_corner_num(ist+1) 
+            jj1 = jj + el_corner_num(ist+2)
+            kk1 = kk + el_corner_num(ist+3)
+
+            ngp_valsp(3,nlist) = ii1
+            ngp_valsp(4,nlist) = jj1
+            ngp_valsp(5,nlist) = kk1
+
             ! periodic if out of domain
             if (ii1 .lt. 0 .or. ii1 .gt. ndxgp-1) ii1 =modulo(ii1,ndxgp)
             if (jj1 .lt. 0 .or. jj1 .gt. ndygp-1) jj1 =modulo(jj1,ndygp)
@@ -2733,13 +2779,6 @@ c SEND TO 1D PROCESSOR MAP
             endif
          enddo
       enddo
-
-c     if (nid.eq.3) then
-c        do i=1,nlist
-c           write(6,*) ngp_valsp(1,i),ngp_valsp(2,i),ngp_valsp(3,i),
-c    >                 ngp_valsp(4,i),ngp_valsp(5,i),ngp_valsp(6,i)
-c        enddo
-c     endif
 
 ! --------------------------
 c SEND TO ALL PROCESSORS NOW
@@ -2813,222 +2852,88 @@ c CREATING GHOST PARTICLES
       if (abs(bc_part(3)) + abs(bc_part(4)) .ne. 0) ydlen = -1
       if (abs(bc_part(5)) + abs(bc_part(6)) .ne. 0) zdlen = -1
 
+      rxdrng(1) = xdlen
+      rxdrng(2) = ydlen
+      rxdrng(3) = zdlen
+
       nfptsgp = 0
       do i=1,n
-
-         rxval = rpart(jx,i) - rxst
-         ryval = rpart(jy,i) - ryst
-         rzval = 0.
-         if(if3d) rzval = rpart(jz,i) - rzst
-
-         ii    = floor(rxval/rdxgp) 
-         jj    = floor(ryval/rdygp) 
-         kk    = floor(rzval/rdzgp) 
+         ii    = floor(rpart(jx,i)/rdxgp) 
+         jj    = floor(rpart(jy,i)/rdygp) 
+         kk    = floor(rpart(jz,i)/rdzgp) 
          ndum  = ii + ndxgp*jj + ndxgp*ndygp*kk
 
+         ! loop over connecting boxes
          do j=1,nlist
+
+            ! enter here if for own box but different rank
             if (ndum .eq. ngp_valsp(2,j)) then
             if (nid  .ne. ngp_valsp(1,j)) then
-            
-            do k=1,nliste ! don't double create gp for same remote rank
-               if (ngp_valsp(1,j) .eq. ngp_valse(1,k)) then
-               if (ngp_valse(2,k) .ne. i) then
 
-               xloc = rpart(jx,i)
-               yloc = rpart(jy,i)
-               zloc = rpart(jz,i) 
-
-                  nfptsgp = nfptsgp + 1
-                  ngp_valse(2,k) = i
-            
-                  rptsgp(jgpx,nfptsgp)    = xloc           ! x loc
-                  rptsgp(jgpy,nfptsgp)    = yloc           ! y log
-                  rptsgp(jgpz,nfptsgp)    = zloc           ! z log
-                  rptsgp(jgpfh,nfptsgp)   = rpart(jf0,i)   ! hyd. force x
-                  rptsgp(jgpfh+1,nfptsgp) = rpart(jf0+1,i) ! hyd. force y
-                  rptsgp(jgpfh+2,nfptsgp) = rpart(jf0+2,i) ! hyd. force z
-                  rptsgp(jgpvol,nfptsgp)  = rpart(jvol,i)  ! particle volum
-                  rptsgp(jgprpe,nfptsgp)  = rpart(jrpe,i)  ! particle rp eff
-                  rptsgp(jgpspl,nfptsgp)  = rpart(jspl,i)  ! spl
-                  rptsgp(jgpg0,nfptsgp)   = rpart(jg0,i)   ! work done by forc
-                  rptsgp(jgpq0,nfptsgp)   = rpart(jq0,i)   ! heating from part 
-                  rptsgp(jgpv0,nfptsgp)   = rpart(jv0,i)   ! particle velocity
-                  rptsgp(jgpv0+1,nfptsgp) = rpart(jv0+1,i) ! particle velocity
-                  rptsgp(jgpv0+2,nfptsgp) = rpart(jv0+2,i) ! particle velocity
-                  iptsgp(jgpiic,nfptsgp)  = 0            ! use in collisions
-                  iptsgp(jgpps,nfptsgp)   = ngp_valsp(1,j)  ! overwritten mpi
-                  iptsgp(jgppt,nfptsgp)   = ngp_valsp(1,j)  ! dest. mpi rank
-                  iptsgp(jgpes,nfptsgp)   = -1! dummy?    ! dest. elment
-
-               endif
-               endif
-            enddo
-
-            endif
-            endif
-         enddo
-      enddo
-
-! now do periodic boundary conditions
-      do i=1,n
-
-         rxval = rpart(jx,i) - rxst
-         ryval = rpart(jy,i) - ryst
-         rzval = 0.
-         if(if3d) rzval = rpart(jz,i) - rzst
-
-         ii    = floor(rxval/rdxgp) 
-         jj    = floor(ryval/rdygp) 
-         kk    = floor(rzval/rdzgp) 
-         ndum  = ii + ndxgp*jj + ndxgp*ndygp*kk
-
-
-         do j=1,nlist
-            if (ngp_valsp(3,j).lt.0        .and. xdlen .gt. 0 .or. 
-     >           ngp_valsp(3,j).gt.ndxgp-1 .and. xdlen .gt. 0 .or. 
-     >           ngp_valsp(4,j).lt.0       .and. ydlen .gt. 0 .or.
-     >           ngp_valsp(4,j).gt.ndygp-1 .and. ydlen .gt. 0 .or. 
-     >           ngp_valsp(5,j).lt.0       .and. zdlen .gt. 0 .or.
-     >           ngp_valsp(5,j).gt.ndzgp-1 .and. zdlen .gt. 0 ) then
-c           if (ngp_valsp(3,j).lt.0) then
-
-
-
-                  xloc = rpart(jx,i)
-                  yloc = rpart(jy,i)
-                  zloc = rpart(jz,i) 
-c                 xloc = xloc +xdlen
-
-                  iitmp1 = 0
-                  iitmp2 = 0
-                  iitmp3 = 0
-                  ! note that it is backwards becasue of where you came
-                  ! from...
-                  if (xdlen .gt. 0 ) then
-                  if (ngp_valsp(3,j) .ge. ndxgp) then
-                       xloc = rpart(jx,i) + xdlen
-                       iitmp1 = 1
-                       goto 123
+               ! don't double create gp for same remote rank
+               do k=1,nliste 
+                  if (ngp_valsp(1,j) .eq. ngp_valse(1,k)) then
+                  if (ngp_valse(2,k) .ne. i) then
+                 
+                     nfptsgp = nfptsgp + 1
+                     ngp_valse(2,k) = i
+                 
+                     rxnew(1) = rpart(jx,i)
+                     rxnew(2) = rpart(jy,i)
+                     rxnew(3) = rpart(jz,i)
+                 
+                     iadd(1)  = 0
+                     iadd(2)  = ngp_valsp(1,j)
+                     iadd(3)  = ipart(i,je0)
+                 
+                     call add_a_ghost_particle(rxnew,iadd,i)
                   endif
                   endif
-                  if (xdlen .gt. 0 ) then
-                  if (ngp_valsp(3,j) .lt. 0) then
-                       xloc = rpart(jx,i) - xdlen
-                       iitmp1 = 1
-                       goto 123
-                  endif
-                  endif
-  123 continue    
-                  if (ydlen .gt. 0 ) then
-                  if (ngp_valsp(4,j) .ge. ndygp) then
-                       yloc = rpart(jy,i) + ydlen
-                       iitmp2 = 1
-                       goto 124
-                  endif
-                  endif
-                  if (ydlen .gt. 0 ) then
-                  if (ngp_valsp(4,j) .lt. 0) then
-                       yloc = rpart(jy,i) - ydlen
-                       iitmp2 = 1
-                       goto 124
-                  endif
-                  endif
-  124 continue
-                  if (if3d) then
-                  if (zdlen .gt. 0 ) then
-                  if (ngp_valsp(5,j) .ge. ndzgp) then
-                       zloc = rpart(jz,i) + zdlen
-                       iitmp3 = 1
-                       goto 125
-                  endif
-                  endif
-                  if (zdlen .gt. 0 ) then
-                  if (ngp_valsp(5,j) .lt. 0) then
-                       zloc = rpart(jz,i) - zdlen
-                       iitmp3 = 1
-                       goto 125
-                  endif
-                  endif
-                  endif
-  125 continue
-
-                  ntypes = 0
-                  if (iitmp1 .eq. 1) then
-                     ntypes      = 1
-                     ntypesl(1)  = 3
-                     if (iitmp2 .eq. 1) then
-                        ntypes      = 3
-                        ntypesl(2)  = 4
-                        ntypesl(3)  = 6
-                     endif
-                   elseif(iitmp2 .eq. 1) then
-                     ntypes      = 1
-                     ntypesl(1)  = 4
-                   endif
-
-c           write(6,*) ii,jj,ngp_valsp(3,j),ngp_valsp(4,j)
-
-            do k=1,nliste ! don't double create gp for same remote rank
-               if (ngp_valsp(1,j) .eq. ngp_valse(1,k)) then
-               if (ntypes .gt. 0) then
-               
-               do it=1,ntypes
-                  itype = ntypesl(it)
-                  if(itype.eq.6)write(6,*)'yoob',nid,itype,xloc,yloc
-                  if(itype.eq.6)
-     >    write(6,*)'yoob',ngp_valsp(3,j),ngp_valsp(4,j),ndxgp,ndygp
-               if (ngp_valse(itype,k) .ne. i) then
-c                  if (itype .eq. 3) then
-c                      write(6,*)'yoob',nid,itype,xloc,yloc
-c                  endif
-c                      if (itype .eq. 6) xloc = 1.7E-3
-
-c                   write(6,*) 'Moving particle from ', rpart(jx,i),
-c    >                         'to ', xloc, 
-c    >                         'from rank', nid, 'to',ngp_valsp(1,j)
-
-                  nfptsgp = nfptsgp + 1
-                  ngp_valse(itype,k) = i
-            
-                  rptsgp(jgpx,nfptsgp)    = xloc           ! x loc
-                  rptsgp(jgpy,nfptsgp)    = yloc           ! y log
-                  rptsgp(jgpz,nfptsgp)    = zloc           ! z log
-                  rptsgp(jgpfh,nfptsgp)   = rpart(jf0,i)   ! hyd. force x
-                  rptsgp(jgpfh+1,nfptsgp) = rpart(jf0+1,i) ! hyd. force y
-                  rptsgp(jgpfh+2,nfptsgp) = rpart(jf0+2,i) ! hyd. force z
-                  rptsgp(jgpvol,nfptsgp)  = rpart(jvol,i)  ! particle volum
-                  rptsgp(jgprpe,nfptsgp)  = rpart(jrpe,i)  ! particle rp eff
-                  rptsgp(jgpspl,nfptsgp)  = rpart(jspl,i)  ! spl
-                  rptsgp(jgpg0,nfptsgp)   = rpart(jg0,i)   ! work done by forc
-                  rptsgp(jgpq0,nfptsgp)   = rpart(jq0,i)   ! heating from part 
-                  rptsgp(jgpv0,nfptsgp)   = rpart(jv0,i)   ! particle velocity
-                  rptsgp(jgpv0+1,nfptsgp) = rpart(jv0+1,i) ! particle velocity
-                  rptsgp(jgpv0+2,nfptsgp) = rpart(jv0+2,i) ! particle velocity
-                  iptsgp(jgpiic,nfptsgp)  = 0            ! use in collisions
-                  iptsgp(jgpps,nfptsgp)   = ngp_valsp(1,j)  ! overwritten mpi
-                  iptsgp(jgppt,nfptsgp)   = ngp_valsp(1,j)  ! dest. mpi rank
-                  iptsgp(jgpes,nfptsgp)   = -1! dummy?    ! dest. elment
-
-               endif
                enddo
-
-               endif
-               endif
-            enddo
-
-c           endif
+            endif
             endif
 
+            ! enter here if for periodic boundary conditions
+            if (ngp_valsp(3,j).lt.0      .and. xdlen .gt. 0 .or. 
+     >         ngp_valsp(3,j).gt.ndxgp-1 .and. xdlen .gt. 0 .or. 
+     >         ngp_valsp(4,j).lt.0       .and. ydlen .gt. 0 .or.
+     >         ngp_valsp(4,j).gt.ndygp-1 .and. ydlen .gt. 0 .or. 
+     >         ngp_valsp(5,j).lt.0       .and. zdlen .gt. 0 .or.
+     >         ngp_valsp(5,j).gt.ndzgp-1 .and. zdlen .gt. 0 ) then
 
+               rxnew(1) = rpart(jx,i)
+               rxnew(2) = rpart(jy,i)
+               rxnew(3) = rpart(jz,i) 
 
+               iadd(1)  = ngp_valsp(3,j)
+               iadd(2)  = ngp_valsp(4,j)
+               iadd(3)  = ngp_valsp(5,j)
+
+               call check_periodic_gp(rxnew,rxdrng,iadd,ntypes,ntypesl)
+
+               ! don't double create gp for same remote rank
+               do k=1,nliste 
+                  if (ngp_valsp(1,j) .eq. ngp_valse(1,k)) then
+
+                     do it=1,ntypes
+                        itype = ntypesl(it)
+                        if (ngp_valse(itype,k) .ne. i) then
+                        
+                           nfptsgp = nfptsgp + 1
+                           ngp_valse(itype,k) = i
+                        
+                           iadd(1)  = 0
+                           iadd(2)  = ngp_valsp(1,j)
+                           iadd(3)  = ipart(i,je0)
+                        
+                           call add_a_ghost_particle(rxnew,iadd,i)
+                        endif
+                     enddo
+                  endif
+               enddo
+            endif
          enddo
       enddo
-
-
-
-c     do i=1,nfptsgp
-c        write(6,*) 'send gp from ', nid, 'to ',iptsgp(jgpps,i)
-c     enddo
 
 ! ------------------------
 c SEND THE GHOST PARTICLES
@@ -3063,52 +2968,15 @@ c PROJECTION BEGINS
          rvy = rpart(jv0+1,ip)*vol
          rvz = rpart(jv0+2,ip)*vol
 
-         ii    = floor((rpart(jx,ip)-rxst)/rdxgp) 
-         jj    = floor((rpart(jy,ip)-ryst)/rdygp) 
-         kk    = floor((rpart(jz,ip)-rzst)/rdzgp) 
+         ii    = floor((rpart(jx,ip))/rdxgp) 
+         jj    = floor((rpart(jy,ip))/rdygp) 
+         kk    = floor((rpart(jz,ip))/rdzgp) 
 
          ! adding wall effects
-         ic = 0
-         do j = 1,ndim*2
-            if (bc_part(j) .eq. -1) then
-               nj1 = mod(j,2)
-               if (nj1.ne.0) nj1 = 1
-               if (nj1.eq.0) nj1 = 2
-               nj2 = int((j-1)/2) + 1
-
-               rx2(1) = rpart(jx  ,ip)
-               rx2(2) = rpart(jx+1,ip)
-               rx2(3) = rpart(jx+2,ip)
-               rx2(nj2) = xdrange(nj1,nj2)
-
-               ! compute distance and normal to wall
-               rx2(1) = rx2(1) - rpart(jx,ip)
-               rx2(2) = rx2(2) - rpart(jy,ip)
-               if (if3d) then
-                   rx2(3) = rx2(3) - rpart(jz,ip)
-                   rdist = sqrt(rx2(1)**2 + rx2(2)**2 + rx2(3)**2)
-               else
-                   rdist = sqrt(rx2(1)**2 + rx2(2)**2)
-               endif
-               if (rdist .lt. d2chk(2)) then
-                  ic = ic + 1
-
-                  rnx = rx2(1)/rdist
-                  rxyzp(ic,1) = rpart(jx,ip)
-                  rxyzp(ic,1) = rpart(jx,ip) + rnx*rdist*2.
-
-                  rny = rx2(2)/rdist
-                  rxyzp(ic,2) = rpart(jy,ip)
-                  rxyzp(ic,2) = rpart(jy,ip) + rny*rdist*2.
-
-                  if (if3d) then
-                     rnz = rx2(3)/rdist
-                     rxyzp(ic,3) = rpart(jz,ip)
-                     rxyzp(ic,3) = rpart(jz,ip) + rnz*rdist*2.
-                  endif
-              endif
-            endif
-         enddo
+         rx2(1) = rpart(jx,ip)
+         rx2(2) = rpart(jy,ip)
+         rx2(3) = rpart(jz,ip)
+         call extra_wall_particle_exp(rxyzp,rx2,ic)
 
       do ie=1,nelt
       do k=1,nz1
@@ -3129,20 +2997,17 @@ c PROJECTION BEGINS
 
          rexp = exp(rdist2*rbexpi)
 
-         if (ic .gt. 0) then
-            do jjj=1,ic
-               rx22 = (xm1(i,j,k,ie) - rxyzp(jjj,1))**2
-               ry22 = (ym1(i,j,k,ie) - rxyzp(jjj,2))**2
-               rtmp2 = rx22 + ry22
-               if (if3d) then
-                  rz22 = (zm1(i,j,k,ie) - rxyzp(jjj,3))**2
-                  rtmp2 = rtmp2 + rz22
-               endif
-
-               rexp = rexp + exp(rtmp2*rbexpi)
-
-            enddo
-         endif
+         ! add wall effects
+         do jjj=1,ic
+            rx22 = (xm1(i,j,k,ie) - rxyzp(jjj,1))**2
+            ry22 = (ym1(i,j,k,ie) - rxyzp(jjj,2))**2
+            rtmp2 = rx22 + ry22
+            if (if3d) then
+               rz22 = (zm1(i,j,k,ie) - rxyzp(jjj,3))**2
+               rtmp2 = rtmp2 + rz22
+            endif
+            rexp = rexp + exp(rtmp2*rbexpi)
+         enddo
 
          ptw(i,j,k,ie,1) = ptw(i,j,k,ie,1) + pfx*rexp
          ptw(i,j,k,ie,2) = ptw(i,j,k,ie,2) + pfy*rexp
@@ -3152,7 +3017,6 @@ c PROJECTION BEGINS
          ptw(i,j,k,ie,6) = ptw(i,j,k,ie,6) + rvx*rexp
          ptw(i,j,k,ie,7) = ptw(i,j,k,ie,7) + rvy*rexp
          ptw(i,j,k,ie,8) = ptw(i,j,k,ie,8) + rvz*rexp
-
 
       endif
       endif
@@ -3186,52 +3050,15 @@ c PROJECTION BEGINS
          rvy = rptsgp(jgpv0+1,ip)*vol
          rvz = rptsgp(jgpv0+2,ip)*vol
 
-         ii    = floor((rptsgp(jgpx,ip)-rxst)/rdxgp) 
-         jj    = floor((rptsgp(jgpy,ip)-ryst)/rdygp) 
-         kk    = floor((rptsgp(jgpz,ip)-rzst)/rdzgp) 
+         ii     = floor((rptsgp(jgpx,ip))/rdxgp) 
+         jj     = floor((rptsgp(jgpy,ip))/rdygp) 
+         kk     = floor((rptsgp(jgpz,ip))/rdzgp) 
 
          ! adding wall effects
-         ic = 0
-         do j = 1,ndim*2
-            if (bc_part(j) .eq. -1) then
-               nj1 = mod(j,2)
-               if (nj1.ne.0) nj1 = 1
-               if (nj1.eq.0) nj1 = 2
-               nj2 = int((j-1)/2) + 1
-
-               rx2(1) = rptsgp(jgpx,ip)
-               rx2(2) = rptsgp(jgpy,ip)
-               rx2(3) = rptsgp(jgpz,ip)
-               rx2(nj2) = xdrange(nj1,nj2)
-
-               ! compute distance and normal to wall
-               rx2(1) = rx2(1) - rptsgp(jgpx,ip)
-               rx2(2) = rx2(2) - rptsgp(jgpy,ip)
-               if (if3d) then
-                   rx2(3) = rx2(3) - rptsgp(jgpz,ip)
-                   rdist = sqrt(rx2(1)**2 + rx2(2)**2 + rx2(3)**2)
-               else
-                   rdist = sqrt(rx2(1)**2 + rx2(2)**2)
-               endif
-               if (rdist .lt. d2chk(2)) then
-                  ic = ic + 1
-
-                  rnx = rx2(1)/rdist
-                  rxyzp(ic,1) = rptsgp(jgpx,ip)
-                  rxyzp(ic,1) = rptsgp(jgpx,ip) + rnx*rdist*2.
-
-                  rny = rx2(2)/rdist
-                  rxyzp(ic,2) = rptsgp(jgpy,ip)
-                  rxyzp(ic,2) = rptsgp(jgpy,ip) + rny*rdist*2.
-
-                  if (if3d) then
-                     rnz = rx2(3)/rdist
-                     rxyzp(ic,3) = rptsgp(jgpz,ip)
-                     rxyzp(ic,3) = rptsgp(jgpz,ip) + rnz*rdist*2.
-                  endif
-              endif
-            endif
-         enddo
+         rx2(1) = rptsgp(jgpx,ip)
+         rx2(2) = rptsgp(jgpy,ip)
+         rx2(3) = rptsgp(jgpz,ip)
+         call extra_wall_particle_exp(rxyzp,rx2,ic)
 
       do ie=1,nelt
       do k=1,nz1
@@ -3251,20 +3078,17 @@ c PROJECTION BEGINS
 
          rexp = exp(rdist2*rbexpi)
 
-         if (ic .gt. 0) then
-            do jjj=1,ic
-               rx22 = (xm1(i,j,k,ie) - rxyzp(jjj,1))**2
-               ry22 = (ym1(i,j,k,ie) - rxyzp(jjj,2))**2
-               rtmp2 = rx22 + ry22
-               if (if3d) then
-                  rz22 = (zm1(i,j,k,ie) - rxyzp(jjj,3))**2
-                  rtmp2 = rtmp2 + rz22
-               endif
-
-               rexp = rexp + exp(rtmp2*rbexpi)
-
-            enddo
-         endif
+         ! add wall effects
+         do jjj=1,ic
+            rx22 = (xm1(i,j,k,ie) - rxyzp(jjj,1))**2
+            ry22 = (ym1(i,j,k,ie) - rxyzp(jjj,2))**2
+            rtmp2 = rx22 + ry22
+            if (if3d) then
+               rz22 = (zm1(i,j,k,ie) - rxyzp(jjj,3))**2
+               rtmp2 = rtmp2 + rz22
+            endif
+            rexp = rexp + exp(rtmp2*rbexpi)
+         enddo
 
          ptw(i,j,k,ie,1) = ptw(i,j,k,ie,1) + pfx*rexp
          ptw(i,j,k,ie,2) = ptw(i,j,k,ie,2) + pfy*rexp
@@ -3314,35 +3138,158 @@ c DEBUGGING OUTPUT
       return
       end
 c-----------------------------------------------------------------------
-      subroutine compute_neighbor_el_proc
+      subroutine extra_wall_particle_exp(rxyzp,rx2,ic)
       include 'SIZE'
       include 'TOTAL'
       include 'CMTDATA'
       include 'CMTPART'
 c
-c     This routine is called once at the beginning of the particle
-c     simulation. At the end of this routine, the common blocks
-c     /neighbor_proc/ & /neighbor_el_number/ are set. The idea behind
-c     this routine is to know what processor owns neighboring spectral
-c     elements and what local element number the neighboring element is.
+      real rxyzp(6,3), rx2(3), rx22(3)
+      integer ic, ip
+
+      ! adding wall effects
+      ic = 0
+      do j = 1,ndim*2
+
+         if (bc_part(j) .eq. -1) then
+            nj1 = mod(j,2)
+            if (nj1.ne.0) nj1 = 1
+            if (nj1.eq.0) nj1 = 2
+            nj2 = int((j-1)/2) + 1
+
+            rx22(1) = rx2(1)
+            rx22(2) = rx2(2)
+            rx22(3) = rx2(3)
+            rx22(nj2) = xdrange(nj1,nj2)
+
+            ! compute distance and normal to wall
+            rx22(1) = rx22(1) - rx2(1)
+            rx22(2) = rx22(2) - rx2(2)
+            if (if3d) then
+                rx22(3) = rx22(3) - rx2(3)
+                rdist = sqrt(rx22(1)**2 + rx22(2)**2 + rx22(3)**2)
+            else
+                rdist = sqrt(rx22(1)**2 + rx22(2)**2)
+            endif
+            if (rdist .lt. d2chk(2)) then
+               ic = ic + 1
+
+               rnx = rx22(1)/rdist
+               rxyzp(ic,1) = rx2(1)
+               rxyzp(ic,1) = rx2(1) + rnx*rdist*2.
+
+               rny = rx22(2)/rdist
+               rxyzp(ic,2) = rx2(2) 
+               rxyzp(ic,2) = rx2(2) + rny*rdist*2.
+
+               if (if3d) then
+                  rnz = rx22(3)/rdist
+                  rxyzp(ic,3) = rx2(3)
+                  rxyzp(ic,3) = rx2(3) + rnz*rdist*2.
+               endif
+           endif
+         endif
+      enddo
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine check_periodic_gp(rxnew,rxdrng,iadd,ntype,ntypel)
+      include 'SIZE'
+      include 'TOTAL'
+      include 'CMTDATA'
+      include 'CMTPART'
 c
-c     el_*_proc_map holds: *(face,edge,corner) neighboring element 
-c                           MPI rank number
-c     el_*_el_map holds:   *(face,edge,corner) neighboring element
-c                           local numbers
-c
-c     The ordering of faces, edges, and corners are given in el_*_num
-c
-c     el_*_proc_map(i,j) and el_*_el_map(i,j) are ordered by elements 
-c     1 <= i <= nelt, and 1 <= j <= 26, where j=1,nfacegp are element
-c     faces, j=nfacegp+1,nfacegp+nedgegp are element edges, and 
-c     j = nfacegp+nedgegp+1,nfacegp+nedgegp+ncornergp are corners
+      real rxnew(3), rxdrng(3)
+      integer iadd(3), irett(3), ntype, ntypel(8)
+
+      xloc = rxnew(1)
+      yloc = rxnew(2)
+      zloc = rxnew(3)
+
+      xdlen = rxdrng(1)
+      ydlen = rxdrng(2)
+      zdlen = rxdrng(3)
+
+      ii = iadd(1)
+      jj = iadd(2)
+      kk = iadd(3)
+
+      irett(1) = 0
+      irett(2) = 0
+      irett(3) = 0
+
+      ! note that it is backwards becasue of where you came from ...
+      if (xdlen .gt. 0 ) then
+      if (ii .ge. ndxgp) then
+         xloc = xloc + xdlen
+         irett(1) = 1
+         goto 123
+      endif
+      endif
+      if (xdlen .gt. 0 ) then
+      if (ii .lt. 0) then
+         xloc = xloc - xdlen
+         irett(1) = 1
+         goto 123
+      endif
+      endif
+
+  123 continue    
+      if (ydlen .gt. 0 ) then
+      if (jj .ge. ndygp) then
+         yloc = yloc + ydlen
+         irett(2) = 1
+         goto 124
+      endif
+      endif
+      if (ydlen .gt. 0 ) then
+      if (jj .lt. 0) then
+         yloc = yloc - ydlen
+         irett(2) = 1
+         goto 124
+      endif
+      endif
+  124 continue
 
       if (if3d) then
-          call compute_neighbor_el_proc_3d
-      else
-          call compute_neighbor_el_proc_2d
+         if (zdlen .gt. 0 ) then
+         if (kk .ge. ndzgp) then
+            zloc = zloc + zdlen
+            irett(3) = 1
+            goto 125
+         endif
+         endif
+         if (zdlen .gt. 0 ) then
+         if (kk .lt. 0) then
+            zloc = xloc - zdlen
+            irett(3) = 1
+            goto 125
+         endif
+         endif
       endif
+  125 continue
+
+      ! 2D 
+      if (.not.if3d) then
+         ntype     = 0 ! always do self
+         if (irett(1) .eq. 1) then
+            ntype      = 1
+            ntypel(1)  = 3
+            if (irett(2) .eq. 1) then
+               ntype      = 3
+               ntypel(2)  = 4
+               ntypel(3)  = 6
+            endif
+         elseif(irett(2) .eq. 1) then
+            ntype      = 1
+            ntypel(1)  = 4
+         endif
+      endif
+
+      rxnew(1) = xloc
+      rxnew(2) = yloc
+      rxnew(3) = zloc
 
       return
       end

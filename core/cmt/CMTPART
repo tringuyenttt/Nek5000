@@ -96,3 +96,12 @@ c     move particles between procs ----------------------------------
       common /fptsparti/ ifpts
       common /fptspartn/ nfpts,nrf,nif
 
+      parameter (ngpvc  = 6)
+      parameter (nbox_gp=100*lelt)
+      integer nlist, ngp_valsp(ngpvc,nbox_gp),ngp_valse(9,nbox_gp),
+     >            ndxgp,ndygp,ndzgp, nliste,
+     >            mod_gp_grid(lx1,ly1,lz1,lelt,4)
+      common /new_gpi/ nlist,ndxgp,ndygp,ndzgp,ngp_valsp,ngp_valse
+     >                ,nliste,mod_gp_grid 
+      real    rdxgp, rdygp, rdzgp 
+      common /new_gpr/ rdxgp, rdygp, rdzgp
