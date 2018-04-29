@@ -293,7 +293,7 @@ c----------------------------------------------------------------------
       rdeff_max = glmax(rdeff_max,1)
       rdeff_max = rdeff_max*2. ! to get diameter
 
-      rtmp_col = rdeff_max*1.00
+      rtmp_col = rdeff_max*1.50
 
       d2chk(1)  = d2chk(1)*rdeff_max
       d2chk(2)  = d2chk(2)*rdeff_max
