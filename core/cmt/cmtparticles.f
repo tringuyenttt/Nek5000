@@ -1878,12 +1878,23 @@ c-----------------------------------------------------------------------
       integer iadd(3)
 
 c     face, edge, and corner number, x,y,z are all inline, so stride=3
-      el_face_num = (/ -1,0,0, 1,0,0, 0,-1,0, 0,1,0,    0,0,0,0,0,0/)
-      el_edge_num = (/ -1,-1,0, 1,-1,0, 1,1,0, -1,1,0,
-     >              0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0/)
+      el_face_num = (/ -1,0,0, 1,0,0, 0,-1,0, 0,1,0, 0,0,-1, 0,0,1 /)
+      el_edge_num = (/ -1,-1,0 , 1,-1,0, 1,1,0 , -1,1,0 ,
+     >                  0,-1,-1, 1,0,-1, 0,1,-1, -1,0,-1,
+     >                  0,-1,1 , 1,0,1 , 0,1,1 , -1,0,1  /)
+      el_corner_num = (/
+     >                 -1,-1,-1, 1,-1,-1, 1,1,-1, -1,1,-1,
+     >                 -1,-1,1,  1,-1,1,  1,1,1,  -1,1,1 /)
+
       nfacegp   = 4  ! number of faces
       nedgegp   = 4  ! number of edges
       ncornergp = 0  ! number of corners
+
+      if (if3d) then
+         nfacegp   = 6  ! number of faces
+         nedgegp   = 12 ! number of edges
+         ncornergp = 8  ! number of corners
+      endif
 
 ! -------------------------------------------------------
 c SETUP 3D BACKGROUND GRID PARAMETERS FOR GHOST PARTICLES
@@ -1933,14 +1944,12 @@ c Connect boxes to 1D processor map they should be arranged on
             call exitt
          endif
 
-
          ngp_valsp(1,nlist) = nid
          ngp_valsp(2,nlist) = ndum
          ngp_valsp(3,nlist) = ii
          ngp_valsp(4,nlist) = jj
          ngp_valsp(5,nlist) = kk
          ngp_valsp(6,nlist) = floor(real(ndum)/real(nreach))
-
 
          if (nlist .gt. 1) then
          do il=1,nlist-1
@@ -2262,7 +2271,7 @@ c
 
       ! 2D 
       if (.not.if3d) then
-         ntype     = 0 ! always do self
+         ntype     = 0 
          if (irett(1) .eq. 1) then
             ntype      = 1
             ntypel(1)  = 3
@@ -2274,6 +2283,42 @@ c
          elseif(irett(2) .eq. 1) then
             ntype      = 1
             ntypel(1)  = 4
+         endif
+      ! 3D 
+      else
+         ntype     = 0 
+         if (irett(1) .eq. 1) then
+            ntype      = 1
+            ntypel(1)  = 3
+            if (irett(2) .eq. 1) then
+               ntype      = 3
+               ntypel(2)  = 4
+               ntypel(3)  = 6
+               if (irett(3) .eq. 1) then
+                  ntype      = 7
+                  ntypel(2)  = 4
+                  ntypel(3)  = 5
+                  ntypel(4)  = 6
+                  ntypel(5)  = 7
+                  ntypel(6)  = 8
+                  ntypel(7)  = 9
+               endif
+            elseif (irett(3) .eq. 1) then
+               ntype      = 3
+               ntypel(2)  = 5
+               ntypel(3)  = 8
+            endif
+         elseif(irett(2) .eq. 1) then
+            ntype      = 1
+            ntypel(1)  = 4
+            if (irett(3) .eq. 1) then
+               ntype      = 3
+               ntypel(2)  = 5
+               ntypel(3)  = 7
+            endif
+         elseif(irett(3) .eq. 1) then
+            ntype      = 1
+            ntypel(1)  = 5
          endif
       endif
 
