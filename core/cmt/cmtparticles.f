@@ -57,7 +57,6 @@ c----------------------------------------------------------------------
          call create_extra_particles
          call send_ghost_particles
          call spread_props_grid           ! put particle props on grid
-
       endif
       call interp_props_part_location ! interpolate again for two-way
    
@@ -298,7 +297,6 @@ c----------------------------------------------------------------------
       d2chk(1)  = d2chk(1)*rdeff_max
       d2chk(2)  = d2chk(2)*rdeff_max
       d2chk(3)  = d2chk(3)*rdeff_max
-
 
       d2chk(1) = max(d2chk(1),rtmp_col)
       d2chk(2) = d2chk(2)
@@ -594,219 +592,6 @@ c     should we inject particles at this time step?
       return
       end
 c----------------------------------------------------------------------
-c     subroutine correct_spl
-c
-c     correct initial super particle loading
-c
-c     include 'SIZE'
-c     include 'INPUT'
-c     include 'GEOM'
-c     include 'SOLN'
-c     include 'CMTDATA'
-c     include 'MASS'
-c     include 'CMTPART'
-
-c     real rdumvol(llpart,2*3)
-
-c     ! this routine needs updating!
-
-c     do i=1,n
-c        rdumvol(i,1) = rpart(jvol,i)  ! particle volume
-c        rdumvol(i,2) = rpart(jvol1,i) ! interp vol frac @ part loc
-c        rdumvol(i,3) = rpart(jspl,i)  ! super part. loading
-c     enddo
-
-c     call usr_particles_io
-
-c     begin diagnostics ----
-c
-c     eulerian volume frac 
-c     nxyze = nx1*ny1*nz1*nelt
-c     rmu1  = glsc2(bm1,ptw(1,1,1,1,4),nxyze)
-c     rmu1  = rmu1/vol_distrib
-
-c
-c     lagrangian volume frac
-c     rmu2  = glsum(rdumvol(1,2),n)
-c     rmu2  = rmu2/nw
-c     rmin2 = glmin(rdumvol(1,2),n)
-c     rmax2 = glmax(rdumvol(1,2),n)
-
-c
-c     what spl mean should be
-c     rdumt   = glsum(rdumvol(1,1),n)
-c     rsplavg = phi_desire*vol_distrib/rdumt
-
-c
-c     what spl mean actually is
-c     rmu3  = glsum(rdumvol(1,3),n)
-c     rmu3  = rmu3/nw
-c     rmin3 = glmin(rdumvol(1,3),n)
-c     rmax3 = glmax(rdumvol(1,3),n)
-
-c
-c     variance and skew stuff
-c     do i=1,n
-c        rdumvol(i,4) = (rpart(jvol1,i) - rmu2)**2
-c        rdumvol(i,5) = (rpart(jspl,i) - rmu3)**2
-c     enddo
-
-c     rvar2 = glsum(rdumvol(1,4),n)
-c     rvar2 = rvar2/nw
-
-c     rvar3 = glsum(rdumvol(1,5),n)
-c     rvar3 = rvar3/nw
-
-c     if (nid.eq.0) write(6,*) '-DZ- Md,bd,Me --'
-c     if (nid.eq.0) write(6,*) phi_desire,rsplavg,rmu1
-c     if (nid.eq.0) write(6,*) '-DZ-- Ml,Sl,Minl,Maxl'
-c     if (nid.eq.0) write(6,*) rmu2,sqrt(rvar2),rmin2,rmax2
-c     if (nid.eq.0) write(6,*) '-DZ--- Mb,Sb,Minb,Maxb'
-c     if (nid.eq.0) write(6,*) rmu3,sqrt(rvar3),rmin3,rmax3
-c     end diagnostics ----
-
-
-c     do ip=1,n
-c        linear roll off near bed edges
-c        rthresh = 2.*rleng
-c        if (rpart(jx,ip) .lt. rxbo(1,1)+rthresh) then
-c           rxmin = rxbo(1,1)
-c           rxmax = rxbo(1,1)+rthresh
-c           rm    = (0.-phi_desire)/(rxmin-rxmax)
-c           phi_val = 0. + rm*(rpart(jx,ip)-rxmin)
-c        elseif (rpart(jx,ip) .gt. rxbo(2,1)-rthresh) then
-c           rxmin = rxbo(2,1)-rthresh
-c           rxmax = rxbo(2,1)
-c           rm    = (phi_desire-0.)/(rxmin-rxmax)
-c           phi_val = phi_desire + rm*(rpart(jx,ip)-rxmin)
-c        else
-c           phi_val = phi_desire
-c        endif
-
-c        tanh roll off near bed edges ! do this one if bed edge!!
-c        rthresh = 4.*rleng
-c        rxboavg = (rxbo(2,1)+rxbo(1,1))/2.
-c        if (rpart(jx,ip) .lt. rxboavg) then
-c           ra = rxbo(1,1)
-c           rb = rxbo(1,1)+rthresh
-c           rap=0.
-c           rbp=phi_desire
-c           rc = (ra+rb)/2.
-c           rd = rbp - rap
-c           phi_val = rap + rd*(0.5 + 0.5*tanh(200.*(rpart(jx,ip)-rc)))
-c        elseif (rpart(jx,ip) .gt. rxboavg) then
-c           ra = rxbo(2,1)-rthresh
-c           rb = rxbo(2,1)
-c           rap=phi_desire
-c           rbp=0.
-c           rc = (ra+rb)/2.
-c           rd = rbp - rap
-c           phi_val = rap + rd*(0.5 + 0.5*tanh(200.*(rpart(jx,ip)-rc)))
-c        else
-c           phi_val = phi_desire
-c        endif
-
-c        exponential roll off
-c        ryyl = 0.26
-c        ryyr = 0.28
-c        ry = rpart(jy,ip)
-c        if (ry .le. ryyl) then
-c           phi_val = phi_desire
-c        else
-c           rssig = sqrt(-(ryyr - ryyl)**2/2./log(0.01))
-c           phi_val = phi_desire*exp(-(ry-ryyl)**2/2./rssig**2)
-c        endif
-
-c        phi_val = phi_desire ! comment out if bed and uncomment above
-c        rtmp = 0.30*rpart(jspl,ip)
-c        rxi = rtmp*(1. - rpart(jvol1,ip)/phi_val)
-c        rpart(jspl,ip)=rpart(jspl,ip) + rxi
-c        if (rpart(jspl,ip).lt.0.) rpart(jspl,ip) = 0.
-
-c        rthresh = 2.*rleng
-c        if (rpart(jx,ip) .lt. rxbo(1,1)+rthresh) then
-c           rxmin = rxbo(1,1)
-c           rxmax = rxbo(1,1)+rthresh
-c           rm    = (1.-rsplavg)/(rxmin-rxmax)
-c           rpart(jspl,ip) = 1. + rm*(rpart(jx,ip)-rxmin)
-
-c           ra = rxbo(1,1)
-c           rb = rxbo(1,1)+rthresh
-c           rap=1.
-c           rbp=rsplavg
-c           rc = (ra+rb)/2.
-c           rd = rbp - rap
-c           rpart(jspl,ip) = rbp + rd*(0.5 + 
-c    >                 0.5*tanh(100.*(rb-ra)/rc*(rpart(jx,ip)-rc)))
-c        elseif (rpart(jx,ip) .gt. rxbo(2,1)-rthresh) then
-c           rxmin = rxbo(2,1)-rthresh
-c           rxmax = rxbo(2,1)
-c           rm    = (rsplavg-1.)/(rxmin-rxmax)
-c           rpart(jspl,ip) = rsplavg + rm*(rpart(jx,ip)-rxmin)
-
-c           ra = rxbo(2,1)-rthresh
-c           rb = rxbo(2,1)
-c           rap=rsplavg
-c           rbp=1.
-c           rc = (ra+rb)/2.
-c           rd = rbp - rap
-c           rpart(jspl,ip) = rbp + rd*(0.5 + 
-c    >                 0.5*tanh(100.*(rb-ra)/rc*(rpart(jx,ip)-rc)))
-c        else
-c           rtmp = 0.30*rpart(jspl,ip)
-c           rxi = rtmp*(1. - rpart(jvol1,ip)/phi_desire)
-c           rpart(jspl,ip)=rpart(jspl,ip) + rxi
-c        endif
-c        if (rpart(jspl,ip).lt.0.) rpart(jspl,ip) = 0.
-
-
-c        linear roll off near bed edges
-c        rthresh = 1.*rleng
-c        if (rpart(jx,ip) .lt. rxbo(1,1)+rthresh) then
-c           rxmin = rxbo(1,1)
-c           rxmax = rxbo(1,1)+rthresh
-c           rm    = (0.-phi_desire)/(rxmin-rxmax)
-c           phi_val = 0. + rm*(rpart(jx,ip)-rxmin)
-c        elseif (rpart(jx,ip) .gt. rxbo(2,1)-rthresh) then
-c           rxmin = rxbo(2,1)-rthresh
-c           rxmax = rxbo(2,1)
-c           rm    = (phi_desire-0.)/(rxmin-rxmax)
-c           phi_val = phi_desire + rm*(rpart(jx,ip)-rxmin)
-c        else
-c           phi_val = phi_desire
-c        endif
-
-c        tanh roll off near bed edges
-c        rthresh = 2.*rleng
-c        rxboavg = (rxbo(2,1)+rxbo(1,1))/2.
-c        if (rpart(jx,ip) .lt. rxboavg) then
-c           ra = rxbo(1,1)
-c           rb = rxbo(1,1)+rthresh
-c           rap=0.
-c           rbp=phi_desire
-c           rc = (ra+rb)/2.
-c           rd = rbp - rap
-c           phi_val = rbp + rd*(0.5 + 
-c    >                 0.5*tanh(100.*(rb-ra)/rc*(rpart(jx,ip)-rc)))
-c        elseif (rpart(jx,ip) .gt. rxboavg) then
-c           ra = rxbo(2,1)-rthresh
-c           rb = rxbo(2,1)
-c           rap=phi_desire
-c           rbp=0.
-c           rc = (ra+rb)/2.
-c           rd = rbp - rap
-c           phi_val = rbp + rd*(0.5 + 
-c    >                 0.5*tanh(100.*(rb-ra)/rc*(rpart(jx,ip)-rc)))
-c        else
-c           phi_val = phi_desire
-c        endif
-
-c1511 continue
-c     enddo
-
-c     return
-c     end
-c----------------------------------------------------------------------
       subroutine spread_props_grid
 c
 c     spread particle properties at fluid grid points
@@ -1015,51 +800,6 @@ c     call filter_s0(ptw(1,1,1,1,4),wght,ncut,'phip')
       enddo
       enddo
       enddo
-
-      return
-      end
-c----------------------------------------------------------------------
-      subroutine local_part_to_grid_fv(fvalgx,fvalgy,fvalgz,fvalgv,
-     >                              fvalgg,fvalv1,fvalv2,fvalv3,
-     >                              rcountv)
-c
-c     spread a local particle property to local fluid grid points
-c
-      include 'SIZE'
-      include 'INPUT'
-      include 'GEOM'
-      include 'SOLN'
-      include 'CMTDATA'
-      include 'CMTPART'
-
-      integer e,er
-      real    fvalgx(nx1,ny1,nz1,nelt),fvalgy(nx1,ny1,nz1,nelt),
-     >        fvalgz(nx1,ny1,nz1,nelt),fvalgv(nx1,ny1,nz1,nelt),
-     >        fvalgg(nx1,ny1,nz1,nelt),fvalv1(nx1,ny1,nz1,nelt),
-     >        fvalv2(nx1,ny1,nz1,nelt),fvalv3(nx1,ny1,nz1,nelt),
-     >        rcountv(8,nelt)
-
-         do ie=1,nelt
-
-            rvole = (xerange(2,1,ie) - xerange(1,1,ie))*
-     >              (xerange(2,2,ie) - xerange(1,2,ie))*
-     >              (xerange(2,3,ie) - xerange(1,3,ie))
-            rvolei=1./rvole
-         do k=1,nz1
-         do j=1,ny1
-         do i=1,nx1
-            fvalgx(i,j,k,ie) = rcountv(1,ie)*rvolei
-            fvalgy(i,j,k,ie) = rcountv(2,ie)*rvolei
-            fvalgz(i,j,k,ie) = rcountv(3,ie)*rvolei
-            fvalgv(i,j,k,ie) = rcountv(4,ie)*rvolei
-            fvalgg(i,j,k,ie) = rcountv(5,ie)*rvolei
-            fvalv1(i,j,k,ie) = rcountv(6,ie)*rvolei
-            fvalv2(i,j,k,ie) = rcountv(7,ie)*rvolei
-            fvalv3(i,j,k,ie) = rcountv(8,ie)*rvolei
-         enddo
-         enddo
-         enddo
-         enddo
 
       return
       end
@@ -1690,71 +1430,58 @@ c
 c     let every particle search for itself
 c        particles in local elements
          do j = i+1,n
-c           if (ipart(je0,i) .eq. ipart(je0,j)) then
-c           if (i .ne. j) then
+            icx2 = ipart(jicx,j)
+            icy2 = ipart(jicy,j)
+            icz2 = ipart(jicz,j)
+            if ((icx2.ge.icxm).and.(icx2.le.icxp)) then
+            if ((icy2.ge.icym).and.(icy2.le.icyp)) then
+            if ((icz2.ge.iczm).and.(icz2.le.iczp)) then
 
-               ! finally excude on basis of sub element mesh
-               icx2 = ipart(jicx,j)
-               icy2 = ipart(jicy,j)
-               icz2 = ipart(jicz,j)
-               if ((icx2.ge.icxm).and.(icx2.le.icxp)) then
-               if ((icy2.ge.icym).and.(icy2.le.icyp)) then
-               if ((icz2.ge.iczm).and.(icz2.le.iczp)) then
+            rrp2   = rpart(jrpe ,j)
+            rvol2  = rpart(jvol ,j)
+            rrho2  = rpart(jrhop,j)
+            rx2(1) = rpart(jx   ,j)
+            rx2(2) = rpart(jx+1 ,j)
+            rx2(3) = rpart(jx+2 ,j)
+            rv2(1) = rpart(jv0  ,j)
+            rv2(2) = rpart(jv0+1,j)
+            rv2(3) = rpart(jv0+2,j)
 
-               rrp2   = rpart(jrpe ,j)
-               rvol2  = rpart(jvol ,j)
-               rrho2  = rpart(jrhop,j)
-               rx2(1) = rpart(jx   ,j)
-               rx2(2) = rpart(jx+1 ,j)
-               rx2(3) = rpart(jx+2 ,j)
-               rv2(1) = rpart(jv0  ,j)
-               rv2(2) = rpart(jv0+1,j)
-               rv2(3) = rpart(jv0+2,j)
+            idum = 1
+            call compute_collide(mcfac,rrp2,rvol2,rrho2,rx2,rv2,
+     >                           rpart(jfcol,i),rpart(jfcol,j),idum)
 
-               idum = 1
-               call compute_collide(mcfac,rrp2,rvol2,rrho2,rx2,rv2,
-     >                              rpart(jfcol,i),rpart(jfcol,j),idum)
-
-               endif
-               endif
-               endif
-               
-c           endif
-c           endif
+            endif
+            endif
+            endif
          enddo
 
 c        search list of ghost particles
          do j = 1,nfptsgp
-c           if (ipart(je0,i) .eq. iptsgp(jgpes,j)) then
-            ! exclude if not meant for collisions
-c           if (iptsgp(jgpiic,j) .eq. 2) goto 1235
+            icx2 = iptsgp(jgpicx,j)
+            icy2 = iptsgp(jgpicy,j)
+            icz2 = iptsgp(jgpicz,j)
+            if ((icx2.ge.icxm).and.(icx2.le.icxp)) then
+            if ((icy2.ge.icym).and.(icy2.le.icyp)) then
+            if ((icz2.ge.iczm).and.(icz2.le.iczp)) then
 
-               icx2 = iptsgp(jgpicx,j)
-               icy2 = iptsgp(jgpicy,j)
-               icz2 = iptsgp(jgpicz,j)
-               if ((icx2.ge.icxm).and.(icx2.le.icxp)) then
-               if ((icy2.ge.icym).and.(icy2.le.icyp)) then
-               if ((icz2.ge.iczm).and.(icz2.le.iczp)) then
+            rrp2   = rptsgp(jgprpe ,j)
+            rvol2  = rptsgp(jgpvol ,j)
+            rrho2  = rho_p            ! assume same density. Need2fix
+            rx2(1) = rptsgp(jgpx   ,j)
+            rx2(2) = rptsgp(jgpx+1 ,j)
+            rx2(3) = rptsgp(jgpx+2 ,j)
+            rv2(1) = rptsgp(jgpv0  ,j)
+            rv2(2) = rptsgp(jgpv0+1,j)
+            rv2(3) = rptsgp(jgpv0+2,j)
 
-               rrp2   = rptsgp(jgprpe ,j)
-               rvol2  = rptsgp(jgpvol ,j)
-               rrho2  = rho_p            ! assume same density. Need2fix
-               rx2(1) = rptsgp(jgpx   ,j)
-               rx2(2) = rptsgp(jgpx+1 ,j)
-               rx2(3) = rptsgp(jgpx+2 ,j)
-               rv2(1) = rptsgp(jgpv0  ,j)
-               rv2(2) = rptsgp(jgpv0+1,j)
-               rv2(3) = rptsgp(jgpv0+2,j)
+            idum = 0
+            call compute_collide(mcfac,rrp2,rvol2,rrho2,rx2,rv2,
+     >                           rpart(jfcol,i),rdum3,idum)
 
-               idum = 0
-               call compute_collide(mcfac,rrp2,rvol2,rrho2,rx2,rv2,
-     >                              rpart(jfcol,i),rdum3,idum)
-
-               endif
-               endif
-               endif
-
-c       endif
+            endif
+            endif
+            endif
          enddo
  1235 continue
 
@@ -1917,14 +1644,6 @@ c     send ghost particles
       call fgslib_crystal_tuple_sort    (i_cr_hndl,nfptsgp
      $              , iptsgp,nigp,partl,0,rptsgp,nrgp,jgpes,1)
 
-c     sort ghost particles by jgpiic for quick discard in collision
-c     algorithm. Note that jgpiic loc in iptsgp has values of 0 (used
-c     in collisions) or 1 (not used in collisions, but for projection)
-      if (two_way .gt. 2) then
-      call fgslib_crystal_tuple_sort    (i_cr_hndl,nfptsgp
-     $              , iptsgp,nigp,partl,0,rptsgp,nrgp,jgpiic,1)
-      endif
-
       return
       end
 c-----------------------------------------------------------------------
@@ -2023,7 +1742,6 @@ c CREATING GHOST PARTICLES
             ! same box but different proc
             if (ndum .eq. ngp_valsp(2,j)) then
             if (nid  .ne. ngp_valsp(1,j)) then
-
                ! don't double create gp for same remote rank
                do k=1,nliste 
                   if (ngp_valsp(1,j) .eq. ngp_valse(1,k)) then
@@ -2048,7 +1766,6 @@ c CREATING GHOST PARTICLES
                   endif
                   endif
                enddo
-
             endif
             endif
 
@@ -2059,8 +1776,6 @@ c CREATING GHOST PARTICLES
      >         ngp_valsp(4,j).gt.ndygp-1 .and. ydlen .gt. 0 .or. 
      >         ngp_valsp(5,j).lt.0       .and. zdlen .gt. 0 .or.
      >         ngp_valsp(5,j).gt.ndzgp-1 .and. zdlen .gt. 0 ) then
-
-
 
                rxnew(1) = rpart(jx,i)
                rxnew(2) = rpart(jy,i)
@@ -2143,181 +1858,6 @@ c
       iptsgp(jgpps,nfptsgp)   = iadd(2)        ! overwritten mpi
       iptsgp(jgppt,nfptsgp)   = iadd(2)        ! dest. mpi rank
       iptsgp(jgpes,nfptsgp)   = iadd(3)        ! dest. elment
-
-      return
-      end
-c-----------------------------------------------------------------------
-      subroutine gp_create(ii,jj,kk,iic,i,
-     >             nnl,el_tmp_num,el_tmp_proc_map,el_tmp_el_map)
-c
-c     this routine will create a ghost particle and append its position
-c     to rptsgp and its processor and element to iptsgp. nfptsgp will then
-c     be incremented. Note that ghost particles will not be created if 
-c     they are to be created on the same processor. In the near future, 
-c     this might not be true if periodic conditions are needed.
-c
-c     el_tmp_num holds vector coordinates of tmp=face,edge, or corners
-c     el_tmp_proc_map holds MPI rank of neighbor elements in el_tmp_num
-c                     order
-c     el_tmp_el_map holds local element number of neighbor elements
-c
-c     ii,jj,kk are vectors that tell what element a ghost particle
-c     should be sent to
-c
-c     i is which particle is creating the ghost particle from rpart,etc
-c
-      include 'SIZE'
-      include 'TOTAL'
-      include 'CMTDATA'
-      include 'CMTPART'
-
-      common /nekmpi/ mid,mp,nekcomm,nekgroup,nekreal
-      common /myparth/ i_fp_hndl, i_cr_hndl
-
-      integer el_tmp_proc_map(lelt,12)  ,el_tmp_el_map(lelt,12),
-     >        el_tmp_num(36)
-
-      real rdumpos(3),rxnew(3)
-      integer iadd(3)
-
-      xdlen = xdrange(2,1) - xdrange(1,1)
-      ydlen = xdrange(2,2) - xdrange(1,2)
-      zdlen = 0.
-      if (if3d) zdlen = xdrange(2,3) - xdrange(1,3)
-
-            ie = ipart(je0,i)+1
-
-      xedlen = xerange(2,1,ie) - xerange(1,1,ie)
-      yedlen = xerange(2,2,ie) - xerange(1,2,ie)
-      zedlen = 0.
-      if (if3d) zedlen = xerange(2,3,ie) - xerange(1,3,ie)
-
-      ic = 0
-      do j=1,3*nnl-2,3
-         ic = ic + 1
-         if (el_tmp_num(j)  .eq.ii) then
-         if (el_tmp_num(j+1).eq.jj) then
-         if ((if3d .and. el_tmp_num(j+2).eq.kk) .or. 
-     >           (.not. if3d .and. el_tmp_num(j+2) .eq. 0)) then
-
-            nfptsgp = nfptsgp + 1
-            iitmp1 = 0
-            iitmp2 = 0
-            iitmp3 = 0
-
-            ! note that altering locs is for bc in periodic ..
-            xloc = rpart(jx,i)
-            if (xloc+xedlen*ii .gt. xdrange(2,1)) then
-                 xloc = rpart(jx,i) - xdlen
-                 iitmp1 = 1
-                 goto 123
-            endif
-            if (xloc+xedlen*ii .lt. xdrange(1,1))then
-                 xloc = rpart(jx,i) + xdlen
-                 iitmp1 = 1
-                 goto 123
-            endif
-  123 continue
-            yloc = rpart(jy,i)
-            if (yloc+yedlen*jj .gt. xdrange(2,2))then
-                 yloc = rpart(jy,i) - ydlen
-                 iitmp2 = 1
-                 goto 124
-            endif
-            if (yloc+yedlen*jj .lt. xdrange(1,2))then
-                 yloc = rpart(jy,i) + ydlen
-                 iitmp2 = 1
-                 goto 124
-            endif
-  124 continue
-            zloc = rpart(jz,i)
-            if (if3d) then
-            if (zloc+zedlen*kk .gt. xdrange(2,3))then
-                 zloc = rpart(jz,i) - zdlen
-                 iitmp3 = 1
-                 goto 125
-            endif
-            if (zloc+zedlen*kk .lt. xdrange(1,3))then
-                 zloc = rpart(jz,i) + zdlen
-                 iitmp3 = 1
-                 goto 125
-            endif
-            endif
-  125 continue
-
-            if (el_tmp_proc_map(ie,ic) .lt. 0   .or.
-     >          el_tmp_el_map(ie,ic)   .lt.0)   then
-               nfptsgp=nfptsgp-1
-               goto 1511
-            endif
-
-c           check if extra particles have been created on the same mpi
-c           rank and also take care of boundary particles
-            ibctype = abs(bc_part(1))+abs(bc_part(3))+abs(bc_part(5))
-
-c           take care of periodic stuff first
-            if (nid.eq.iptsgp(jgppt,nfptsgp)) then 
-            if (ibctype .eq. 0) then            ! all three sides periodic
-               if (iitmp1+iitmp2+iitmp3 .eq.0) then
-                  iic = 0
-                  goto 1511
-               endif
-            elseif (ibctype .eq. 1) then        ! only two sides periodic
-               if (abs(bc_part(1)) .eq. 1) then
-                  if (iitmp2+iitmp3 .eq. 0) then
-                     iic = 0
-                     goto 1511
-                  endif
-               elseif (abs(bc_part(3)) .eq. 1) then
-                  if (iitmp1+iitmp3 .eq. 0) then
-                     iic = 0
-                     goto 1511
-                  endif
-               elseif (abs(bc_part(5)) .eq. 1) then
-                  if (iitmp1+iitmp2 .eq. 0) then
-                     iic = 0
-                     goto 1511
-                  endif
-               endif
-            elseif (ibctype .eq. 2) then        ! only one side periodic
-               if (bc_part(1) .eq. 0) then
-                  if (iitmp1 .eq. 0) then
-                     iic = 0
-                     goto 1511
-                  endif
-               elseif (bc_part(3) .eq. 0) then
-                  if (iitmp2 .eq. 0) then
-                     iic = 0
-                     goto 1511
-                  endif
-               elseif (bc_part(5) .eq. 0) then
-                  if (iitmp3 .eq. 0) then
-                     iic = 0
-                     goto 1511
-                  endif
-               endif
-            elseif (ibctype .eq. 3) then        ! no sides periodic 
-               iic = 0
-               goto 1511
-            endif
-            endif ! end if(nid.eq. ...)
-
-            rxnew(1) = xloc
-            rxnew(2) = yloc
-            rxnew(3) = zloc
-
-            iadd(1)  = iic
-            iadd(2)  = el_tmp_proc_map(ie,ic)
-            iadd(3)  = el_tmp_el_map(ie,ic)
-
-            call add_a_ghost_particle(rxnew,iadd,i)
-
-            goto 1511
-         endif
-         endif
-         endif
-      enddo
- 1511 continue
 
       return
       end
