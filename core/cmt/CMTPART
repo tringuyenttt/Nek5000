@@ -57,7 +57,7 @@ c     domain and element size
 
 c     ghost particles -----------------------------------------------
       parameter (llpart_gp=26*llpart)
-      parameter (lrgp=14,ligp=4)
+      parameter (lrgp=14,ligp=7)
       common /gp_pointsr/ rptsgp(lrgp,llpart_gp)
       common /gp_pointsi/ iptsgp(ligp,llpart_gp)
       common /gp_lens/ nfptsgp,nigp,nrgp
@@ -65,8 +65,8 @@ c     ghost particles -----------------------------------------------
       real    d2chk(3)
       common /gp_points_h/ d2chk
 
-      common /gp_ptpointers/ jgpiic,jgpps,jgppt,jgpes
-     >                      ,jgpx,jgpy,jgpz,jgpfh,jgpvol,jgpspl
+      common /gp_ptpointers/ jgpiic,jgpps,jgppt,jgpes,jgpicx,jgpicy
+     >                      ,jgpicz,jgpx,jgpy,jgpz,jgpfh,jgpvol,jgpspl
      >                      ,jgpg0,jgpq0,jgpv0,jgprpe
 
 c     ghost particle element mapping --------------------------------

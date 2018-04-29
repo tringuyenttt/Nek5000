@@ -296,6 +296,8 @@ c----------------------------------------------------------------------
       rtmp_col = rdeff_max*1.00
 
       d2chk(1)  = d2chk(1)*rdeff_max
+      d2chk(2)  = d2chk(2)*rdeff_max
+      d2chk(3)  = d2chk(3)*rdeff_max
 
 
       d2chk(1) = max(d2chk(1),rtmp_col)
@@ -477,6 +479,9 @@ c     ghost particle integer pointers -------------------------------
       jgpps   = 2 ! Pointer to proc id for data swap
       jgppt   = 3 ! findpts return processor id
       jgpes   = 4 ! Destination element to be sent to
+      jgpicx  = 5
+      jgpicy  = 6
+      jgpicz  = 7
 
 c     ghost particle real pointers ----------------------------------
       jgpx    = 1 ! ghost particle xloc
@@ -545,7 +550,7 @@ c     should we inject particles at this time step?
             ! Create ghost/wall particles
             ptdum(4) = dnekclock()
                call create_extra_particles
-               call sort_local_particles
+               call sort_local_particles_collisions
             pttime(4) = pttime(4) + dnekclock() - ptdum(4)
 
             ! Send ghost particles
@@ -1685,7 +1690,7 @@ c
 c     let every particle search for itself
 c        particles in local elements
          do j = i+1,n
-            if (ipart(je0,i) .eq. ipart(je0,j)) then
+c           if (ipart(je0,i) .eq. ipart(je0,j)) then
 c           if (i .ne. j) then
 
                ! finally excude on basis of sub element mesh
@@ -1715,14 +1720,22 @@ c           if (i .ne. j) then
                endif
                
 c           endif
-            endif
+c           endif
          enddo
 
 c        search list of ghost particles
          do j = 1,nfptsgp
-            if (ipart(je0,i) .eq. iptsgp(jgpes,j)) then
+c           if (ipart(je0,i) .eq. iptsgp(jgpes,j)) then
             ! exclude if not meant for collisions
-            if (iptsgp(jgpiic,j) .eq. 2) goto 1235
+c           if (iptsgp(jgpiic,j) .eq. 2) goto 1235
+
+               icx2 = iptsgp(jgpicx,j)
+               icy2 = iptsgp(jgpicy,j)
+               icz2 = iptsgp(jgpicz,j)
+               if ((icx2.ge.icxm).and.(icx2.le.icxp)) then
+               if ((icy2.ge.icym).and.(icy2.le.icyp)) then
+               if ((icz2.ge.iczm).and.(icz2.le.iczp)) then
+
                rrp2   = rptsgp(jgprpe ,j)
                rvol2  = rptsgp(jgpvol ,j)
                rrho2  = rho_p            ! assume same density. Need2fix
@@ -1737,7 +1750,11 @@ c        search list of ghost particles
                call compute_collide(mcfac,rrp2,rvol2,rrho2,rx2,rv2,
      >                              rpart(jfcol,i),rdum3,idum)
 
-        endif
+               endif
+               endif
+               endif
+
+c       endif
          enddo
  1235 continue
 
@@ -1990,15 +2007,20 @@ c CREATING GHOST PARTICLES
 
       nfptsgp = 0
       do i=1,n
-         ii    = floor(rpart(jx,i)/rdxgp) 
-         jj    = floor(rpart(jy,i)/rdygp) 
-         kk    = floor(rpart(jz,i)/rdzgp) 
+
+         rxval = rpart(jx,i)
+         ryval = rpart(jy,i)
+         rzval = 0.
+         if(if3d) rzval = rpart(jz,i)
+
+         ii    = floor(rxval/rdxgp) 
+         jj    = floor(ryval/rdygp) 
+         kk    = floor(rzval/rdzgp) 
          ndum  = ii + ndxgp*jj + ndxgp*ndygp*kk
 
-         ! loop over connecting boxes
          do j=1,nlist
 
-            ! enter here if for own box but different rank
+            ! same box but different proc
             if (ndum .eq. ngp_valsp(2,j)) then
             if (nid  .ne. ngp_valsp(1,j)) then
 
@@ -2006,32 +2028,39 @@ c CREATING GHOST PARTICLES
                do k=1,nliste 
                   if (ngp_valsp(1,j) .eq. ngp_valse(1,k)) then
                   if (ngp_valse(2,k) .ne. i) then
-                 
+               
+                     xloc = rpart(jx,i)
+                     yloc = rpart(jy,i)
+                     zloc = rpart(jz,i) 
+               
                      nfptsgp = nfptsgp + 1
                      ngp_valse(2,k) = i
-                 
-                     rxnew(1) = rpart(jx,i)
-                     rxnew(2) = rpart(jy,i)
-                     rxnew(3) = rpart(jz,i)
-                 
+               
+                     rxnew(1) = xloc
+                     rxnew(2) = yloc
+                     rxnew(3) = zloc
+               
                      iadd(1)  = 0
                      iadd(2)  = ngp_valsp(1,j)
                      iadd(3)  = ipart(i,je0)
-                 
+               
                      call add_a_ghost_particle(rxnew,iadd,i)
                   endif
                   endif
                enddo
+
             endif
             endif
 
-            ! enter here if for periodic boundary conditions
+            ! periodic boundary conditions now
             if (ngp_valsp(3,j).lt.0      .and. xdlen .gt. 0 .or. 
      >         ngp_valsp(3,j).gt.ndxgp-1 .and. xdlen .gt. 0 .or. 
      >         ngp_valsp(4,j).lt.0       .and. ydlen .gt. 0 .or.
      >         ngp_valsp(4,j).gt.ndygp-1 .and. ydlen .gt. 0 .or. 
      >         ngp_valsp(5,j).lt.0       .and. zdlen .gt. 0 .or.
      >         ngp_valsp(5,j).gt.ndzgp-1 .and. zdlen .gt. 0 ) then
+
+
 
                rxnew(1) = rpart(jx,i)
                rxnew(2) = rpart(jy,i)
@@ -2046,7 +2075,6 @@ c CREATING GHOST PARTICLES
                ! don't double create gp for same remote rank
                do k=1,nliste 
                   if (ngp_valsp(1,j) .eq. ngp_valse(1,k)) then
-
                      do it=1,ntypes
                         itype = ntypesl(it)
                         if (ngp_valse(itype,k) .ne. i) then
@@ -2358,13 +2386,6 @@ c Connect boxes to 1D processor map they should be arranged on
          mod_gp_grid(i,j,k,ie,3) = kk
          mod_gp_grid(i,j,k,ie,4) = ndum
 
-         ! DEBUG
-         ptw(i,j,k,ie,1) = real(ii)
-         ptw(i,j,k,ie,2) = real(jj)
-         ptw(i,j,k,ie,3) = real(kk)
-         ptw(i,j,k,ie,4) = real(ndum)
-         ptw(i,j,k,ie,5) = real(nid)
-
          nlist = nlist + 1
          if (nlist .gt. nbox_gp) then
             write(6,*)'Increase nbox_gp. Need more sub-box storage',
@@ -2394,17 +2415,6 @@ c Connect boxes to 1D processor map they should be arranged on
       enddo
       enddo
       enddo
-
-c     itmp = 1
-c     call outpost2(ptw(1,1,1,1,1),         ! fhyd_x
-c    >              ptw(1,1,1,1,2),         ! fhyd_y
-c    >              ptw(1,1,1,1,3),         ! fhyd_z
-c    >              ptw(1,1,1,1,4),         ! phi_p 
-c    >              ptw(1,1,1,1,5),         ! procmap
-c    >              itmp          ,        
-c    >              'ptw')
-
-c     call exitt
 
       ! Add connecting boxes and what rank(s) they are in the 1D proc map
       nlist_save = nlist
@@ -2574,32 +2584,6 @@ c ORGANIZE MAP OF REMOTE PROCESSORS TO SEND TO
             endif
          endif
       enddo
-
-         call create_extra_particles
-         call send_ghost_particles
-         call spread_props_grid           ! put particle props on grid
-      ! set proc map to be temperature field in ptw files
-      do ie=1,nelt
-      do k=1,nz1
-      do j=1,ny1
-      do i=1,nx1
-         ptw(i,j,k,ie,5) = nid
-      enddo
-      enddo
-      enddo
-      enddo
-
-      itmp = 1
-      call outpost2(ptw(1,1,1,1,1),         ! fhyd_x
-     >              ptw(1,1,1,1,2),         ! fhyd_y
-     >              ptw(1,1,1,1,3),         ! fhyd_z
-     >              ptw(1,1,1,1,4),         ! phi_p 
-     >              ptw(1,1,1,1,5),         ! procmap
-     >              itmp          ,        
-     >              'ptw')
-      call output_parallel_lagrangian_parts
-
-         call exitt
 
       return
       end
@@ -4805,7 +4789,7 @@ c              ! Update where particle is stored at
                   ! Create ghost/wall particles
                   ptdum(4) = dnekclock()
                      call create_extra_particles
-                     call sort_local_particles
+                     call sort_local_particles_collisions
                   pttime(4) = pttime(4) + dnekclock() - ptdum(4)
                   
                   ! Send ghost particles
@@ -4841,11 +4825,14 @@ c              ! Update where particle is stored at
          ptdum(1) = dnekclock()
       enddo
 
+      if (nid.eq.0) write(6,*) 'FINISHED PRE COLLISIONS - EXITING NOW'
+      call exitt
+
 
       return
       end
 c----------------------------------------------------------------------
-      subroutine sort_local_particles
+      subroutine sort_local_particles_collisions
       include 'SIZE'
       include 'TOTAL'
       include 'NEKUSE'
@@ -4854,27 +4841,51 @@ c----------------------------------------------------------------------
 
       common /save_dt_part/ rdpe_max, rdpe_min
 
-      rat  = rdpe_max/rleng
-      ratm = 2.
-      if (rat .gt. ratm) then
+      ! here we can actually shrik rdxgp,rdygp,rdzgp if projection 
+      ! distance is larger. We only need collsion distance as dpe_max
+      ndxgpc = floor( (xdrange(2,1) - xdrange(1,1))/d2chk(3)) +1
+      ndygpc = floor( (xdrange(2,2) - xdrange(1,2))/d2chk(3))+1
+      ndzgpc = 1
+      if (if3d) ndzgpc =floor( (xdrange(2,3) - xdrange(1,3))/d2chk(3))+1
 
-        nrat = floor(rat)
+      ! grid spacing for that many spacings
+      rdxgpc = (xdrange(2,1) - xdrange(1,1))/real(ndxgpc)
+      rdygpc = (xdrange(2,2) - xdrange(1,2))/real(ndygpc)
+      rdzgpc = 1.
+      if (if3d) rdzgpc = (xdrange(2,3) - xdrange(1,3))/real(ndzgpc)
 
-        do i=1,n
-           ie = ipart(je0,i) + 1
-           rdx  = (xerange(2,1,ie) - xerange(1,1,ie))/nrat
-           rdy  = (xerange(2,2,ie) - xerange(1,2,ie))/nrat
-           rdz  = (xerange(2,3,ie) - xerange(1,3,ie))/nrat
+      ! set real particles ii,jj,kk
+      do i=1,n
+         rxval = rpart(jx,i)
+         ryval = rpart(jy,i)
+         rzval = 0.
+         if(if3d) rzval = rpart(jz,i)
+  
+         ii    = floor(rxval/rdxgpc) 
+         jj    = floor(ryval/rdygpc) 
+         kk    = floor(rzval/rdzgpc) 
+         ndum  = ii + ndxgp*jj + ndxgp*ndygp*kk
 
-           rpx  = rpart(jx,i) - xerange(1,1,ie)
-           rpy  = rpart(jy,i) - xerange(1,2,ie)
-           rpz  = rpart(jz,i) - xerange(1,3,ie)
+         ipart(jicx,i) = ii
+         ipart(jicy,i) = jj
+         ipart(jicz,i) = kk
+      enddo
+      ! set ghost particles ii,jj,kk
+      do i=1,nfptsgp
+         rxval = rptsgp(jgpx,i)
+         ryval = rptsgp(jgpy,i)
+         rzval = 0.
+         if(if3d) rzval = rptsgp(jgpz,i)
+  
+         ii    = floor(rxval/rdxgpc) 
+         jj    = floor(ryval/rdygpc) 
+         kk    = floor(rzval/rdzgpc) 
+         ndum  = ii + ndxgp*jj + ndxgp*ndygp*kk
 
-           ipart(jicx,i) = floor(rpx/rdx)
-           ipart(jicy,i) = floor(rpy/rdy)
-           ipart(jicz,i) = floor(rpz/rdz)
-         enddo
-      endif
+         iptsgp(jgpicx,i) = ii
+         iptsgp(jgpicy,i) = jj
+         iptsgp(jgpicz,i) = kk
+      enddo
 
       return
       end
