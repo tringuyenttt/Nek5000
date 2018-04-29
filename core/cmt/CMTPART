@@ -20,12 +20,12 @@ c     main common blocks - rpart and ipart --------------------------
 
 c     particle options ----------------------------------------------
       common /part_options/ bc_part, two_way, red_interp,time_integ,
-     >                      part_force,time_delay,nitspl,inject_rate,
-     >                      ipart_restarto,ipart_restartr,nrect_assume,
+     >                      part_force,time_delay,inject_rate,
+     >                      ipart_restartr,
      >                      npro_method,npio_method,icmtp
       integer bc_part(6),two_way, red_interp,time_integ,part_force(5)
-     >       ,time_delay,nitspl,inject_rate,ipart_restarto
-     >       ,ipart_restartr,nrect_assume,npro_method,npio_method,icmtp
+     >       ,time_delay,inject_rate
+     >       ,ipart_restartr,npro_method,npio_method,icmtp
 
 c     particle parameters -------------------------------------------
       common /part_paramsr/ deltaf, dp, deltax, rho_p, tau_p,mu_0,tp_0,
@@ -70,13 +70,8 @@ c     ghost particles -----------------------------------------------
      >                      ,jgpg0,jgpq0,jgpv0,jgprpe
 
 c     ghost particle element mapping --------------------------------
-      integer el_face_proc_map(lelt,6)  ,el_face_el_map(lelt,6),
-     >        el_edge_proc_map(lelt,12) ,el_edge_el_map(lelt,12),
-     >        el_corner_proc_map(lelt,8),el_corner_el_map(lelt,8),
-     >        el_face_num(18),el_edge_num(36),el_corner_num(24)
-      common /neighbor_proc/ el_face_proc_map,el_face_el_map,
-     >                       el_edge_proc_map,el_edge_el_map,
-     >                       el_corner_proc_map,el_corner_el_map
+      integer  el_face_num(18),el_edge_num(36),el_corner_num(24),
+     >                            nfacegp, nedgegp, ncornergp
       common /neighbor_el_number/ el_face_num,el_edge_num,el_corner_num,
      >                            nfacegp, nedgegp, ncornergp
       
