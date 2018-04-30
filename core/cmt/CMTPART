@@ -92,7 +92,7 @@ c     move particles between procs ----------------------------------
       common /fptspartn/ nfpts,nrf,nif
 
       parameter (ngpvc  = 6)
-      parameter (nbox_gp=100*lelt)
+      parameter (nbox_gp=10000*lelt)
       integer nlist, ngp_valsp(ngpvc,nbox_gp),ngp_valse(9,nbox_gp),
      >            ndxgp,ndygp,ndzgp, nliste,
      >            mod_gp_grid(lx1,ly1,lz1,lelt,4)

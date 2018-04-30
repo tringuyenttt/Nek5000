@@ -640,9 +640,9 @@ c
          rvy = rpart(jv0+1,ip)*vol
          rvz = rpart(jv0+2,ip)*vol
 
-         ii    = floor((rpart(jx,ip))/rdxgp) 
-         jj    = floor((rpart(jy,ip))/rdygp) 
-         kk    = floor((rpart(jz,ip))/rdzgp) 
+         ii    = floor((rpart(jx,ip)-xdrange(1,1))/rdxgp) 
+         jj    = floor((rpart(jy,ip)-xdrange(1,2))/rdygp) 
+         kk    = floor((rpart(jz,ip)-xdrange(1,3))/rdzgp) 
 
          ! adding wall effects
          rx2(1) = rpart(jx,ip)
@@ -655,12 +655,12 @@ c
       do j=1,ny1
       do i=1,nx1
 
-      if (     mod_gp_grid(i,j,k,ie,1).ge.ii-1
-     >   .and. mod_gp_grid(i,j,k,ie,1).le.ii+1) then
-      if (     mod_gp_grid(i,j,k,ie,2).ge.jj-1
-     >   .and. mod_gp_grid(i,j,k,ie,2).le.jj+1) then
-      if (     mod_gp_grid(i,j,k,ie,3).ge.kk-1
-     >   .and. mod_gp_grid(i,j,k,ie,3).le.kk+1) then
+c     if (     mod_gp_grid(i,j,k,ie,1).ge.ii-1
+c    >   .and. mod_gp_grid(i,j,k,ie,1).le.ii+1) then
+c     if (     mod_gp_grid(i,j,k,ie,2).ge.jj-1
+c    >   .and. mod_gp_grid(i,j,k,ie,2).le.jj+1) then
+c     if (     mod_gp_grid(i,j,k,ie,3).ge.kk-1
+c    >   .and. mod_gp_grid(i,j,k,ie,3).le.kk+1) then
 
          rdist2  = (xm1(i,j,k,ie) - rpart(jx,ip))**2 +
      >           (ym1(i,j,k,ie) - rpart(jy,ip))**2 
@@ -690,9 +690,9 @@ c
          ptw(i,j,k,ie,7) = ptw(i,j,k,ie,7) + rvy*rexp
          ptw(i,j,k,ie,8) = ptw(i,j,k,ie,8) + rvz*rexp
 
-      endif
-      endif
-      endif
+c     endif
+c     endif
+c     endif
 
       enddo
       enddo
@@ -722,9 +722,9 @@ c
          rvy = rptsgp(jgpv0+1,ip)*vol
          rvz = rptsgp(jgpv0+2,ip)*vol
 
-         ii     = floor((rptsgp(jgpx,ip))/rdxgp) 
-         jj     = floor((rptsgp(jgpy,ip))/rdygp) 
-         kk     = floor((rptsgp(jgpz,ip))/rdzgp) 
+         ii    = floor((rptsgp(jgpx,ip)-xdrange(1,1))/rdxgp) 
+         jj    = floor((rptsgp(jgpy,ip)-xdrange(1,2))/rdygp) 
+         kk    = floor((rptsgp(jgpz,ip)-xdrange(1,3))/rdzgp) 
 
          ! adding wall effects
          rx2(1) = rptsgp(jgpx,ip)
@@ -737,12 +737,12 @@ c
       do j=1,ny1
       do i=1,nx1
 
-      if (     mod_gp_grid(i,j,k,ie,1).ge.ii-1
-     >   .and. mod_gp_grid(i,j,k,ie,1).le.ii+1) then
-      if (     mod_gp_grid(i,j,k,ie,2).ge.jj-1
-     >   .and. mod_gp_grid(i,j,k,ie,2).le.jj+1) then
-      if (     mod_gp_grid(i,j,k,ie,3).ge.kk-1
-     >   .and. mod_gp_grid(i,j,k,ie,3).le.kk+1) then
+c     if (     mod_gp_grid(i,j,k,ie,1).ge.ii-1
+c    >   .and. mod_gp_grid(i,j,k,ie,1).le.ii+1) then
+c     if (     mod_gp_grid(i,j,k,ie,2).ge.jj-1
+c    >   .and. mod_gp_grid(i,j,k,ie,2).le.jj+1) then
+c     if (     mod_gp_grid(i,j,k,ie,3).ge.kk-1
+c    >   .and. mod_gp_grid(i,j,k,ie,3).le.kk+1) then
 
          rdist2  = (xm1(i,j,k,ie) - rptsgp(jgpx,ip))**2 +
      >           (ym1(i,j,k,ie) - rptsgp(jgpy,ip))**2 
@@ -771,9 +771,9 @@ c
          ptw(i,j,k,ie,7) = ptw(i,j,k,ie,7) + rvy*rexp
          ptw(i,j,k,ie,8) = ptw(i,j,k,ie,8) + rvz*rexp
 
-      endif
-      endif
-      endif
+c     endif
+c     endif
+c     endif
 
       enddo
       enddo
@@ -1725,90 +1725,412 @@ c CREATING GHOST PARTICLES
       rxdrng(3) = zdlen
 
       nfptsgp = 0
-      do i=1,n
 
-         rxval = rpart(jx,i)
-         ryval = rpart(jy,i)
+      do ip=1,n
+         rxval = rpart(jx,ip)
+         ryval = rpart(jy,ip)
          rzval = 0.
-         if(if3d) rzval = rpart(jz,i)
+         if(if3d) rzval = rpart(jz,ip)
 
-         ii    = floor(rxval/rdxgp) 
-         jj    = floor(ryval/rdygp) 
-         kk    = floor(rzval/rdzgp) 
-         ndum  = ii + ndxgp*jj + ndxgp*ndygp*kk
+         iip    = floor((rxval-xdrange(1,1))/rdxgp) 
+         jjp    = floor((ryval-xdrange(1,2))/rdygp) 
+         kkp    = floor((rzval-xdrange(1,3))/rdzgp) 
+         ndump  = iip + ndxgp*jjp + ndxgp*ndygp*kkp
 
-         do j=1,nlist
+      do i=1,nlist
+         ii = ngp_valsp(3,i)
+         jj = ngp_valsp(4,i)
+         kk = ngp_valsp(5,i)
 
-            ! same box but different proc
-            if (ndum .eq. ngp_valsp(2,j)) then
-            if (nid  .ne. ngp_valsp(1,j)) then
-               ! don't double create gp for same remote rank
-               do k=1,nliste 
-                  if (ngp_valsp(1,j) .eq. ngp_valse(1,k)) then
-                  if (ngp_valse(2,k) .ne. i) then
-               
-                     xloc = rpart(jx,i)
-                     yloc = rpart(jy,i)
-                     zloc = rpart(jz,i) 
-               
-                     nfptsgp = nfptsgp + 1
-                     ngp_valse(2,k) = i
-               
-                     rxnew(1) = xloc
-                     rxnew(2) = yloc
-                     rxnew(3) = zloc
-               
-                     iadd(1)  = 0
-                     iadd(2)  = ngp_valsp(1,j)
-                     iadd(3)  = ipart(i,je0)
-               
-                     call add_a_ghost_particle(rxnew,iadd,i)
-                  endif
-                  endif
-               enddo
+         ndum = ngp_valsp(2,i)
+         nrank= ngp_valsp(1,i)
+
+         ! add this box
+         if (nid  .ne. nrank) then
+         if (ndum .eq. ndump) then
+
+            rxnew(1) = rxval
+            rxnew(2) = ryval
+            rxnew(3) = rzval
+         
+            iadd(1)  = 0
+            iadd(2)  = ngp_valsp(1,i)
+            iadd(3)  = ipart(ip,je0)
+         
+            call add_a_ghost_particle(rxnew,iadd,ip)
+
+         endif
+         endif
+
+      enddo
+      enddo
+
+      do ip=1,n
+         rxval = rpart(jx,ip)
+         ryval = rpart(jy,ip)
+         rzval = 0.
+         if(if3d) rzval = rpart(jz,ip)
+
+         iip    = floor((rxval-xdrange(1,1))/rdxgp) 
+         jjp    = floor((ryval-xdrange(1,2))/rdygp) 
+         kkp    = floor((rzval-xdrange(1,3))/rdzgp) 
+         ndump  = iip + ndxgp*jjp + ndxgp*ndygp*kkp
+
+c        ! testing
+c        nfacegp = 1
+c        el_face_num(1) = 1
+c        el_face_num(2) = 0
+c        el_face_num(3) = 0
+
+c        nedgegp=0
+         ncornergp=0
+
+         ! faces
+         do ifc=1,nfacegp
+            ist = (ifc-1)*3
+            ii1 = iip + el_face_num(ist+1) 
+            jj1 = jjp + el_face_num(ist+2)
+            kk1 = kkp + el_face_num(ist+3)
+
+            iig = ii1
+            jjg = jj1
+            kkg = kk1
+
+            iflgx = 0
+            iflgy = 0
+            iflgz = 0
+            ! periodic if out of domain - add some ifsss
+            if (iig .lt. 0 .or. iig .gt. ndxgp-1) then
+               iflgx = 1
+               iig =modulo(iig,ndxgp)
+               if (abs(bc_part(1)) + abs(bc_part(2)) .ne. 0) goto 555
             endif
+            if (jjg .lt. 0 .or. jjg .gt. ndygp-1) then
+               iflgy = 1
+               jjg =modulo(jjg,ndygp)
+               if (abs(bc_part(3)) + abs(bc_part(4)) .ne. 0) goto 555
+            endif
+            if (kkg .lt. 0 .or. kkg .gt. ndzgp-1) then
+               iflgz = 1  
+               kkg =modulo(kkg,ndzgp)
+               if (abs(bc_part(5)) + abs(bc_part(6)) .ne. 0) goto 555
             endif
 
-            ! periodic boundary conditions now
-            if (ngp_valsp(3,j).lt.0      .and. xdlen .gt. 0 .or. 
-     >         ngp_valsp(3,j).gt.ndxgp-1 .and. xdlen .gt. 0 .or. 
-     >         ngp_valsp(4,j).lt.0       .and. ydlen .gt. 0 .or.
-     >         ngp_valsp(4,j).gt.ndygp-1 .and. ydlen .gt. 0 .or. 
-     >         ngp_valsp(5,j).lt.0       .and. zdlen .gt. 0 .or.
-     >         ngp_valsp(5,j).gt.ndzgp-1 .and. zdlen .gt. 0 ) then
+            ndumn = iig + ndxgp*jjg + ndxgp*ndygp*kkg
 
-               rxnew(1) = rpart(jx,i)
-               rxnew(2) = rpart(jy,i)
-               rxnew(3) = rpart(jz,i) 
-
-               iadd(1)  = ngp_valsp(3,j)
-               iadd(2)  = ngp_valsp(4,j)
-               iadd(3)  = ngp_valsp(5,j)
-
-               call check_periodic_gp(rxnew,rxdrng,iadd,ntypes,ntypesl)
-
-               ! don't double create gp for same remote rank
-               do k=1,nliste 
-                  if (ngp_valsp(1,j) .eq. ngp_valse(1,k)) then
-                     do it=1,ntypes
-                        itype = ntypesl(it)
-                        if (ngp_valse(itype,k) .ne. i) then
+            do i=1,nlist
+               ndum = ngp_valsp(2,i)
+               nrank = ngp_valsp(1,i)
+               if (ndumn .eq. ndum) then
+                  ibctype = iflgx+iflgy+iflgz
+                 
+                  if (nrank .ne. nid .or. 
+     >                    (nrank .eq. nid) .and. (ibctype.gt.0)) then
+                 
+                      rxnew(1) = rxval
+                      rxnew(2) = ryval
+                      rxnew(3) = rzval
+                 
+                      iadd(1) = ii1
+                      iadd(2) = jj1
+                      iadd(3) = kk1
+                 
+                      call check_periodic_gp(rxnew,rxdrng,iadd)
+                 
+                      iadd(1)  = 0
+                      iadd(2)  = nrank
+                      iadd(3)  = ipart(ip,je0)
+                      
+                      call add_a_ghost_particle(rxnew,iadd,ip)
                         
-                           nfptsgp = nfptsgp + 1
-                           ngp_valse(itype,k) = i
-                        
-                           iadd(1)  = 0
-                           iadd(2)  = ngp_valsp(1,j)
-                           iadd(3)  = ipart(i,je0)
-                        
-                           call add_a_ghost_particle(rxnew,iadd,i)
-                        endif
-                     enddo
                   endif
-               enddo
+               endif
+            enddo
+
+  555 continue
+         enddo
+         ! edges
+         do ifc=1,nedgegp
+            ist = (ifc-1)*3
+            ii1 = iip + el_edge_num(ist+1) 
+            jj1 = jjp + el_edge_num(ist+2)
+            kk1 = kkp + el_edge_num(ist+3)
+
+            iig = ii1
+            jjg = jj1
+            kkg = kk1
+
+            iflgx = 0
+            iflgy = 0
+            iflgz = 0
+            ! periodic if out of domain - add some ifsss
+            if (iig .lt. 0 .or. iig .gt. ndxgp-1) then
+               iflgx = 1
+               iig =modulo(iig,ndxgp)
             endif
+            if (jjg .lt. 0 .or. jjg .gt. ndygp-1) then
+               iflgy = 1
+               jjg =modulo(jjg,ndygp)
+            endif
+            if (kkg .lt. 0 .or. kkg .gt. ndzgp-1) then
+               iflgz = 1  
+               kkg =modulo(kkg,ndzgp)
+            endif
+            if (iflgx .eq. 1 .and. iflgy .eq. 1) then
+               if (abs(bc_part(1))+abs(bc_part(2))+
+     >             abs(bc_part(3))+abs(bc_part(4)) .ne. 0) goto 444
+            elseif (iflgx .eq. 1 .and. iflgz .eq. 1) then
+               if (abs(bc_part(1))+abs(bc_part(2))+
+     >             abs(bc_part(5))+abs(bc_part(6)) .ne. 0) goto 444
+            elseif (iflgy .eq. 1 .and. iflgz .eq. 1) then
+               if (abs(bc_part(3))+abs(bc_part(4))+
+     >             abs(bc_part(5))+abs(bc_part(6)) .ne. 0) goto 444
+            endif
+
+            ndumn = iig + ndxgp*jjg + ndxgp*ndygp*kkg
+
+            do i=1,nlist
+               ndum = ngp_valsp(2,i)
+               nrank = ngp_valsp(1,i)
+               if (ndumn .eq. ndum) then
+                  ibctype = iflgx+iflgy+iflgz
+                 
+                 ! fix here DZ possibly 
+                  if (nrank .ne. nid .or. 
+     >                    (nrank .eq. nid) .and. (ibctype.gt.0)) then
+                 
+                      rxnew(1) = rxval
+                      rxnew(2) = ryval
+                      rxnew(3) = rzval
+                 
+                      iadd(1) = ii1
+                      iadd(2) = jj1
+                      iadd(3) = kk1
+                 
+                      call check_periodic_gp(rxnew,rxdrng,iadd)
+                 
+                      iadd(1)  = 0
+                      iadd(2)  = nrank
+                      iadd(3)  = ipart(ip,je0)
+                      
+                      call add_a_ghost_particle(rxnew,iadd,ip)
+                        
+                  endif
+               endif
+            enddo
+
+
+  444 continue
+         enddo
+         ! corners
+         do ifc=1,ncornergp
+            ist = (ifc-1)*3
+            ii1 = iip + el_corner_num(ist+1) 
+            jj1 = jjp + el_corner_num(ist+2)
+            kk1 = kkp + el_corner_num(ist+3)
+
+            iig = ii1
+            jjg = jj1
+            kkg = kk1
+
+            iflgx = 0
+            iflgy = 0
+            iflgz = 0
+            ! periodic if out of domain - add some ifsss
+            if (iig .lt. 0 .or. iig .gt. ndxgp-1) then
+               iflgx = 1
+               iig =modulo(iig,ndxgp)
+            endif
+            if (jjg .lt. 0 .or. jjg .gt. ndygp-1) then
+               iflgy = 1
+               jjg =modulo(jjg,ndygp)
+            endif
+            if (kkg .lt. 0 .or. kkg .gt. ndzgp-1) then
+               iflgz = 1  
+               kkg =modulo(kkg,ndzgp)
+            endif
+            if (iflgx .eq. 1 .and. iflgy .eq. 1 .and. iflgz .eq. 1)then
+               if (abs(bc_part(1))+abs(bc_part(2))+
+     >             abs(bc_part(3))+abs(bc_part(4))+
+     >             abs(bc_part(5))+abs(bc_part(6)) .ne. 0) goto 333
+            endif
+               
+
+            ndumn = iig + ndxgp*jjg + ndxgp*ndygp*kkg
+
+            do i=1,nlist
+               ndum = ngp_valsp(2,i)
+               nrank = ngp_valsp(1,i)
+               if (ndumn .eq. ndum) then
+                  ibctype = iflgx+iflgy+iflgz
+                 
+                  if (nrank .ne. nid .or. 
+     >                    (nrank .eq. nid) .and. (ibctype.gt.0)) then
+                 
+                      rxnew(1) = rxval
+                      rxnew(2) = ryval
+                      rxnew(3) = rzval
+                 
+                      iadd(1) = ii1
+                      iadd(2) = jj1
+                      iadd(3) = kk1
+                 
+                      call check_periodic_gp(rxnew,rxdrng,iadd)
+                 
+                      iadd(1)  = 0
+                      iadd(2)  = nrank
+                      iadd(3)  = ipart(ip,je0)
+                      
+                      call add_a_ghost_particle(rxnew,iadd,ip)
+                        
+                  endif
+               endif
+            enddo
+
+
+  333 continue
          enddo
       enddo
+
+      write(6,*) 'NFPTSGP',nfptsgp
+      do i=1,nfptsgp
+         write(6,*) rptsgp(jgpx,i),rptsgp(jgpy,i),rptsgp(jgpz,i),
+     >              iptsgp(jgpps,i)
+      enddo
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine check_periodic_gp(rxnew,rxdrng,iadd)
+      include 'SIZE'
+      include 'TOTAL'
+      include 'CMTDATA'
+      include 'CMTPART'
+c
+      real rxnew(3), rxdrng(3)
+      integer iadd(3), irett(3), ntype, ntypel(7)
+
+      xloc = rxnew(1)
+      yloc = rxnew(2)
+      zloc = rxnew(3)
+
+      xdlen = rxdrng(1)
+      ydlen = rxdrng(2)
+      zdlen = rxdrng(3)
+
+      ii = iadd(1)
+      jj = iadd(2)
+      kk = iadd(3)
+
+      irett(1) = 0
+      irett(2) = 0
+      irett(3) = 0
+
+      if (xdlen .gt. 0 ) then
+      if (ii .ge. ndxgp) then
+         xloc = xloc - xdlen
+         irett(1) = 1
+         goto 123
+      endif
+      endif
+      if (xdlen .gt. 0 ) then
+      if (ii .lt. 0) then
+         xloc = xloc + xdlen
+         irett(1) = 1
+         goto 123
+      endif
+      endif
+
+  123 continue    
+      if (ydlen .gt. 0 ) then
+      if (jj .ge. ndygp) then
+         yloc = yloc - ydlen
+         irett(2) = 1
+         goto 124
+      endif
+      endif
+      if (ydlen .gt. 0 ) then
+      if (jj .lt. 0) then
+         yloc = yloc + ydlen
+         irett(2) = 1
+         goto 124
+      endif
+      endif
+  124 continue
+
+      if (if3d) then
+         if (zdlen .gt. 0 ) then
+         if (kk .ge. ndzgp) then
+            zloc = zloc - zdlen
+            irett(3) = 1
+            goto 125
+         endif
+         endif
+         if (zdlen .gt. 0 ) then
+         if (kk .lt. 0) then
+            zloc = zloc + zdlen
+            irett(3) = 1
+            goto 125
+         endif
+         endif
+      endif
+  125 continue
+
+c     ! 2D 
+c     if (.not.if3d) then
+c        ntype     = 0 
+c        if (irett(1) .eq. 1) then
+c           ntype      = 1
+c           ntypel(1)  = 3
+c           if (irett(2) .eq. 1) then
+c              ntype      = 3
+c              ntypel(2)  = 4
+c              ntypel(3)  = 6
+c           endif
+c        elseif(irett(2) .eq. 1) then
+c           ntype      = 1
+c           ntypel(1)  = 4
+c        endif
+c     ! 3D 
+c     else
+c        ntype     = 0 
+c        if (irett(1) .eq. 1) then
+c           ntype      = 1
+c           ntypel(1)  = 3
+c           if (irett(2) .eq. 1) then
+c              ntype      = 3
+c              ntypel(2)  = 4
+c              ntypel(3)  = 6
+c              if (irett(3) .eq. 1) then
+c                 ntype      = 7
+c                 ntypel(3)  = 5
+c                 ntypel(4)  = 6
+c                 ntypel(5)  = 7
+c                 ntypel(6)  = 8
+c                 ntypel(7)  = 9
+c              endif
+c           elseif (irett(3) .eq. 1) then
+c              ntype      = 3
+c              ntypel(2)  = 5
+c              ntypel(3)  = 8
+c           endif
+c        elseif(irett(2) .eq. 1) then
+c           ntype      = 1
+c           ntypel(1)  = 4
+c           if (irett(3) .eq. 1) then
+c              ntype      = 3
+c              ntypel(2)  = 5
+c              ntypel(3)  = 7
+c           endif
+c        elseif(irett(3) .eq. 1) then
+c           ntype      = 1
+c           ntypel(1)  = 5
+c        endif
+c     endif
+
+      rxnew(1) = xloc
+      rxnew(2) = yloc
+      rxnew(3) = zloc
 
       return
       end
@@ -1838,6 +2160,8 @@ c
 
       real    rxnew(3)
       integer iadd(3)
+
+      nfptsgp = nfptsgp + 1
 
       rptsgp(jgpx,nfptsgp)    = rxnew(1)       ! x loc
       rptsgp(jgpy,nfptsgp)    = rxnew(2)       ! y loc
@@ -1905,7 +2229,7 @@ c SETUP 3D BACKGROUND GRID PARAMETERS FOR GHOST PARTICLES
       ndzgp = 1
       if (if3d) ndzgp = floor( (xdrange(2,3) - xdrange(1,3))/d2chk(1))+1
 
-      nreach = floor(real(ndxgp*ndygp*ndzgp)/real(np)) - 1
+      nreach = floor(real(ndxgp*ndygp*ndzgp)/real(np))
 
       ! grid spacing for that many spacings
       rdxgp = (xdrange(2,1) - xdrange(1,1))/real(ndxgp)
@@ -1927,9 +2251,12 @@ c Connect boxes to 1D processor map they should be arranged on
          rzval = 0.
          if(if3d) rzval = zm1(i,j,k,ie)
 
-         ii    = floor(rxval/rdxgp) 
-         jj    = floor(ryval/rdygp) 
-         kk    = floor(rzval/rdzgp) 
+         ii    = floor((rxval-xdrange(1,1))/rdxgp) 
+         jj    = floor((ryval-xdrange(1,2))/rdygp) 
+         kk    = floor((rzval-xdrange(1,3))/rdzgp) 
+         if (ii .eq. ndxgp) ii = ndxgp - 1
+         if (jj .eq. ndygp) jj = ndygp - 1
+         if (kk .eq. ndzgp) kk = ndzgp - 1
          ndum  = ii + ndxgp*jj + ndxgp*ndygp*kk
 
          mod_gp_grid(i,j,k,ie,1) = ii
@@ -1965,6 +2292,9 @@ c Connect boxes to 1D processor map they should be arranged on
       enddo
       enddo
 
+
+
+
       ! Add connecting boxes and what rank(s) they are in the 1D proc map
       nlist_save = nlist
       do i=1,nlist_save
@@ -1974,77 +2304,172 @@ c Connect boxes to 1D processor map they should be arranged on
 
          ! faces
          do ifc=1,nfacegp
-            nlist = nlist + 1
-
             ist = (ifc-1)*3
             ii1 = ii + el_face_num(ist+1) 
             jj1 = jj + el_face_num(ist+2)
             kk1 = kk + el_face_num(ist+3)
 
-            ngp_valsp(3,nlist) = ii1
-            ngp_valsp(4,nlist) = jj1
-            ngp_valsp(5,nlist) = kk1
+            iig = ii1
+            jjg = jj1
+            kkg = kk1
 
             ! periodic if out of domain
-            if (ii1 .lt. 0 .or. ii1 .gt. ndxgp-1) ii1 =modulo(ii1,ndxgp)
-            if (jj1 .lt. 0 .or. jj1 .gt. ndygp-1) jj1 =modulo(jj1,ndygp)
-            if (kk1 .lt. 0 .or. kk1 .gt. ndzgp-1) kk1 =modulo(kk1,ndzgp)
+            if (iig .lt. 0 .or. iig .gt. ndxgp-1) iig =modulo(iig,ndxgp)
+            if (jjg .lt. 0 .or. jjg .gt. ndygp-1) jjg =modulo(jjg,ndygp)
+            if (kkg .lt. 0 .or. kkg .gt. ndzgp-1) kkg =modulo(kkg,ndzgp)
 
-            ndumn = ii1 + ndxgp*jj1 + ndxgp*ndygp*kk1
+            ndumn = iig + ndxgp*jjg + ndxgp*ndygp*kkg
+
+            do j=1,nlist
+               if (ngp_valsp(2,j) .eq. ndumn) goto 999
+            enddo
+
+            nlist = nlist + 1
 
             ngp_valsp(1,nlist) = nid
             ngp_valsp(2,nlist) = ndumn
             ngp_valsp(6,nlist) = floor(real(ndumn)/real(nreach))
+
+            if (ii1 .gt. ndxgp-1) then
+               ii1 = -1
+            elseif (ii1 .lt. 0) then
+               ii1 = ndxgp
+            endif
+            if (jj1 .gt. ndygp-1) then
+               jj1 = -1
+            elseif (jj1 .lt. 0) then
+               jj1 = ndygp
+            endif
+            if (kk1 .gt. ndzgp-1) then
+               kk1 = -1
+            elseif (kk1 .lt. 0) then
+               kk1 = ndzgp
+            endif
+
+            ngp_valsp(3,nlist) = ii1
+            ngp_valsp(4,nlist) = jj1
+            ngp_valsp(5,nlist) = kk1
+
+  999 continue
          enddo
          ! edges
          do ifc=1,nedgegp
-            nlist = nlist + 1
-
             ist = (ifc-1)*3
             ii1 = ii + el_edge_num(ist+1) 
             jj1 = jj + el_edge_num(ist+2)
             kk1 = kk + el_edge_num(ist+3)
 
-            ngp_valsp(3,nlist) = ii1
-            ngp_valsp(4,nlist) = jj1
-            ngp_valsp(5,nlist) = kk1
+            iig = ii1
+            jjg = jj1
+            kkg = kk1
 
             ! periodic if out of domain
-            if (ii1 .lt. 0 .or. ii1 .gt. ndxgp-1) ii1 =modulo(ii1,ndxgp)
-            if (jj1 .lt. 0 .or. jj1 .gt. ndygp-1) jj1 =modulo(jj1,ndygp)
-            if (kk1 .lt. 0 .or. kk1 .gt. ndzgp-1) kk1 =modulo(kk1,ndzgp)
+            if (iig .lt. 0 .or. iig .gt. ndxgp-1) iig =modulo(iig,ndxgp)
+            if (jjg .lt. 0 .or. jjg .gt. ndygp-1) jjg =modulo(jjg,ndygp)
+            if (kkg .lt. 0 .or. kkg .gt. ndzgp-1) kkg =modulo(kkg,ndzgp)
 
-            ndumn = ii1 + ndxgp*jj1 + ndxgp*ndygp*kk1
+            ndumn = iig + ndxgp*jjg + ndxgp*ndygp*kkg
+
+            do j=1,nlist
+               if (ngp_valsp(2,j) .eq. ndumn) goto 998
+            enddo
+
+            nlist = nlist + 1
 
             ngp_valsp(1,nlist) = nid
             ngp_valsp(2,nlist) = ndumn
             ngp_valsp(6,nlist) = floor(real(ndumn)/real(nreach))
+
+            if (ii1 .gt. ndxgp-1) then
+               ii1 = -1
+            elseif (ii1 .lt. 0) then
+               ii1 = ndxgp
+            endif
+            if (jj1 .gt. ndygp-1) then
+               jj1 = -1
+            elseif (jj1 .lt. 0) then
+               jj1 = ndygp
+            endif
+            if (kk1 .gt. ndzgp-1) then
+               kk1 = -1
+            elseif (kk1 .lt. 0) then
+               kk1 = ndzgp
+            endif
+
+            ngp_valsp(3,nlist) = ii1
+            ngp_valsp(4,nlist) = jj1
+            ngp_valsp(5,nlist) = kk1
+
+  998 continue
          enddo
          ! corners
          do ifc=1,ncornergp
-            nlist = nlist + 1
-
             ist = (ifc-1)*3
             ii1 = ii + el_corner_num(ist+1) 
             jj1 = jj + el_corner_num(ist+2)
             kk1 = kk + el_corner_num(ist+3)
 
-            ngp_valsp(3,nlist) = ii1
-            ngp_valsp(4,nlist) = jj1
-            ngp_valsp(5,nlist) = kk1
+            iig = ii1
+            jjg = jj1
+            kkg = kk1
 
             ! periodic if out of domain
-            if (ii1 .lt. 0 .or. ii1 .gt. ndxgp-1) ii1 =modulo(ii1,ndxgp)
-            if (jj1 .lt. 0 .or. jj1 .gt. ndygp-1) jj1 =modulo(jj1,ndygp)
-            if (kk1 .lt. 0 .or. kk1 .gt. ndzgp-1) kk1 =modulo(kk1,ndzgp)
+            if (iig .lt. 0 .or. iig .gt. ndxgp-1) iig =modulo(iig,ndxgp)
+            if (jjg .lt. 0 .or. jjg .gt. ndygp-1) jjg =modulo(jjg,ndygp)
+            if (kkg .lt. 0 .or. kkg .gt. ndzgp-1) kkg =modulo(kkg,ndzgp)
 
-            ndumn = ii1 + ndxgp*jj1 + ndxgp*ndygp*kk1
+            ndumn = iig + ndxgp*jjg + ndxgp*ndygp*kkg
+
+            do j=1,nlist
+               if (ngp_valsp(2,j) .eq. ndumn) goto 997
+            enddo
+
+            nlist = nlist + 1
 
             ngp_valsp(1,nlist) = nid
             ngp_valsp(2,nlist) = ndumn
             ngp_valsp(6,nlist) = floor(real(ndumn)/real(nreach))
+
+            if (ii1 .gt. ndxgp-1) then
+               ii1 = -1
+            elseif (ii1 .lt. 0) then
+               ii1 = ndxgp
+            endif
+            if (jj1 .gt. ndygp-1) then
+               jj1 = -1
+            elseif (jj1 .lt. 0) then
+               jj1 = ndygp
+            endif
+            if (kk1 .gt. ndzgp-1) then
+               kk1 = -1
+            elseif (kk1 .lt. 0) then
+               kk1 = ndzgp
+            endif
+
+            ngp_valsp(3,nlist) = ii1
+            ngp_valsp(4,nlist) = jj1
+            ngp_valsp(5,nlist) = kk1
+
+  997 continue
          enddo
       enddo
+
+      nps   = 6 ! index of new proc for doing stuff
+      nglob = 2 ! unique key to sort by
+      nkey  = 1 ! number of keys (just 1 here)
+      call fgslib_crystal_ituple_sort(i_cr_hndl,ngp_valsp,
+     >                 ngpvc,nlist,nglob,nkey)
+
+      write(6,*) 'GPLIST',nlist
+      do i=1,nlist 
+         write(6,*) ngp_valsp(1,i), ngp_valsp(2,i), ngp_valsp(3,i),
+     >              ngp_valsp(4,i), ngp_valsp(5,i), ngp_valsp(6,i)
+      enddo
+
+
+
+
+
 
 ! ------------------------
 c SEND TO 1D PROCESSOR MAP
@@ -2057,21 +2482,33 @@ c SEND TO 1D PROCESSOR MAP
       call fgslib_crystal_ituple_sort(i_cr_hndl,ngp_valsp,
      >                 ngpvc,nlist,nglob,nkey)
 
-      ! create dupicates to send to remote processors
-      nlist_save = nlist
-      do i=1,nlist_save
-         do j=1,nlist_save
-            if (i.ne.j) then
-            if (ngp_valsp(2,i) .eq. ngp_valsp(2,j)) then
-               nlist = nlist + 1
-               do ic=1,6
-                  ngp_valsp(ic,nlist) = ngp_valsp(ic,i)
-               enddo
-               ngp_valsp(6,nlist) = ngp_valsp(1,j)
-            endif
-            endif
-         enddo
-      enddo
+
+c     ! create dupicates to send to remote processors
+c     nlist_save = nlist
+c     do i=1,nlist_save
+c        do j=1,nlist_save
+c           if (i.ne.j) then
+c           if (ngp_valsp(2,i) .eq. ngp_valsp(2,j)) then
+c              nlist = nlist + 1
+c              if (nlist .gt. nbox_gp) then
+c                 write(6,*)'Increase nbox_gp. In dup. loop',
+c    $                            nbox_gp, nlist, nid
+c                 call exitt
+c              endif
+c              do ic=1,6
+c                 ngp_valsp(ic,nlist) = ngp_valsp(ic,i)
+c              enddo
+c              ngp_valsp(6,nlist) = ngp_valsp(1,j)
+c           endif
+c           endif
+c        enddo
+c     enddo
+
+
+
+c        write(6,*) 'Passed from rank', nid
+c        call exitt
+
 
 ! ----------------------------------------------
 c SEND BACK TO ALL PROCESSORS WITH ADDITIONS NOW
@@ -2134,6 +2571,38 @@ c ORGANIZE MAP OF REMOTE PROCESSORS TO SEND TO
          endif
       enddo
 
+
+         call create_extra_particles
+         call send_ghost_particles
+         call spread_props_grid    
+
+         do ie=1,nelt
+         do k=1,nz1
+         do j=1,ny1
+         do i=1,nx1
+            ptw(i,j,k,ie,1) = real(mod_gp_grid(i,j,k,ie,1))
+            ptw(i,j,k,ie,2) = real(mod_gp_grid(i,j,k,ie,2))
+            ptw(i,j,k,ie,3) = real(mod_gp_grid(i,j,k,ie,3))
+
+            ptw(i,j,k,ie,5) = real(nid)
+         enddo
+         enddo
+         enddo
+         enddo
+
+         itmp = 1
+         call outpost2(ptw(1,1,1,1,1),         ! fhyd_x
+     >              ptw(1,1,1,1,2),         ! fhyd_y
+     >              ptw(1,1,1,1,3),         ! fhyd_z
+     >              ptw(1,1,1,1,4),         ! phi_p (but not if lx1!=lx2
+     >              ptw(1,1,1,1,5),         ! phi_p
+     >              itmp          ,        
+     >              'ptw')
+         call output_parallel_lagrangian_parts
+
+         call exitt
+
+
       return
       end
 c-----------------------------------------------------------------------
@@ -2189,142 +2658,6 @@ c
            endif
          endif
       enddo
-
-      return
-      end
-c-----------------------------------------------------------------------
-      subroutine check_periodic_gp(rxnew,rxdrng,iadd,ntype,ntypel)
-      include 'SIZE'
-      include 'TOTAL'
-      include 'CMTDATA'
-      include 'CMTPART'
-c
-      real rxnew(3), rxdrng(3)
-      integer iadd(3), irett(3), ntype, ntypel(7)
-
-      xloc = rxnew(1)
-      yloc = rxnew(2)
-      zloc = rxnew(3)
-
-      xdlen = rxdrng(1)
-      ydlen = rxdrng(2)
-      zdlen = rxdrng(3)
-
-      ii = iadd(1)
-      jj = iadd(2)
-      kk = iadd(3)
-
-      irett(1) = 0
-      irett(2) = 0
-      irett(3) = 0
-
-      ! note that it is backwards becasue of where you came from ...
-      if (xdlen .gt. 0 ) then
-      if (ii .ge. ndxgp) then
-         xloc = xloc + xdlen
-         irett(1) = 1
-         goto 123
-      endif
-      endif
-      if (xdlen .gt. 0 ) then
-      if (ii .lt. 0) then
-         xloc = xloc - xdlen
-         irett(1) = 1
-         goto 123
-      endif
-      endif
-
-  123 continue    
-      if (ydlen .gt. 0 ) then
-      if (jj .ge. ndygp) then
-         yloc = yloc + ydlen
-         irett(2) = 1
-         goto 124
-      endif
-      endif
-      if (ydlen .gt. 0 ) then
-      if (jj .lt. 0) then
-         yloc = yloc - ydlen
-         irett(2) = 1
-         goto 124
-      endif
-      endif
-  124 continue
-
-      if (if3d) then
-         if (zdlen .gt. 0 ) then
-         if (kk .ge. ndzgp) then
-            zloc = zloc + zdlen
-            irett(3) = 1
-            goto 125
-         endif
-         endif
-         if (zdlen .gt. 0 ) then
-         if (kk .lt. 0) then
-            zloc = xloc - zdlen
-            irett(3) = 1
-            goto 125
-         endif
-         endif
-      endif
-  125 continue
-
-      ! 2D 
-      if (.not.if3d) then
-         ntype     = 0 
-         if (irett(1) .eq. 1) then
-            ntype      = 1
-            ntypel(1)  = 3
-            if (irett(2) .eq. 1) then
-               ntype      = 3
-               ntypel(2)  = 4
-               ntypel(3)  = 6
-            endif
-         elseif(irett(2) .eq. 1) then
-            ntype      = 1
-            ntypel(1)  = 4
-         endif
-      ! 3D 
-      else
-         ntype     = 0 
-         if (irett(1) .eq. 1) then
-            ntype      = 1
-            ntypel(1)  = 3
-            if (irett(2) .eq. 1) then
-               ntype      = 3
-               ntypel(2)  = 4
-               ntypel(3)  = 6
-               if (irett(3) .eq. 1) then
-                  ntype      = 7
-                  ntypel(2)  = 4
-                  ntypel(3)  = 5
-                  ntypel(4)  = 6
-                  ntypel(5)  = 7
-                  ntypel(6)  = 8
-                  ntypel(7)  = 9
-               endif
-            elseif (irett(3) .eq. 1) then
-               ntype      = 3
-               ntypel(2)  = 5
-               ntypel(3)  = 8
-            endif
-         elseif(irett(2) .eq. 1) then
-            ntype      = 1
-            ntypel(1)  = 4
-            if (irett(3) .eq. 1) then
-               ntype      = 3
-               ntypel(2)  = 5
-               ntypel(3)  = 7
-            endif
-         elseif(irett(3) .eq. 1) then
-            ntype      = 1
-            ntypel(1)  = 5
-         endif
-      endif
-
-      rxnew(1) = xloc
-      rxnew(2) = yloc
-      rxnew(3) = zloc
 
       return
       end
@@ -4446,9 +4779,9 @@ c----------------------------------------------------------------------
          rzval = 0.
          if(if3d) rzval = rpart(jz,i)
   
-         ii    = floor(rxval/rdxgpc) 
-         jj    = floor(ryval/rdygpc) 
-         kk    = floor(rzval/rdzgpc) 
+         ii    = floor((rxval-xdrange(1,1))/rdxgpc) 
+         jj    = floor((ryval-xdrange(1,2))/rdygpc) 
+         kk    = floor((rzval-xdrange(1,3))/rdzgpc) 
          ndum  = ii + ndxgp*jj + ndxgp*ndygp*kk
 
          ipart(jicx,i) = ii
@@ -4462,9 +4795,9 @@ c----------------------------------------------------------------------
          rzval = 0.
          if(if3d) rzval = rptsgp(jgpz,i)
   
-         ii    = floor(rxval/rdxgpc) 
-         jj    = floor(ryval/rdygpc) 
-         kk    = floor(rzval/rdzgpc) 
+         ii    = floor((rxval-xdrange(1,1))/rdxgpc) 
+         jj    = floor((ryval-xdrange(1,2))/rdygpc) 
+         kk    = floor((rzval-xdrange(1,3))/rdzgpc) 
          ndum  = ii + ndxgp*jj + ndxgp*ndygp*kk
 
          iptsgp(jgpicx,i) = ii
