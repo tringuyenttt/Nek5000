@@ -31,11 +31,11 @@ c     particle parameters -------------------------------------------
       common /part_paramsr/ deltaf, dp, deltax, rho_p, tau_p,mu_0,tp_0,
      >                     vol_distrib,rsig,df_dp,dfilt,
      >                     ralphdecay,rxbo,cp_p,rleng,
-     >                     ksp,dt_part,e_rest,rspl
+     >                     ksp,dt_part,e_rest,rspl,dp_std
       common /part_paramsi/ nw,nrandseed,nwe
       real   deltaf,dp(2),deltax,rho_p,tau_p,mu_0,
      >       vol_distrib,rsig,df_dp,dfilt,ralphdecay,rxbo(2,3),
-     >       cp_p,rleng,tp_0,ksp,dt_part,e_rest
+     >       cp_p,rleng,tp_0,ksp,dt_part,e_rest, dp_std
       integer nw,nrandseed,nwe
 
 c     barycentric interpolation -------------------------------------
@@ -100,3 +100,11 @@ c     move particles between procs ----------------------------------
      >                ,nliste,mod_gp_grid 
       real    rdxgp, rdygp, rdzgp 
       common /new_gpr/ rdxgp, rdygp, rdzgp
+
+      parameter (n_walls = 20)
+      integer np_walls,nc_walls
+      real    plane_wall_coords(6,n_walls)
+     >       ,cyl_wall_coords(4,n_walls)
+
+      common /rbc_part/ plane_wall_coords,cyl_wall_coords
+      common /ibc_part/ np_walls,nc_walls

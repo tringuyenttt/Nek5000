@@ -59,7 +59,7 @@ c----------------------------------------------------------------------
          call spread_props_grid           ! put particle props on grid
       endif
       call interp_props_part_location ! interpolate again for two-way
-   
+
       if (time_integ .lt. 0) call pre_sim_collisions ! e.g., settling p
    
       resetFindpts = 0
@@ -86,6 +86,9 @@ c
       save    icalld
       data    icalld  /-1/
 
+      real unif_random,unif_random_norm,unif_random_cyl
+      external unif_random,unif_random_norm,unif_random_cyl
+
       icalld = icalld + 1
 
       if (ipart_restartr .eq. 0) then
@@ -101,22 +104,71 @@ c        main loop to distribute particles
          do i_pt_part = 1,nwe
             n = n + 1
 
-            call place_particles_user
+            ! distribute in cylinder aligned with z
+            if (rxbo(1,3) .lt. -1E7) then
+               rrad = unif_random_cyl(rxbo(1,1),rxbo(2,1))
+               rthet= unif_random(0.,2.*pi)
+               rxtr = unif_random(rxbo(1,2),rxbo(2,2))
 
-            do j=0,2
-               rpart(jx +j,n) = x_part(j)
-               rpart(jx1+j,n) = x_part(j)
-               rpart(jx2+j,n) = x_part(j)
-               rpart(jx3+j,n) = x_part(j)
+               do j=0,2
+                  if (j.eq. 0) rdum = rrad*cos(rthet)
+                  if (j.eq. 1) rdum = rrad*sin(rthet)
+                  if (j.eq. 2) rdum = rxtr
+                  rpart(jx +j,n) = rdum
+                  rpart(jx1+j,n) = rdum
+                  rpart(jx2+j,n) = rdum
+                  rpart(jx3+j,n) = rdum
+               enddo
 
-               rpart(jv0+j,n) = v_part(j)
-               rpart(jv1+j,n) = v_part(j)
-               rpart(jv2+j,n) = v_part(j)
-               rpart(jv3+j,n) = v_part(j)
-            enddo
-         
+            ! distribute in cylinder aligned with x
+            elseif (rxbo(1,1) .lt. -1E7) then
+               rrad = unif_random_cyl(rxbo(1,2),rxbo(2,2))
+               rthet= unif_random(0.,2.*pi)
+               rxtr = unif_random(rxbo(1,3),rxbo(2,3))
+
+               do j=0,2
+                  if (j.eq. 0) rdum = rxtr
+                  if (j.eq. 1) rdum = rrad*cos(rthet)
+                  if (j.eq. 2) rdum = rrad*sin(rthet)
+                  rpart(jx +j,n) = rdum
+                  rpart(jx1+j,n) = rdum
+                  rpart(jx2+j,n) = rdum
+                  rpart(jx3+j,n) = rdum
+               enddo
+
+            ! distribute in cylinder aligned with y
+            elseif (rxbo(1,1) .lt. -1E7) then
+               rrad = unif_random_cyl(rxbo(1,3),rxbo(2,3))
+               rthet= unif_random(0.,2.*pi)
+               rxtr = unif_random(rxbo(1,1),rxbo(2,1))
+
+               do j=0,2
+                  if (j.eq. 0) rdum = rrad*sin(rthet)
+                  if (j.eq. 1) rdum = rxtr
+                  if (j.eq. 2) rdum = rrad*cos(rthet)
+                  rpart(jx +j,n) = rdum
+                  rpart(jx1+j,n) = rdum
+                  rpart(jx2+j,n) = rdum
+                  rpart(jx3+j,n) = rdum
+               enddo
+
+            ! distribute in box
+            else
+               do j=0,2
+                  rpart(jx +j,n) = unif_random(rxbo(1,j+1),rxbo(2,j+1))
+                  rpart(jx1+j,n) = unif_random(rxbo(1,j+1),rxbo(2,j+1))
+                  rpart(jx2+j,n) = unif_random(rxbo(1,j+1),rxbo(2,j+1))
+                  rpart(jx3+j,n) = unif_random(rxbo(1,j+1),rxbo(2,j+1))
+               enddo
+            endif
+
 c           set some rpart values for later use
-            rpart(jdp,n)   = d_part                              ! particle diameter
+            if (dp_std .gt. 0) then
+               rpart(jdp,n) = unif_random_norm(dp(1),dp_std)
+            else
+               rpart(jdp,n) = unif_random(dp(1),dp(2))
+            endif
+            write(6,*) rpart(jx,n),rpart(jy,n),rpart(jz,n),rpart(jdp,n)
             rpart(jtaup,n) = rpart(jdp,n)**2*rho_p/18.0d+0/mu_0  ! particle time scale
             rpart(jrhop,n) = rho_p                               ! particle density 
             rpart(jvol,n) = pi*rpart(jdp,n)**3/6.      ! particle volume
@@ -606,7 +658,8 @@ c
       include 'CMTPART'
 
       real    xx,yy,zz,vol,pfx,pfy,pfz,pmass,pmassf,vcell,multfc,multfci
-     >       ,qgqf,rvx,rvy,rvz,rcountv(8,nelt),rx2(3),rxyzp(6,3)
+     >       ,qgqf,rvx,rvy,rvz,rcountv(8,nelt),rx2(3)
+     >       ,rxyzp(n_walls*2,3)
       integer e
 
       nlxyze = lx1*ly1*lz1*lelt
@@ -1391,6 +1444,7 @@ c
       real mcfac, rdum, rdum3(3)
 
       real rrp1,rrp2,rvol1,rvol2,rrho1,rrho2,rx1(3),rx2(3),rv1(3),rv2(3)
+      real rpx1(3), rpx2(3), rpx0(3),r1(3),r2(3),r3(3)
       common /tcol_b/ rrp1,rvol1,rrho1,rx1,rv1
 
       ptdum(11) = dnekclock()
@@ -1485,29 +1539,74 @@ c        search list of ghost particles
          enddo
  1235 continue
 
-c        collision with 6 walls, but only when specified by .inp file 
-         do j = 1,2*ndim
-            if (bc_part(j) .eq. -1) then
-               nj1 = mod(j,2)
-               if (nj1.ne.0) nj1 = 1
-               if (nj1.eq.0) nj1 = 2
-               nj2 = int((j-1)/2) + 1
+         ! plane wall collisions
+         do j = 1,np_walls
+            rnx = plane_wall_coords(1,j)
+            rny = plane_wall_coords(2,j)
+            rnz = plane_wall_coords(3,j)
+            rpx = plane_wall_coords(4,j)
+            rpy = plane_wall_coords(5,j)
+            rpz = 1.0
+            if (if3d) rpz = plane_wall_coords(6,j)
 
-               rrp2   = 0.
-               rvol2  = 1.
-               rrho2  = 1E8
-               rx2(1) = rpart(jx  ,i)
-               rx2(2) = rpart(jx+1,i)
-               rx2(3) = rpart(jx+2,i)
-               rv2(1) = 0.
-               rv2(2) = 0.
-               rv2(3) = 0.
-               rx2(nj2) = xdrange(nj1,nj2)
 
-               idum = 0
-               call compute_collide(mcfac,rrp2,rvol2,rrho2,rx2,rv2,
-     >                              rpart(jfcol,i),rdum3,idum)
+            rd    = -(rnx*rpx + rny*rpy + rnz*rpz)
+
+            rdist = abs(rnx*rpart(jx,i)+rny*rpart(jy,i)+rnz*rpart(jz,i)
+     >                    +rd)
+            rdist = rdist/sqrt(rnx**2 + rny**2 + rnz**2)
+
+            rrp2   = 0.
+            rvol2  = 1.
+            rrho2  = 1E8
+            rx2(1) = rpart(jx  ,i) - rdist*rnx
+            rx2(2) = rpart(jx+1,i) - rdist*rny
+            rx2(3) = rpart(jx+2,i) - rdist*rnz
+            rv2(1) = 0.
+            rv2(2) = 0.
+            rv2(3) = 0.
+
+            idum = 0
+            call compute_collide(mcfac,rrp2,rvol2,rrho2,rx2,rv2,
+     >                           rpart(jfcol,i),rdum3,idum)
+         enddo
+
+         ! cylinder wall collisions
+         do j = 1,nc_walls
+            rnx = cyl_wall_coords(1,j)
+            rny = cyl_wall_coords(2,j)
+            rnz = cyl_wall_coords(3,j)
+            rrad = cyl_wall_coords(4,j)
+
+            rx2(1) = rpart(jx,i)
+            rx2(2) = rpart(jy,i)
+            rx2(3) = rpart(jz,i)
+            ! for now only works with cylinders aligned with axes at
+            ! origin
+            if (rnz .gt. 0.5) then
+               rtheta = atan2(rpart(jy,i),rpart(jx,i))
+               rx2(1) = rrad*cos(rtheta)
+               rx2(2) = rrad*sin(rtheta)
+            elseif (rnx .gt. 0.5) then
+               rtheta = atan2(rpart(jz,i),rpart(jy,i))
+               rx2(2) = rrad*cos(rtheta)
+               rx2(3) = rrad*sin(rtheta)
+            elseif (rny .gt. 0.5) then
+               rtheta = atan2(rpart(jx,i),rpart(jz,i))
+               rx2(3) = rrad*cos(rtheta)
+               rx2(1) = rrad*sin(rtheta)
             endif
+
+            rrp2   = 0.
+            rvol2  = 1.
+            rrho2  = 1E8
+            rv2(1) = 0.
+            rv2(2) = 0.
+            rv2(3) = 0.
+
+            idum = 0
+            call compute_collide(mcfac,rrp2,rvol2,rrho2,rx2,rv2,
+     >                           rpart(jfcol,i),rdum3,idum)
          enddo
 
 !        collision with cylinders? put in rxbo(j,1) ...
@@ -2736,51 +2835,78 @@ c-----------------------------------------------------------------------
       include 'CMTDATA'
       include 'CMTPART'
 c
-      real rxyzp(6,3), rx2(3), rx22(3)
+      real rxyzp(n_walls*2,3), rx2(3), rx22(3)
       integer ic, ip
 
-      ! adding wall effects
+      ! plane wall collisions
       ic = 0
-      do j = 1,ndim*2
+      do j = 1,np_walls
+         rnx = plane_wall_coords(1,j)
+         rny = plane_wall_coords(2,j)
+         rnz = plane_wall_coords(3,j)
+         rpx = plane_wall_coords(4,j)
+         rpy = plane_wall_coords(5,j)
+         rpz = 1.0
+         if (if3d) rpz = plane_wall_coords(6,j)
 
-         if (bc_part(j) .eq. -1) then
-            nj1 = mod(j,2)
-            if (nj1.ne.0) nj1 = 1
-            if (nj1.eq.0) nj1 = 2
-            nj2 = int((j-1)/2) + 1
+         rd    = -(rnx*rpx + rny*rpy + rnz*rpz)
 
-            rx22(1) = rx2(1)
-            rx22(2) = rx2(2)
-            rx22(3) = rx2(3)
-            rx22(nj2) = xdrange(nj1,nj2)
+         rdist = abs(rnx*rx2(1)+rny*rx2(2)+rnz*rx2(3)+rd)
+         rdist = rdist*2.
+         rdist = rdist/sqrt(rnx**2 + rny**2 + rnz**2)
 
-            ! compute distance and normal to wall
-            rx22(1) = rx22(1) - rx2(1)
-            rx22(2) = rx22(2) - rx2(2)
-            if (if3d) then
-                rx22(3) = rx22(3) - rx2(3)
-                rdist = sqrt(rx22(1)**2 + rx22(2)**2 + rx22(3)**2)
-            else
-                rdist = sqrt(rx22(1)**2 + rx22(2)**2)
-            endif
-            if (rdist .lt. d2chk(2)) then
-               ic = ic + 1
+         if (rdist .gt. d2chk(1)) cycle
+         ic = ic + 1
 
-               rnx = rx22(1)/rdist
-               rxyzp(ic,1) = rx2(1)
-               rxyzp(ic,1) = rx2(1) + rnx*rdist*2.
+         rxyzp(ic,1) = rx2(1) - rdist*rnx
+         rxyzp(ic,2) = rx2(2) - rdist*rny
+         rxyzp(ic,3) = rx2(3) - rdist*rnz
+      enddo
 
-               rny = rx22(2)/rdist
-               rxyzp(ic,2) = rx2(2) 
-               rxyzp(ic,2) = rx2(2) + rny*rdist*2.
+      ! cylinder wall collisions
+      do j = 1,nc_walls
+         rnx = cyl_wall_coords(1,j)
+         rny = cyl_wall_coords(2,j)
+         rnz = cyl_wall_coords(3,j)
+         rrad = cyl_wall_coords(4,j)
 
-               if (if3d) then
-                  rnz = rx22(3)/rdist
-                  rxyzp(ic,3) = rx2(3)
-                  rxyzp(ic,3) = rx2(3) + rnz*rdist*2.
-               endif
-           endif
+         rx22(1) = rx2(1)
+         rx22(2) = rx2(2)
+         rx22(3) = rx2(3)
+         ! for now only works with cylinders aligned with axes at
+         ! origin
+         if (rnz .gt. 0.5) then
+            rtheta = atan2(rx22(2),rx22(1))
+            rx22(1) = rrad*cos(rtheta)
+            rx22(2) = rrad*sin(rtheta)
+         elseif (rnx .gt. 0.5) then
+            rtheta = atan2(rx22(3),rx22(2))
+            rx22(2) = rrad*cos(rtheta)
+            rx22(3) = rrad*sin(rtheta)
+         elseif (rny .gt. 0.5) then
+            rtheta = atan2(rx22(1),rx22(3))
+            rx22(3) = rrad*cos(rtheta)
+            rx22(1) = rrad*sin(rtheta)
          endif
+
+         rx2d = rx22(1) - rx2(1)
+         ry2d = rx22(2) - rx2(2)
+         rz2d = rx22(3) - rx2(3)
+
+         rdist = sqrt(rx2d**2 + ry2d**2 + rz2d**2)
+         rx2d = rx2d/rdist
+         ry2d = ry2d/rdist
+         rz2d = rz2d/rdist
+
+         rdist = rdist*2.
+
+         if (rdist .gt. d2chk(1)) cycle
+         ic = ic + 1
+
+         rxyzp(ic,1) = rx2(1) + rx2d*rdist
+         rxyzp(ic,2) = rx2(2) + ry2d*rdist
+         rxyzp(ic,3) = rx2(3) + rz2d*rdist
+
       enddo
 
       return
@@ -4230,8 +4356,15 @@ c----------------------------------------------------------------------
 
       ! set some defaults
       nw = 0
+      rxbo(1,1) = -1E8
+      rxbo(2,1) = -1E8
+      rxbo(1,2) = -1E8
+      rxbo(2,2) = -1E8
+      rxbo(1,3) = -1E8
+      rxbo(2,3) = -1E8
       dp(1) = 0.
       dp(2) = 0.
+      dp_std = -1.
       tp_0  = 273.
       rho_p = 2500.
       cp_p  = 840.
@@ -4256,7 +4389,10 @@ c----------------------------------------------------------------------
       ksp            = 10.
       e_rest         = 0.9
 
-      open(fh, file='particles_new.inp')
+      np_walls = 0
+      nc_walls = 0
+
+      open(fh, file='particles.inp')
  
       do while (ios == 0)
          read(fh, '(A)', iostat=ios) buffer
@@ -4272,12 +4408,34 @@ c----------------------------------------------------------------------
             case ('npart')
                read(buffer, *, iostat=ios) nw
                print *, 'Read npart: ', nw
-            case ('diam1')
+            case ('distrib_box')
+               read(buffer, *, iostat=ios) rxbo(1,1),rxbo(2,1),
+     >                                     rxbo(1,2),rxbo(2,2),
+     >                                     rxbo(1,3),rxbo(2,3)
+               print *, 'Read distrib_box '
+            case ('distrib_cylz')
+               read(buffer, *, iostat=ios) rxbo(1,1),rxbo(2,1),
+     >                                     rxbo(1,2),rxbo(2,2)
+               print *, 'Read distrib_cylz '
+            case ('distrib_cylx')
+               read(buffer, *, iostat=ios) rxbo(1,2),rxbo(2,2),
+     >                                     rxbo(1,3),rxbo(2,3)
+               print *, 'Read distrib_cylx '
+            case ('distrib_cyly')
+               read(buffer, *, iostat=ios) rxbo(1,3),rxbo(2,3),
+     >                                     rxbo(1,1),rxbo(2,1)
+               print *, 'Read distrib_cyly '
+            case ('diam')
                read(buffer, *, iostat=ios) dp(1)
-               print *, 'Read diam1: ', dp(1)
-            case ('diam2')
-               read(buffer, *, iostat=ios) dp(2)
-               print *, 'Read diam2: ', dp(2)
+               print *, 'Read diam: ', dp(1)
+               dp(2) = dp(1)
+            case ('diam_ur')
+               read(buffer, *, iostat=ios) dp(1), dp(2)
+               print *, 'Read diam_ur: ', dp(1), dp(2)
+            case ('diam_gauss')
+               read(buffer, *, iostat=ios) dp(1), dp_std
+               print *, 'Read diam_gauss: ', dp(1), dp_std
+               dp(2) = dp(1)
             case ('temp')
                read(buffer, *, iostat=ios) tp_0
                print *, 'Read temp: ', tp_0
@@ -4335,24 +4493,30 @@ c----------------------------------------------------------------------
             case ('alpha')
                read(buffer, *, iostat=ios) ralphdecay
                print *, 'Read alpha: ', ralphdecay
-            case ('boundxl')
-               read(buffer, *, iostat=ios) bc_part(1)
-               print *, 'Read boundxl: ', bc_part(1)
-            case ('boundxr')
-               read(buffer, *, iostat=ios) bc_part(2)
-               print *, 'Read boundxr: ', bc_part(2)
-            case ('boundyl')
-               read(buffer, *, iostat=ios) bc_part(3)
-               print *, 'Read boundyl: ', bc_part(3)
-            case ('boundyr')
-               read(buffer, *, iostat=ios) bc_part(4)
-               print *, 'Read boundyr: ', bc_part(4)
-            case ('boundzl')
-               read(buffer, *, iostat=ios) bc_part(5)
-               print *, 'Read boundzl: ', bc_part(5)
-            case ('boundzr')
-               read(buffer, *, iostat=ios) bc_part(6)
-               print *, 'Read boundzr: ', bc_part(6)
+            case ('wall_plane')
+               np_walls = np_walls + 1
+               if (np_walls .gt. n_walls) then
+                  write(6,*) 'Increase max number particle wall plane'
+                  call exitt
+               endif
+               read(buffer, *, iostat=ios) plane_wall_coords(1,np_walls)
+     >                                    ,plane_wall_coords(2,np_walls)
+     >                                    ,plane_wall_coords(3,np_walls)
+     >                                    ,plane_wall_coords(4,np_walls)
+     >                                    ,plane_wall_coords(5,np_walls)
+     >                                    ,plane_wall_coords(6,np_walls)
+               print *, 'Read wall_plane number ', np_walls
+            case ('wall_cyl')
+               nc_walls = nc_walls + 1
+               if (nc_walls .gt. n_walls) then
+                  write(6,*) 'Increase max number particle wall cyl'
+                  call exitt
+               endif
+               read(buffer, *, iostat=ios) cyl_wall_coords(1,nc_walls)
+     >                                    ,cyl_wall_coords(2,nc_walls)
+     >                                    ,cyl_wall_coords(3,nc_walls)
+     >                                    ,cyl_wall_coords(4,nc_walls)
+               print *, 'Read wall_cyl number ', nc_walls
             case ('periodicx')
                read(buffer, *, iostat=ios)
                print *, 'Read periodicx '
@@ -4733,16 +4897,15 @@ c
       return
       end
 c-----------------------------------------------------------------------
-      function unif_random_norm(rxl,rxr,rstd)
+      function unif_random_norm(rmu,rstd)
 c
 c     must initialize ran2 first
 c
       real xl,xr,unif_random_norm,rstd,rxfne(1000),rcdf(1000)
 
-      rmu = (rxr + rxl)/2.
       nxfn  = 1000
-      rxlf  = rxl
-      rxrf  = rxr
+      rxlf  = max(0.0,rmu-5.*rstd)
+      rxrf  = rmu+5.*rstd
       rdxf  = (rxrf-rxlf)/(nxfn-1.)
 
       do i=1,nxfn
