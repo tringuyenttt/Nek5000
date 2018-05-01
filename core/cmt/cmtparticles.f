@@ -1786,7 +1786,7 @@ c        nfacegp=0
 c        nedgegp=0
 c        ncornergp=0
 
-            write(6,*) 'iip', iip, jjp, kkp
+c           write(6,*) 'iip', iip, jjp, kkp
 
          ! faces
          do ifc=1,nfacegp
@@ -2009,11 +2009,11 @@ c           write(6,*) 'yoo', ii1, jj1, kk1
          enddo
       enddo
 
-      write(6,*) 'NFPTSGP',nfptsgp
-      do i=1,nfptsgp
-         write(6,*) rptsgp(jgpx,i),rptsgp(jgpy,i),rptsgp(jgpz,i),
-     >              iptsgp(jgpps,i)
-      enddo
+c     write(6,*) 'NFPTSGP',nfptsgp
+c     do i=1,nfptsgp
+c        write(6,*) rptsgp(jgpx,i),rptsgp(jgpy,i),rptsgp(jgpz,i),
+c    >              iptsgp(jgpps,i)
+c     enddo
 
       return
       end
@@ -2487,13 +2487,13 @@ c     call fgslib_crystal_ituple_sort(i_cr_hndl,ngp_valsp,
 c    >                 ngpvc,nlist,nglob,nkey)
 
 
-      if (nid.eq.0) then
-      write(6,*) 'GPLIST ORIG',nlist
-      do i=1,nlist 
-         write(6,*) ngp_valsp(1,i), ngp_valsp(2,i), ngp_valsp(3,i),
-     >              ngp_valsp(4,i), ngp_valsp(5,i), ngp_valsp(6,i)
-      enddo
-      endif
+c     if (nid.eq.0) then
+c     write(6,*) 'GPLIST ORIG',nlist
+c     do i=1,nlist 
+c        write(6,*) ngp_valsp(1,i), ngp_valsp(2,i), ngp_valsp(3,i),
+c    >              ngp_valsp(4,i), ngp_valsp(5,i), ngp_valsp(6,i)
+c     enddo
+c     endif
 
 
 
@@ -2536,13 +2536,13 @@ c SEND TO 1D PROCESSOR MAP
 
       nlist = ic
 
-      if (nid.eq.0) then
-      write(6,*) 'GPLIST BEFORE',nlist
-      do i=1,nlist 
-         write(6,*) ngp_valsp(1,i), ngp_valsp(2,i), ngp_valsp(3,i),
-     >              ngp_valsp(4,i), ngp_valsp(5,i), ngp_valsp(6,i)
-      enddo
-      endif
+c     if (nid.eq.0) then
+c     write(6,*) 'GPLIST BEFORE',nlist
+c     do i=1,nlist 
+c        write(6,*) ngp_valsp(1,i), ngp_valsp(2,i), ngp_valsp(3,i),
+c    >              ngp_valsp(4,i), ngp_valsp(5,i), ngp_valsp(6,i)
+c     enddo
+c     endif
 
 
       ! create dupicates to send to remote processors
@@ -2568,13 +2568,13 @@ c SEND TO 1D PROCESSOR MAP
          enddo
       enddo
 
-      if (nid.eq.0) then
-      write(6,*) 'GPLIST AFTER',nlist
-      do i=1,nlist 
-         write(6,*) ngp_valsp(1,i), ngp_valsp(2,i), ngp_valsp(3,i),
-     >              ngp_valsp(4,i), ngp_valsp(5,i), ngp_valsp(6,i)
-      enddo
-      endif
+c     if (nid.eq.0) then
+c     write(6,*) 'GPLIST AFTER',nlist
+c     do i=1,nlist 
+c        write(6,*) ngp_valsp(1,i), ngp_valsp(2,i), ngp_valsp(3,i),
+c    >              ngp_valsp(4,i), ngp_valsp(5,i), ngp_valsp(6,i)
+c     enddo
+c     endif
 
 
 c        do j=1,nlist_save
@@ -2636,13 +2636,13 @@ c     enddo
 
 c     nlist = ic
 
-      if (nid.eq.0) then
-      write(6,*) 'GPLIST',nlist
-      do i=1,nlist 
-         write(6,*) ngp_valsp(1,i), ngp_valsp(2,i), ngp_valsp(3,i),
-     >              ngp_valsp(4,i), ngp_valsp(5,i), ngp_valsp(6,i)
-      enddo
-      endif
+c     if (nid.eq.0) then
+c     write(6,*) 'GPLIST',nlist
+c     do i=1,nlist 
+c        write(6,*) ngp_valsp(1,i), ngp_valsp(2,i), ngp_valsp(3,i),
+c    >              ngp_valsp(4,i), ngp_valsp(5,i), ngp_valsp(6,i)
+c     enddo
+c     endif
 
 
 ! --------------------------------------------
@@ -2696,35 +2696,35 @@ c ORGANIZE MAP OF REMOTE PROCESSORS TO SEND TO
       enddo
 
 
-         call create_extra_particles
-         call send_ghost_particles
-         call spread_props_grid    
+c        call create_extra_particles
+c        call send_ghost_particles
+c        call spread_props_grid    
 
-         do ie=1,nelt
-         do k=1,nz1
-         do j=1,ny1
-         do i=1,nx1
-            ptw(i,j,k,ie,1) = real(mod_gp_grid(i,j,k,ie,1))
-            ptw(i,j,k,ie,2) = real(mod_gp_grid(i,j,k,ie,2))
-            ptw(i,j,k,ie,3) = real(mod_gp_grid(i,j,k,ie,3))
+c        do ie=1,nelt
+c        do k=1,nz1
+c        do j=1,ny1
+c        do i=1,nx1
+c           ptw(i,j,k,ie,1) = real(mod_gp_grid(i,j,k,ie,1))
+c           ptw(i,j,k,ie,2) = real(mod_gp_grid(i,j,k,ie,2))
+c           ptw(i,j,k,ie,3) = real(mod_gp_grid(i,j,k,ie,3))
 
-            ptw(i,j,k,ie,5) = real(nid)
-         enddo
-         enddo
-         enddo
-         enddo
+c           ptw(i,j,k,ie,5) = real(nid)
+c        enddo
+c        enddo
+c        enddo
+c        enddo
 
-         itmp = 1
-         call outpost2(ptw(1,1,1,1,1),         ! fhyd_x
-     >              ptw(1,1,1,1,2),         ! fhyd_y
-     >              ptw(1,1,1,1,3),         ! fhyd_z
-     >              ptw(1,1,1,1,4),         ! phi_p (but not if lx1!=lx2
-     >              ptw(1,1,1,1,5),         ! phi_p
-     >              itmp          ,        
-     >              'ptw')
-         call output_parallel_lagrangian_parts
+c        itmp = 1
+c        call outpost2(ptw(1,1,1,1,1),         ! fhyd_x
+c    >              ptw(1,1,1,1,2),         ! fhyd_y
+c    >              ptw(1,1,1,1,3),         ! fhyd_z
+c    >              ptw(1,1,1,1,4),         ! phi_p (but not if lx1!=lx2
+c    >              ptw(1,1,1,1,5),         ! phi_p
+c    >              itmp          ,        
+c    >              'ptw')
+c        call output_parallel_lagrangian_parts
 
-         call exitt
+c        call exitt
 
 
       return
@@ -4212,6 +4212,185 @@ c----------------------------------------------------------------------
       end
 c----------------------------------------------------------------------
       subroutine read_particle_input
+      include 'SIZE'
+      include 'INPUT'
+      include 'CMTTIMERS'
+      include 'TSTEP'
+      include 'PARALLEL'
+      include 'CMTPART'
+
+      character*72 dum_str
+
+      character*100 buffer, label
+      integer pos, fh, ios, line, dum
+      parameter(fh = 15)
+
+      ios  = 0
+      line = 0
+
+      ! set some defaults
+      nw = 0
+      dp(1) = 0.
+      dp(2) = 0.
+      tp_0  = 273.
+      rho_p = 2500.
+      cp_p  = 840.
+      do i=1,5
+         part_force(i) = 0
+      enddo
+      time_integ  = 1
+      two_way     = 1
+      red_interp  = 1
+      npio_method = 1
+      inject_rate = 0
+      time_delay  = 0
+      nrandseed   = 1
+      npro_method = 2
+      rspl        = 1.
+      dfilt       = 2.
+      ralphdecay  = 1E-2
+      do i=1,6
+         bc_part(i) = 1
+      enddo
+      ipart_restartr = 0
+      ksp            = 10.
+      e_rest         = 0.9
+
+      open(fh, file='particles_new.inp')
+ 
+      do while (ios == 0)
+         read(fh, '(A)', iostat=ios) buffer
+         if (ios == 0) then
+            line = line + 1
+      
+            ! Find the first instance of whitespace.  Split label and data.
+            pos = scan(buffer, '    ')
+            label = buffer(1:pos)
+            buffer = buffer(pos+1:)
+      
+            select case (label)
+            case ('npart')
+               read(buffer, *, iostat=ios) nw
+               print *, 'Read npart: ', nw
+            case ('diam1')
+               read(buffer, *, iostat=ios) dp(1)
+               print *, 'Read diam1: ', dp(1)
+            case ('diam2')
+               read(buffer, *, iostat=ios) dp(2)
+               print *, 'Read diam2: ', dp(2)
+            case ('temp')
+               read(buffer, *, iostat=ios) tp_0
+               print *, 'Read temp: ', tp_0
+            case ('dens')
+               read(buffer, *, iostat=ios) rho_p
+               print *, 'Read dens: ', rho_p
+            case ('cp')
+               read(buffer, *, iostat=ios) cp_p
+               print *, 'Read cp: ', cp_p
+            case ('force_qs')
+               read(buffer, *, iostat=ios) part_force(1)
+               print *, 'Read force_qs: ', part_force(1)
+            case ('force_un')
+               read(buffer, *, iostat=ios) part_force(2)
+               print *, 'Read force_un: ', part_force(2)
+            case ('force_iu')
+               read(buffer, *, iostat=ios) part_force(3)
+               print *, 'Read force_iu: ', part_force(3)
+            case ('heat_qs')
+               read(buffer, *, iostat=ios) part_force(4)
+               print *, 'Read heat_qs: ', part_force(4)
+            case ('heat_un')
+               read(buffer, *, iostat=ios) part_force(5)
+               print *, 'Read heat_un: ', part_force(5)
+            case ('integrate')
+               read(buffer, *, iostat=ios) time_integ
+               print *, 'Read integrate: ', time_integ
+            case ('coupling')
+               read(buffer, *, iostat=ios) two_way
+               print *, 'Read coupling: ', two_way
+            case ('interp')
+               read(buffer, *, iostat=ios) red_interp
+               print *, 'Read interp: ', red_interp
+            case ('io')
+               read(buffer, *, iostat=ios) npio_method
+               print *, 'Read io: ', npio_method
+            case ('inject')
+               read(buffer, *, iostat=ios) inject_rate
+               print *, 'Read inject: ', inject_rate
+            case ('delay')
+               read(buffer, *, iostat=ios) time_delay
+               print *, 'Read delay: ', time_delay
+            case ('seed')
+               read(buffer, *, iostat=ios) nrandseed
+               print *, 'Read seed: ', nrandseed
+            case ('project')
+               read(buffer, *, iostat=ios) npro_method
+               print *, 'Read project: ', npro_method
+            case ('spl')
+               read(buffer, *, iostat=ios) rspl
+               print *, 'Read spl: ', rspl
+            case ('filt')
+               read(buffer, *, iostat=ios) dfilt
+               print *, 'Read filt: ', dfilt
+            case ('alpha')
+               read(buffer, *, iostat=ios) ralphdecay
+               print *, 'Read alpha: ', ralphdecay
+            case ('boundxl')
+               read(buffer, *, iostat=ios) bc_part(1)
+               print *, 'Read boundxl: ', bc_part(1)
+            case ('boundxr')
+               read(buffer, *, iostat=ios) bc_part(2)
+               print *, 'Read boundxr: ', bc_part(2)
+            case ('boundyl')
+               read(buffer, *, iostat=ios) bc_part(3)
+               print *, 'Read boundyl: ', bc_part(3)
+            case ('boundyr')
+               read(buffer, *, iostat=ios) bc_part(4)
+               print *, 'Read boundyr: ', bc_part(4)
+            case ('boundzl')
+               read(buffer, *, iostat=ios) bc_part(5)
+               print *, 'Read boundzl: ', bc_part(5)
+            case ('boundzr')
+               read(buffer, *, iostat=ios) bc_part(6)
+               print *, 'Read boundzr: ', bc_part(6)
+            case ('periodicx')
+               read(buffer, *, iostat=ios)
+               print *, 'Read periodicx '
+               bc_part(1) = 0
+               bc_part(2) = 0
+            case ('periodicy')
+               read(buffer, *, iostat=ios)
+               print *, 'Read periodicy '
+               bc_part(3) = 0
+               bc_part(4) = 0
+            case ('periodicz')
+               read(buffer, *, iostat=ios)
+               print *, 'Read periodicz '
+               bc_part(5) = 0
+               bc_part(6) = 0
+            case ('restart')
+               read(buffer, *, iostat=ios) ipart_restartr
+               print *, 'Read restart: ', ipart_restartr
+            case ('spring')
+               read(buffer, *, iostat=ios) ksp
+               print *, 'Read spring: ', ksp
+            case ('restitution')
+               read(buffer, *, iostat=ios) e_rest
+               print *, 'Read restitution: ', e_rest
+            case default
+               print *, 'Skipping invalid label at line', line
+            end select
+         end if
+      enddo
+
+      close(fh)
+
+      mu_0   = abs(param(2))
+
+      return
+      end
+c----------------------------------------------------------------------
+      subroutine read_particle_input_old
       include 'SIZE'
       include 'INPUT'
       include 'CMTTIMERS'
