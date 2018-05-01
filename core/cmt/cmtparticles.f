@@ -655,12 +655,12 @@ c
       do j=1,ny1
       do i=1,nx1
 
-c     if (     mod_gp_grid(i,j,k,ie,1).ge.ii-1
-c    >   .and. mod_gp_grid(i,j,k,ie,1).le.ii+1) then
-c     if (     mod_gp_grid(i,j,k,ie,2).ge.jj-1
-c    >   .and. mod_gp_grid(i,j,k,ie,2).le.jj+1) then
-c     if (     mod_gp_grid(i,j,k,ie,3).ge.kk-1
-c    >   .and. mod_gp_grid(i,j,k,ie,3).le.kk+1) then
+      if (     mod_gp_grid(i,j,k,ie,1).ge.ii-1
+     >   .and. mod_gp_grid(i,j,k,ie,1).le.ii+1) then
+      if (     mod_gp_grid(i,j,k,ie,2).ge.jj-1
+     >   .and. mod_gp_grid(i,j,k,ie,2).le.jj+1) then
+      if (     mod_gp_grid(i,j,k,ie,3).ge.kk-1
+     >   .and. mod_gp_grid(i,j,k,ie,3).le.kk+1) then
 
          rdist2  = (xm1(i,j,k,ie) - rpart(jx,ip))**2 +
      >           (ym1(i,j,k,ie) - rpart(jy,ip))**2 
@@ -690,9 +690,9 @@ c    >   .and. mod_gp_grid(i,j,k,ie,3).le.kk+1) then
          ptw(i,j,k,ie,7) = ptw(i,j,k,ie,7) + rvy*rexp
          ptw(i,j,k,ie,8) = ptw(i,j,k,ie,8) + rvz*rexp
 
-c     endif
-c     endif
-c     endif
+      endif
+      endif
+      endif
 
       enddo
       enddo
@@ -737,12 +737,12 @@ c     endif
       do j=1,ny1
       do i=1,nx1
 
-c     if (     mod_gp_grid(i,j,k,ie,1).ge.ii-1
-c    >   .and. mod_gp_grid(i,j,k,ie,1).le.ii+1) then
-c     if (     mod_gp_grid(i,j,k,ie,2).ge.jj-1
-c    >   .and. mod_gp_grid(i,j,k,ie,2).le.jj+1) then
-c     if (     mod_gp_grid(i,j,k,ie,3).ge.kk-1
-c    >   .and. mod_gp_grid(i,j,k,ie,3).le.kk+1) then
+      if (     mod_gp_grid(i,j,k,ie,1).ge.ii-1
+     >   .and. mod_gp_grid(i,j,k,ie,1).le.ii+1) then
+      if (     mod_gp_grid(i,j,k,ie,2).ge.jj-1
+     >   .and. mod_gp_grid(i,j,k,ie,2).le.jj+1) then
+      if (     mod_gp_grid(i,j,k,ie,3).ge.kk-1
+     >   .and. mod_gp_grid(i,j,k,ie,3).le.kk+1) then
 
          rdist2  = (xm1(i,j,k,ie) - rptsgp(jgpx,ip))**2 +
      >           (ym1(i,j,k,ie) - rptsgp(jgpy,ip))**2 
@@ -771,9 +771,9 @@ c    >   .and. mod_gp_grid(i,j,k,ie,3).le.kk+1) then
          ptw(i,j,k,ie,7) = ptw(i,j,k,ie,7) + rvy*rexp
          ptw(i,j,k,ie,8) = ptw(i,j,k,ie,8) + rvz*rexp
 
-c     endif
-c     endif
-c     endif
+      endif
+      endif
+      endif
 
       enddo
       enddo
@@ -1782,8 +1782,11 @@ c        el_face_num(1) = 1
 c        el_face_num(2) = 0
 c        el_face_num(3) = 0
 
+c        nfacegp=0
 c        nedgegp=0
-         ncornergp=0
+c        ncornergp=0
+
+            write(6,*) 'iip', iip, jjp, kkp
 
          ! faces
          do ifc=1,nfacegp
@@ -1792,6 +1795,8 @@ c        nedgegp=0
             jj1 = jjp + el_face_num(ist+2)
             kk1 = kkp + el_face_num(ist+3)
 
+c           write(6,*) 'yoo', ii1, jj1, kk1
+
             iig = ii1
             jjg = jj1
             kkg = kk1
@@ -1803,29 +1808,38 @@ c        nedgegp=0
             if (iig .lt. 0 .or. iig .gt. ndxgp-1) then
                iflgx = 1
                iig =modulo(iig,ndxgp)
-               if (abs(bc_part(1)) + abs(bc_part(2)) .ne. 0) goto 555
+               if (abs(bc_part(1)) + abs(bc_part(2)) .ne. 0) cycle
             endif
             if (jjg .lt. 0 .or. jjg .gt. ndygp-1) then
                iflgy = 1
                jjg =modulo(jjg,ndygp)
-               if (abs(bc_part(3)) + abs(bc_part(4)) .ne. 0) goto 555
+               if (abs(bc_part(3)) + abs(bc_part(4)) .ne. 0) cycle
             endif
             if (kkg .lt. 0 .or. kkg .gt. ndzgp-1) then
                iflgz = 1  
                kkg =modulo(kkg,ndzgp)
-               if (abs(bc_part(5)) + abs(bc_part(6)) .ne. 0) goto 555
+               if (abs(bc_part(5)) + abs(bc_part(6)) .ne. 0) cycle
             endif
 
+
+            iflgsum = iflgx + iflgy + iflgz
+            if (iflgsum .ne. 1) cycle
+
             ndumn = iig + ndxgp*jjg + ndxgp*ndygp*kkg
+
 
             do i=1,nlist
                ndum = ngp_valsp(2,i)
                nrank = ngp_valsp(1,i)
+               iin   = ngp_valsp(3,i)
+               jjn   = ngp_valsp(4,i)
+               kkn   = ngp_valsp(5,i)
+
                if (ndumn .eq. ndum) then
                   ibctype = iflgx+iflgy+iflgz
                  
                   if (nrank .ne. nid .or. 
-     >                    (nrank .eq. nid) .and. (ibctype.gt.0)) then
+     >                    (nrank .eq. nid) .and. (iflgsum.eq.1)) then
                  
                       rxnew(1) = rxval
                       rxnew(2) = ryval
@@ -1846,8 +1860,6 @@ c        nedgegp=0
                   endif
                endif
             enddo
-
-  555 continue
          enddo
          ! edges
          do ifc=1,nedgegp
@@ -1856,6 +1868,8 @@ c        nedgegp=0
             jj1 = jjp + el_edge_num(ist+2)
             kk1 = kkp + el_edge_num(ist+3)
 
+c           write(6,*) 'yoo', ii1, jj1, kk1
+
             iig = ii1
             jjg = jj1
             kkg = kk1
@@ -1867,37 +1881,38 @@ c        nedgegp=0
             if (iig .lt. 0 .or. iig .gt. ndxgp-1) then
                iflgx = 1
                iig =modulo(iig,ndxgp)
+               if (abs(bc_part(1)) + abs(bc_part(2)) .ne. 0) cycle
             endif
             if (jjg .lt. 0 .or. jjg .gt. ndygp-1) then
                iflgy = 1
                jjg =modulo(jjg,ndygp)
+               if (abs(bc_part(3)) + abs(bc_part(4)) .ne. 0) cycle
             endif
             if (kkg .lt. 0 .or. kkg .gt. ndzgp-1) then
                iflgz = 1  
                kkg =modulo(kkg,ndzgp)
-            endif
-            if (iflgx .eq. 1 .and. iflgy .eq. 1) then
-               if (abs(bc_part(1))+abs(bc_part(2))+
-     >             abs(bc_part(3))+abs(bc_part(4)) .ne. 0) goto 444
-            elseif (iflgx .eq. 1 .and. iflgz .eq. 1) then
-               if (abs(bc_part(1))+abs(bc_part(2))+
-     >             abs(bc_part(5))+abs(bc_part(6)) .ne. 0) goto 444
-            elseif (iflgy .eq. 1 .and. iflgz .eq. 1) then
-               if (abs(bc_part(3))+abs(bc_part(4))+
-     >             abs(bc_part(5))+abs(bc_part(6)) .ne. 0) goto 444
+               if (abs(bc_part(5)) + abs(bc_part(6)) .ne. 0) cycle
             endif
 
+
+            iflgsum = iflgx + iflgy + iflgz
+            if (iflgsum .ne. 2) cycle
+
             ndumn = iig + ndxgp*jjg + ndxgp*ndygp*kkg
+
 
             do i=1,nlist
                ndum = ngp_valsp(2,i)
                nrank = ngp_valsp(1,i)
+               iin   = ngp_valsp(3,i)
+               jjn   = ngp_valsp(4,i)
+               kkn   = ngp_valsp(5,i)
+
                if (ndumn .eq. ndum) then
                   ibctype = iflgx+iflgy+iflgz
                  
-                 ! fix here DZ possibly 
                   if (nrank .ne. nid .or. 
-     >                    (nrank .eq. nid) .and. (ibctype.gt.0)) then
+     >                    (nrank .eq. nid) .and. (iflgsum.eq.2)) then
                  
                       rxnew(1) = rxval
                       rxnew(2) = ryval
@@ -1918,9 +1933,6 @@ c        nedgegp=0
                   endif
                endif
             enddo
-
-
-  444 continue
          enddo
          ! corners
          do ifc=1,ncornergp
@@ -1929,6 +1941,8 @@ c        nedgegp=0
             jj1 = jjp + el_corner_num(ist+2)
             kk1 = kkp + el_corner_num(ist+3)
 
+c           write(6,*) 'yoo', ii1, jj1, kk1
+
             iig = ii1
             jjg = jj1
             kkg = kk1
@@ -1940,32 +1954,38 @@ c        nedgegp=0
             if (iig .lt. 0 .or. iig .gt. ndxgp-1) then
                iflgx = 1
                iig =modulo(iig,ndxgp)
+               if (abs(bc_part(1)) + abs(bc_part(2)) .ne. 0) cycle
             endif
             if (jjg .lt. 0 .or. jjg .gt. ndygp-1) then
                iflgy = 1
                jjg =modulo(jjg,ndygp)
+               if (abs(bc_part(3)) + abs(bc_part(4)) .ne. 0) cycle
             endif
             if (kkg .lt. 0 .or. kkg .gt. ndzgp-1) then
                iflgz = 1  
                kkg =modulo(kkg,ndzgp)
+               if (abs(bc_part(5)) + abs(bc_part(6)) .ne. 0) cycle
             endif
-            if (iflgx .eq. 1 .and. iflgy .eq. 1 .and. iflgz .eq. 1)then
-               if (abs(bc_part(1))+abs(bc_part(2))+
-     >             abs(bc_part(3))+abs(bc_part(4))+
-     >             abs(bc_part(5))+abs(bc_part(6)) .ne. 0) goto 333
-            endif
-               
+
+
+            iflgsum = iflgx + iflgy + iflgz
+            if (iflgsum .ne. 3) cycle
 
             ndumn = iig + ndxgp*jjg + ndxgp*ndygp*kkg
+
 
             do i=1,nlist
                ndum = ngp_valsp(2,i)
                nrank = ngp_valsp(1,i)
+               iin   = ngp_valsp(3,i)
+               jjn   = ngp_valsp(4,i)
+               kkn   = ngp_valsp(5,i)
+
                if (ndumn .eq. ndum) then
                   ibctype = iflgx+iflgy+iflgz
                  
                   if (nrank .ne. nid .or. 
-     >                    (nrank .eq. nid) .and. (ibctype.gt.0)) then
+     >                    (nrank .eq. nid) .and. (iflgsum.eq.3)) then
                  
                       rxnew(1) = rxval
                       rxnew(2) = ryval
@@ -1986,9 +2006,6 @@ c        nedgegp=0
                   endif
                endif
             enddo
-
-
-  333 continue
          enddo
       enddo
 
@@ -2196,7 +2213,7 @@ c-----------------------------------------------------------------------
 
       real pfx,pfy,pfz,vol,qgqf,rvx,rvy,rvz,rexp,multfc,multfci,rx2(3)
      >     ,rxyzp(6,3)
-      integer ntypesl(7)
+      integer ntypesl(7), ngp_trim(nbox_gp)
 
       real    rxnew(3), rxdrng(3)
       integer iadd(3)
@@ -2214,7 +2231,17 @@ c     face, edge, and corner number, x,y,z are all inline, so stride=3
       nedgegp   = 4  ! number of edges
       ncornergp = 0  ! number of corners
 
+c        !TESTING
+c        nfacegp   = 4  ! number of faces
+c        nedgegp   = 0
+c        ncornergp   = 0
+
       if (if3d) then
+
+         !TESTING
+c        nfacegp   = 0  ! number of faces
+c        nedgegp   = 0
+c        ncornergp   = 0
          nfacegp   = 6  ! number of faces
          nedgegp   = 12 ! number of edges
          ncornergp = 8  ! number of corners
@@ -2291,8 +2318,6 @@ c Connect boxes to 1D processor map they should be arranged on
       enddo
       enddo
       enddo
-
-
 
 
       ! Add connecting boxes and what rank(s) they are in the 1D proc map
@@ -2454,17 +2479,21 @@ c Connect boxes to 1D processor map they should be arranged on
          enddo
       enddo
 
-      nps   = 6 ! index of new proc for doing stuff
-      nglob = 2 ! unique key to sort by
-      nkey  = 1 ! number of keys (just 1 here)
-      call fgslib_crystal_ituple_sort(i_cr_hndl,ngp_valsp,
-     >                 ngpvc,nlist,nglob,nkey)
 
-      write(6,*) 'GPLIST',nlist
+c     nps   = 6 ! index of new proc for doing stuff
+c     nglob = 2 ! unique key to sort by
+c     nkey  = 1 ! number of keys (just 1 here)
+c     call fgslib_crystal_ituple_sort(i_cr_hndl,ngp_valsp,
+c    >                 ngpvc,nlist,nglob,nkey)
+
+
+      if (nid.eq.0) then
+      write(6,*) 'GPLIST ORIG',nlist
       do i=1,nlist 
          write(6,*) ngp_valsp(1,i), ngp_valsp(2,i), ngp_valsp(3,i),
      >              ngp_valsp(4,i), ngp_valsp(5,i), ngp_valsp(6,i)
       enddo
+      endif
 
 
 
@@ -2482,10 +2511,72 @@ c SEND TO 1D PROCESSOR MAP
       call fgslib_crystal_ituple_sort(i_cr_hndl,ngp_valsp,
      >                 ngpvc,nlist,nglob,nkey)
 
+      ! trim down so no duplicates
+      do i=1,nlist
+         ngp_trim(i) = 1
+      enddo
+      do i=1,nlist
+      do j=i+1,nlist
+         if (ngp_trim(j) .eq. 1) then
+            if (ngp_valsp(1,i) .eq. ngp_valsp(1,j) ) then
+            if (ngp_valsp(2,i) .eq. ngp_valsp(2,j) ) then
+               ngp_trim(j) = 0
+            endif
+            endif
+         endif
+      enddo
+      enddo
+      ic = 0
+      do i=1,nlist
+         if (ngp_trim(i) .eq. 1) then
+            ic = ic + 1
+            call icopy(ngp_valsp(1,ic),ngp_valsp(1,i),ngpvc)
+          endif
+      enddo
 
-c     ! create dupicates to send to remote processors
-c     nlist_save = nlist
-c     do i=1,nlist_save
+      nlist = ic
+
+      if (nid.eq.0) then
+      write(6,*) 'GPLIST BEFORE',nlist
+      do i=1,nlist 
+         write(6,*) ngp_valsp(1,i), ngp_valsp(2,i), ngp_valsp(3,i),
+     >              ngp_valsp(4,i), ngp_valsp(5,i), ngp_valsp(6,i)
+      enddo
+      endif
+
+
+      ! create dupicates to send to remote processors
+      nlist_save = nlist
+      do i=1,nlist_save
+         irnk = ngp_valsp(1,i)
+         igbl = ngp_valsp(2,i)
+
+         do j=1,nlist_save
+            jrnk = ngp_valsp(1,j)
+            jgbl = ngp_valsp(2,j)
+            if (i .eq. j) cycle
+            if (irnk .eq. jrnk) cycle
+            if (igbl .ne. jgbl) cycle
+            nlist = nlist + 1
+            if (nlist .gt. nbox_gp) then
+               write(6,*)'Increase nbox_gp. In dup. loop',
+     $                         nbox_gp, nlist, nid
+               call exitt
+            endif
+            call icopy(ngp_valsp(1,nlist),ngp_valsp(1,i),ngpvc)
+            ngp_valsp(6,nlist) = ngp_valsp(1,j)
+         enddo
+      enddo
+
+      if (nid.eq.0) then
+      write(6,*) 'GPLIST AFTER',nlist
+      do i=1,nlist 
+         write(6,*) ngp_valsp(1,i), ngp_valsp(2,i), ngp_valsp(3,i),
+     >              ngp_valsp(4,i), ngp_valsp(5,i), ngp_valsp(6,i)
+      enddo
+      endif
+
+
 c        do j=1,nlist_save
 c           if (i.ne.j) then
 c           if (ngp_valsp(2,i) .eq. ngp_valsp(2,j)) then
@@ -2505,7 +2596,6 @@ c        enddo
 c     enddo
 
 
-
 c        write(6,*) 'Passed from rank', nid
 c        call exitt
 
@@ -2520,6 +2610,40 @@ c SEND BACK TO ALL PROCESSORS WITH ADDITIONS NOW
      >                 ngpvc,nlist,nbox_gp,nps)
       call fgslib_crystal_ituple_sort(i_cr_hndl,ngp_valsp,
      >                 ngpvc,nlist,nglob,nkey)
+
+c     ! trim down so no duplicates
+c     do i=1,nlist
+c        ngp_trim(i) = 1
+c     enddo
+c     do i=1,nlist
+c     do j=i+1,nlist
+c        if (ngp_trim(j) .eq. 1) then
+c           if (ngp_valsp(1,i) .eq. ngp_valsp(1,j) ) then
+c           if (ngp_valsp(2,i) .eq. ngp_valsp(2,j) ) then
+c              ngp_trim(j) = 0
+c           endif
+c           endif
+c        endif
+c     enddo
+c     enddo
+c     ic = 0
+c     do i=1,nlist
+c        if (ngp_trim(i) .eq. 1) then
+c           ic = ic + 1
+c           call icopy(ngp_valsp(1,ic),ngp_valsp(1,i),ngpvc)
+c         endif
+c     enddo
+
+c     nlist = ic
+
+      if (nid.eq.0) then
+      write(6,*) 'GPLIST',nlist
+      do i=1,nlist 
+         write(6,*) ngp_valsp(1,i), ngp_valsp(2,i), ngp_valsp(3,i),
+     >              ngp_valsp(4,i), ngp_valsp(5,i), ngp_valsp(6,i)
+      enddo
+      endif
+
 
 ! --------------------------------------------
 c ORGANIZE MAP OF REMOTE PROCESSORS TO SEND TO
