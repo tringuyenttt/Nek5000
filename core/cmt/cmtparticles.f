@@ -4407,96 +4407,97 @@ c----------------------------------------------------------------------
             select case (label)
             case ('npart')
                read(buffer, *, iostat=ios) nw
-               print *, 'Read npart: ', nw
+               if(nid.eq.0)write(6,*) 'Read npart: ', nw
             case ('distrib_box')
                read(buffer, *, iostat=ios) rxbo(1,1),rxbo(2,1),
      >                                     rxbo(1,2),rxbo(2,2),
      >                                     rxbo(1,3),rxbo(2,3)
-               print *, 'Read distrib_box '
+               if(nid.eq.0)write(6,*) 'Read distrib_box '
             case ('distrib_cylz')
                read(buffer, *, iostat=ios) rxbo(1,1),rxbo(2,1),
      >                                     rxbo(1,2),rxbo(2,2)
-               print *, 'Read distrib_cylz '
+               if(nid.eq.0)write(6,*) 'Read distrib_cylz '
             case ('distrib_cylx')
                read(buffer, *, iostat=ios) rxbo(1,2),rxbo(2,2),
      >                                     rxbo(1,3),rxbo(2,3)
-               print *, 'Read distrib_cylx '
+               if(nid.eq.0)write(6,*) 'Read distrib_cylx '
             case ('distrib_cyly')
                read(buffer, *, iostat=ios) rxbo(1,3),rxbo(2,3),
      >                                     rxbo(1,1),rxbo(2,1)
-               print *, 'Read distrib_cyly '
+               if(nid.eq.0)write(6,*) 'Read distrib_cyly '
             case ('diam')
                read(buffer, *, iostat=ios) dp(1)
-               print *, 'Read diam: ', dp(1)
+               if(nid.eq.0)write(6,*) 'Read diam: ', dp(1)
                dp(2) = dp(1)
             case ('diam_ur')
                read(buffer, *, iostat=ios) dp(1), dp(2)
-               print *, 'Read diam_ur: ', dp(1), dp(2)
+               if(nid.eq.0)write(6,*) 'Read diam_ur: ', dp(1), dp(2)
             case ('diam_gauss')
                read(buffer, *, iostat=ios) dp(1), dp_std
-               print *, 'Read diam_gauss: ', dp(1), dp_std
+               if(nid.eq.0)write(6,*) 'Read diam_gauss: ', dp(1), dp_std
                dp(2) = dp(1)
             case ('temp')
                read(buffer, *, iostat=ios) tp_0
-               print *, 'Read temp: ', tp_0
+               if(nid.eq.0)write(6,*) 'Read temp: ', tp_0
             case ('dens')
                read(buffer, *, iostat=ios) rho_p
-               print *, 'Read dens: ', rho_p
+               if(nid.eq.0)write(6,*) 'Read dens: ', rho_p
             case ('cp')
                read(buffer, *, iostat=ios) cp_p
-               print *, 'Read cp: ', cp_p
+               if(nid.eq.0)write(6,*) 'Read cp: ', cp_p
             case ('force_qs')
                read(buffer, *, iostat=ios) part_force(1)
-               print *, 'Read force_qs: ', part_force(1)
+               if(nid.eq.0)write(6,*) 'Read force_qs: ', part_force(1)
             case ('force_un')
                read(buffer, *, iostat=ios) part_force(2)
-               print *, 'Read force_un: ', part_force(2)
+               if(nid.eq.0)write(6,*) 'Read force_un: ', part_force(2)
             case ('force_iu')
                read(buffer, *, iostat=ios) part_force(3)
-               print *, 'Read force_iu: ', part_force(3)
+               if(nid.eq.0)write(6,*) 'Read force_iu: ', part_force(3)
             case ('heat_qs')
                read(buffer, *, iostat=ios) part_force(4)
-               print *, 'Read heat_qs: ', part_force(4)
+               if(nid.eq.0)write(6,*) 'Read heat_qs: ', part_force(4)
             case ('heat_un')
                read(buffer, *, iostat=ios) part_force(5)
-               print *, 'Read heat_un: ', part_force(5)
+               if(nid.eq.0)write(6,*) 'Read heat_un: ', part_force(5)
             case ('integrate')
                read(buffer, *, iostat=ios) time_integ
-               print *, 'Read integrate: ', time_integ
+               if(nid.eq.0)write(6,*) 'Read integrate: ', time_integ
             case ('coupling')
                read(buffer, *, iostat=ios) two_way
-               print *, 'Read coupling: ', two_way
+               if(nid.eq.0)write(6,*) 'Read coupling: ', two_way
             case ('interp')
                read(buffer, *, iostat=ios) red_interp
-               print *, 'Read interp: ', red_interp
+               if(nid.eq.0)write(6,*) 'Read interp: ', red_interp
             case ('io')
                read(buffer, *, iostat=ios) npio_method
-               print *, 'Read io: ', npio_method
+               if(nid.eq.0)write(6,*) 'Read io: ', npio_method
             case ('inject')
                read(buffer, *, iostat=ios) inject_rate
-               print *, 'Read inject: ', inject_rate
+               if(nid.eq.0)write(6,*) 'Read inject: ', inject_rate
             case ('delay')
                read(buffer, *, iostat=ios) time_delay
-               print *, 'Read delay: ', time_delay
+               if(nid.eq.0)write(6,*) 'Read delay: ', time_delay
             case ('seed')
                read(buffer, *, iostat=ios) nrandseed
-               print *, 'Read seed: ', nrandseed
+               if(nid.eq.0)write(6,*) 'Read seed: ', nrandseed
             case ('project')
                read(buffer, *, iostat=ios) npro_method
-               print *, 'Read project: ', npro_method
+               if(nid.eq.0)write(6,*) 'Read project: ', npro_method
             case ('spl')
                read(buffer, *, iostat=ios) rspl
-               print *, 'Read spl: ', rspl
+               if(nid.eq.0)write(6,*) 'Read spl: ', rspl
             case ('filt')
                read(buffer, *, iostat=ios) dfilt
-               print *, 'Read filt: ', dfilt
+               if(nid.eq.0)write(6,*) 'Read filt: ', dfilt
             case ('alpha')
                read(buffer, *, iostat=ios) ralphdecay
-               print *, 'Read alpha: ', ralphdecay
+               if(nid.eq.0)write(6,*) 'Read alpha: ', ralphdecay
             case ('wall_plane')
                np_walls = np_walls + 1
                if (np_walls .gt. n_walls) then
-                  write(6,*) 'Increase max number particle wall plane'
+                  if(nid.eq.0)write(6,*) 
+     >                         'Increase max number particle wall plane'
                   call exitt
                endif
                read(buffer, *, iostat=ios) plane_wall_coords(1,np_walls)
@@ -4505,110 +4506,50 @@ c----------------------------------------------------------------------
      >                                    ,plane_wall_coords(4,np_walls)
      >                                    ,plane_wall_coords(5,np_walls)
      >                                    ,plane_wall_coords(6,np_walls)
-               print *, 'Read wall_plane number ', np_walls
+               if(nid.eq.0)write(6,*) 'Read wall_plane number ',np_walls
             case ('wall_cyl')
                nc_walls = nc_walls + 1
                if (nc_walls .gt. n_walls) then
-                  write(6,*) 'Increase max number particle wall cyl'
+                  if(nid.eq.0)
+     >                write(6,*) 'Increase max number particle wall cyl'
                   call exitt
                endif
                read(buffer, *, iostat=ios) cyl_wall_coords(1,nc_walls)
      >                                    ,cyl_wall_coords(2,nc_walls)
      >                                    ,cyl_wall_coords(3,nc_walls)
      >                                    ,cyl_wall_coords(4,nc_walls)
-               print *, 'Read wall_cyl number ', nc_walls
+               if(nid.eq.0)write(6,*) 'Read wall_cyl number ', nc_walls
             case ('periodicx')
                read(buffer, *, iostat=ios)
-               print *, 'Read periodicx '
+               if(nid.eq.0)write(6,*) 'Read periodicx '
                bc_part(1) = 0
                bc_part(2) = 0
             case ('periodicy')
                read(buffer, *, iostat=ios)
-               print *, 'Read periodicy '
+               if(nid.eq.0)write(6,*) 'Read periodicy '
                bc_part(3) = 0
                bc_part(4) = 0
             case ('periodicz')
                read(buffer, *, iostat=ios)
-               print *, 'Read periodicz '
+               if(nid.eq.0)write(6,*) 'Read periodicz '
                bc_part(5) = 0
                bc_part(6) = 0
             case ('restart')
                read(buffer, *, iostat=ios) ipart_restartr
-               print *, 'Read restart: ', ipart_restartr
+               if(nid.eq.0)write(6,*) 'Read restart: ', ipart_restartr
             case ('spring')
                read(buffer, *, iostat=ios) ksp
-               print *, 'Read spring: ', ksp
+               if(nid.eq.0)write(6,*) 'Read spring: ', ksp
             case ('restitution')
                read(buffer, *, iostat=ios) e_rest
-               print *, 'Read restitution: ', e_rest
+               if(nid.eq.0)write(6,*) 'Read restitution: ', e_rest
             case default
-               print *, 'Skipping invalid label at line', line
+               if(nid.eq.0)write(6,*) 'Skipping label at line', line
             end select
          end if
       enddo
 
       close(fh)
-
-      mu_0   = abs(param(2))
-
-      return
-      end
-c----------------------------------------------------------------------
-      subroutine read_particle_input_old
-      include 'SIZE'
-      include 'INPUT'
-      include 'CMTTIMERS'
-      include 'TSTEP'
-      include 'PARALLEL'
-      include 'CMTPART'
-
-      character*72 dum_str
-
-      open(unit=81,file="particles.inp",form="formatted")
-
-c - - - - PARTICLE PHYSICAL PROPERTIES - - - - - - - - - - - - - - - - 
-      read(81,*) dum_str
-      read(81,*) nw 
-      read(81,*) dp(1), dp(2)
-      read(81,*) tp_0
-      read(81,*) rho_p
-      read(81,*) cp_p
-c - - - - PARTICLE FORCE MODELS - - - - - - - - - - - - - - - - - - - -
-      read(81,*) dum_str
-      read(81,*) part_force(1)
-      read(81,*) part_force(2)
-      read(81,*) part_force(3)
-      read(81,*) part_force(4)
-      read(81,*) part_force(5)
-c - - - - USER OPTIONS - - - - - - - - - - - - - - - - - - - - - - - - 
-      read(81,*) dum_str
-      read(81,*) time_integ
-      read(81,*) two_way
-      read(81,*) red_interp
-      read(81,*) npio_method
-      read(81,*) inject_rate
-      read(81,*) time_delay
-      read(81,*) nrandseed
-c - - - - PROJECTION OPTIONS - - - - - - - - - - - - - - - - - - - - - 
-      read(81,*) dum_str
-      read(81,*) npro_method
-      read(81,*) rspl
-      read(81,*) dfilt
-      read(81,*) ralphdecay
-c - - - - BOUNDARY TREATMENT - - - - - - - - - - - - - - - - - - - - - 
-      read(81,*) dum_str
-      read(81,*) bc_part(1), bc_part(2)
-      read(81,*) bc_part(3), bc_part(4)
-      read(81,*) bc_part(5), bc_part(6)
-c - - - - RESTARTING - - - - - - - - - - - - - - - - - - - - - - - - - 
-      read(81,*) dum_str
-      read(81,*) ipart_restartr
-c - - - - DEM - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      read(81,*) dum_str
-      read(81,*) ksp
-      read(81,*) e_rest
-
-      close(81)
 
       mu_0   = abs(param(2))
 
