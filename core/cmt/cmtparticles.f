@@ -44,7 +44,8 @@ c----------------------------------------------------------------------
       icmtp = idum
 
       call set_part_pointers
-      call read_particle_input
+c     call read_particle_input
+c     call particle_input_init
       call set_bounds_box
       call set_part_params ! n initialized here
       call place_particles
@@ -168,7 +169,6 @@ c           set some rpart values for later use
             else
                rpart(jdp,n) = unif_random(dp(1),dp(2))
             endif
-            write(6,*) rpart(jx,n),rpart(jy,n),rpart(jz,n),rpart(jdp,n)
             rpart(jtaup,n) = rpart(jdp,n)**2*rho_p/18.0d+0/mu_0  ! particle time scale
             rpart(jrhop,n) = rho_p                               ! particle density 
             rpart(jvol,n) = pi*rpart(jdp,n)**3/6.      ! particle volume
@@ -184,6 +184,7 @@ c           set global particle id (3 part tag)
             ipart(jpid1,n) = nid 
             ipart(jpid2,n) = i_pt_part
             ipart(jpid3,n) = icalld
+
          enddo
 
       else
@@ -325,6 +326,8 @@ c     filter width setup (note deltax is implicit in expressions b4 def)
 
       rsig     = dfilt/(2.*sqrt(2.*log(2.))) ! gaussian filter std. * DP
 
+      mu_0   = abs(param(2))
+
       return
       end
 c----------------------------------------------------------------------
@@ -433,7 +436,6 @@ c----------------------------------------------------------------------
       nigp = ligp
       nrf  = lrf
       nif  = lif
-      nw   = 0
       n    = 0
 
 c     ipart pointers ------------------------------------------------
@@ -696,6 +698,7 @@ c
          ii    = floor((rpart(jx,ip)-xdrange(1,1))/rdxgp) 
          jj    = floor((rpart(jy,ip)-xdrange(1,2))/rdygp) 
          kk    = floor((rpart(jz,ip)-xdrange(1,3))/rdzgp) 
+
 
          ! adding wall effects
          rx2(1) = rpart(jx,ip)
@@ -3364,7 +3367,7 @@ c        call output_parallel_lagrangian_parts
       endif
 
       ! Always output restart files
-      call output_parallel_restart_part
+      call output_parallel_restart_part 
 
       pttime(1) = pttime(1) - (dnekclock() - rdumt)
 
@@ -4337,6 +4340,89 @@ c----------------------------------------------------------------------
       return
       end
 c----------------------------------------------------------------------
+      subroutine particle_param_bcast
+      include 'SIZE'
+      include 'PARALLEL'
+      include 'CMTPART'
+
+      call bcast(rxbo , 6*wdsize)
+      call bcast(dp , 2*wdsize)
+      call bcast(dp_std , wdsize)
+      call bcast(tp_0 , wdsize)
+      call bcast(rho_p , wdsize)
+      call bcast(cp_p , wdsize)
+      call bcast(rspl , wdsize)
+      call bcast(dfilt , wdsize)
+      call bcast(ralphdecay , wdsize)
+      call bcast(ksp, wdsize)
+      call bcast(e_rest, wdsize)
+      call bcast(plane_wall_coords, 6*n_walls*wdsize)
+      call bcast(cyl_wall_coords, 6*n_walls*wdsize)
+
+
+      call bcast(nw, isize)
+      call bcast(part_force , 5*isize)
+      call bcast(time_integ , isize)
+      call bcast(two_way , isize)
+      call bcast(red_interp , isize)
+      call bcast(npio_method , isize)
+      call bcast(inject_rate, isize)
+      call bcast(time_delay, isize)
+      call bcast(nrandseed, isize)
+      call bcast(npro_method, isize)
+      call bcast(bc_part, 6*isize)
+      call bcast(ipart_restartr, isize)
+      call bcast(np_walls, isize)
+      call bcast(nc_walls, isize)
+
+      return
+      end
+c----------------------------------------------------------------------
+      subroutine particle_input_init
+      include 'SIZE'
+      include 'CMTPART'
+
+      ! set some defaults
+      nw = 0
+      rxbo(1,1) = -1E8
+      rxbo(2,1) = -1E8
+      rxbo(1,2) = -1E8
+      rxbo(2,2) = -1E8
+      rxbo(1,3) = -1E8
+      rxbo(2,3) = -1E8
+      dp(1) = 0.
+      dp(2) = 0.
+      dp_std = -1.
+      tp_0  = 273.
+      rho_p = 2500.
+      cp_p  = 840.
+      do i=1,5
+         part_force(i) = 0
+      enddo
+      time_integ  = 1
+      two_way     = 1
+      red_interp  = 1
+      npio_method = 1
+      inject_rate = 0
+      time_delay  = 0
+      nrandseed   = 1
+      npro_method = 2
+      rspl        = 1.
+      dfilt       = 2.
+      ralphdecay  = 1E-2
+      do i=1,6
+         bc_part(i) = 1
+      enddo
+      ipart_restartr = 0
+      ksp            = 10.
+      e_rest         = 0.9
+
+      np_walls = 0
+      nc_walls = 0
+
+      return
+      end
+c----------------------------------------------------------------------
       subroutine read_particle_input
       include 'SIZE'
       include 'INPUT'
@@ -4551,7 +4637,6 @@ c----------------------------------------------------------------------
 
       close(fh)
 
-      mu_0   = abs(param(2))
 
       return
       end
@@ -5068,11 +5153,13 @@ c
       common /elementload/ gfirst, inoassignd, resetFindpts, pload(lelg)
       integer gfirst, inoassignd, resetFindpts, pload
 
+
       nmax_step = nsteps  ! number of pre-iteration steps
       ninj_step = 3000
 
       nstage_part = 3
       if (abs(time_integ) .eq. 2) nstage_part = 1
+
 
       ! pre simulation iteration for packed bed
       do istep=0,nmax_step

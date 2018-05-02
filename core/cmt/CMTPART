@@ -101,10 +101,12 @@ c     move particles between procs ----------------------------------
       real    rdxgp, rdygp, rdzgp 
       common /new_gpr/ rdxgp, rdygp, rdzgp
 
-      parameter (n_walls = 20)
+      parameter (n_walls = 49)
+      character*16 mystringpart
       integer np_walls,nc_walls
       real    plane_wall_coords(6,n_walls)
      >       ,cyl_wall_coords(4,n_walls)
 
       common /rbc_part/ plane_wall_coords,cyl_wall_coords
       common /ibc_part/ np_walls,nc_walls
+      common /cbc_part/ mystringpart
