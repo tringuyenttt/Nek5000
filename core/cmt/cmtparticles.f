@@ -3409,17 +3409,19 @@ c----------------------------------------------------------------------
       call vtu_write_dataarray(vtu,"Position    ",3,jx    ,1)
       write(vtu,'(A9)') '</Points>'
 
-      write(vtu,*) '<PointData Vectors="vector">'
-      call vtu_write_dataarray(vtu,"VelocityP   ",3,jv0   ,1)
-      call vtu_write_dataarray(vtu,"VelocityF   ",3,ju0   ,1)
-      call vtu_write_dataarray(vtu,"TemperatureP",1,jtemp ,1)
-      call vtu_write_dataarray(vtu,"TemperatureF",1,jtempf,1)
-      call vtu_write_dataarray(vtu,"RadiusCG    ",1,jrpe  ,1)
-      call vtu_write_dataarray(vtu,"Diameter    ",1,jdp   ,1)
-      call vtu_write_dataarray(vtu,"ID_1        ",1,jpid1 ,0)
-      call vtu_write_dataarray(vtu,"ID_2        ",1,jpid2 ,0)
-      call vtu_write_dataarray(vtu,"ID_3        ",1,jpid3 ,0)
+      write(vtu,*) '<PointData>'
+      call vtu_write_dataarray(vtu,"VelocityP   ",3,0*wdsize)
+      call vtu_write_dataarray(vtu,"VelocityF   ",3,3*wdsize)
+      call vtu_write_dataarray(vtu,"TemperatureP",1,6*wdsize)
+      call vtu_write_dataarray(vtu,"TemperatureF",1,7*wdsize)
+      call vtu_write_dataarray(vtu,"RadiusCG    ",1,8*wdsize)
+      call vtu_write_dataarray(vtu,"Diameter    ",1,9*wdsize1)
+      call vtu_write_dataarray(vtu,"ID_1        ",1,10*wdsize)
+      call vtu_write_dataarray(vtu,"ID_2        ",1,11*wdsize)
+      call vtu_write_dataarray(vtu,"ID_3        ",1,12*wdsize)
       write(vtu,*) '</PointData>'
+
+      write(vtu,*) '<AppendedData encoding="base64/
 
       call vtu_write_endmatter(vtu)
 
@@ -3428,37 +3430,26 @@ c----------------------------------------------------------------------
       return
       end
 c----------------------------------------------------------------------
-      subroutine vtu_write_dataarray(vtu,dataname,ncomp,jloc,iorr)
+      subroutine vtu_write_dataarray(vtu,dataname,ncomp,idist)
       include 'SIZE'
       include 'SOLN'
       include 'INPUT'
       include 'MASS'
       include 'GEOM'
       include 'TSTEP'
+      include 'PARALLEL'
       include 'CMTDATA'
       include 'CMTPART'
 
-      integer vtu,ncomp,jloc,iorr
+      integer vtu,ncomp,idist
       character*12 dataname
 
       write(vtu,*) '<DataArray'
-      write(vtu,*) 'type="Float32"'
+      write(vtu,*) 'type="Float64"'
       write(vtu,'(A6,A12,A1)') 'Name="',dataname,'"'
       write(vtu,'(A20,I1.1,A1)') 'NumberOfComponents="',ncomp,'"'
-      write(vtu,*) 'format="ascii">'
-
-      ndum = ncomp*n
-      do i=1,n
-         do j=0,ncomp-1
-            if (iorr .eq. 0) rdum = real(ipart(jloc+j,i))
-            if (iorr .eq. 1) rdum = rpart(jloc+j,i)
-            write(vtu,'(ES20.12)',advance='no') rdum
-            if (i*(j+1) .eq. ndum) 
-     >      write(vtu,'(ES20.12)',advance='yes') rdum
-         enddo
-      enddo
-
-      write(vtu,*) '</DataArray>'
+      write(vtu,*) 'format="append"'
+      write(vtu,'(A8,I20.20,A2)') 'ofsett="',idist,'">'
 
       return
       end
