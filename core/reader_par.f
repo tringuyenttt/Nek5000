@@ -773,7 +773,7 @@ c set restart options
 
 c set particle options
 #ifdef CMTPART
-      call particle_input_init
+      call particle_input_defaults
 
       call finiparser_getDbl(d_out,'particle:npart',ifnd)
       if(ifnd .eq. 1) then
@@ -823,6 +823,10 @@ c set particle options
       if(ifnd .eq. 1) np_walls = int(d_out)
       call finiparser_getDbl(d_out,'particle:nwallcyl',ifnd)
       if(ifnd .eq. 1) nc_walls = int(d_out)
+      call finiparser_getDbl(d_out,'particle:timestepper',ifnd)
+      if(ifnd .eq. 1) time_integ = int(d_out)
+      call finiparser_getDbl(d_out,'particle:coupling',ifnd)
+      if(ifnd .eq. 1) two_way = int(d_out)
 
       call finiparser_findTokens('particle:distributebox',',',ifnd)
       do i = 1,min(ifnd,15)
@@ -885,30 +889,6 @@ c set particle options
          endif
          if (i.eq.2) dp_std = d_out
       enddo
-      call finiparser_getString(c_out,'particle:timeStepper',ifnd)
-      if (ifnd .eq. 1) then
-        call capit(c_out,132)
-        if (index(c_out,'BDFP') .eq. 1) then
-           time_integ = -2
-        elseif (index(c_out,'BDF') .eq. 1) then
-           time_integ = 2
-        elseif (index(c_out,'RK3P') .eq. 1) then
-           time_integ = -1
-        elseif (index(c_out,'RK3') .eq. 1) then
-           time_integ = 1
-        endif
-      endif
-      call finiparser_getString(c_out,'particle:coupling',ifnd)
-      if (ifnd .eq. 1) then
-        call capit(c_out,132)
-        if (index(c_out,'ONE') .eq. 1) then
-           two_way = 1
-        elseif (index(c_out,'TWO') .eq. 1) then
-           two_way = 2
-        elseif (index(c_out,'FOUR') .eq. 1) then
-           two_way = 4
-        endif
-      endif
 
       call finiparser_getBool(i_out,'particle:interpolation',ifnd)
       if(ifnd .eq. 1) then
@@ -989,6 +969,9 @@ C
       INCLUDE 'ZPER'
       INCLUDE 'ADJOINT'
       INCLUDE 'CVODE'
+#ifdef CMTPART
+      INCLUDE 'CMTPART'
+#endif
 
       call bcast(loglevel, isize)
       call bcast(optlevel, isize)
@@ -1038,7 +1021,35 @@ C
 
       call bcast(initc, 15*132*csize) 
 #ifdef CMTPART
-      call particle_param_bcast
+      call bcast(rxbo , 6*wdsize)
+      call bcast(dp , 2*wdsize)
+      call bcast(dp_std , wdsize)
+      call bcast(tp_0 , wdsize)
+      call bcast(rho_p , wdsize)
+      call bcast(cp_p , wdsize)
+      call bcast(rspl , wdsize)
+      call bcast(dfilt , wdsize)
+      call bcast(ralphdecay , wdsize)
+      call bcast(ksp, wdsize)
+      call bcast(e_rest, wdsize)
+      call bcast(plane_wall_coords, 6*n_walls*wdsize)
+      call bcast(cyl_wall_coords, 6*n_walls*wdsize)
+
+
+      call bcast(nw, isize)
+      call bcast(part_force , 5*isize)
+      call bcast(time_integ , isize)
+      call bcast(two_way , isize)
+      call bcast(red_interp , isize)
+      call bcast(npio_method , isize)
+      call bcast(inject_rate, isize)
+      call bcast(time_delay, isize)
+      call bcast(nrandseed, isize)
+      call bcast(npro_method, isize)
+      call bcast(bc_part, 6*isize)
+      call bcast(ipart_restartr, isize)
+      call bcast(np_walls, isize)
+      call bcast(nc_walls, isize)
 #endif
 
 c set some internals 

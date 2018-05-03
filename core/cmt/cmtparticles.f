@@ -44,8 +44,7 @@ c----------------------------------------------------------------------
       icmtp = idum
 
       call set_part_pointers
-c     call read_particle_input
-c     call particle_input_init
+c     call read_particle_input_par ! for lb code since no par file
       call set_bounds_box
       call set_part_params ! n initialized here
       call place_particles
@@ -3383,6 +3382,153 @@ c----------------------------------------------------------------------
       include 'TSTEP'
       include 'CMTDATA'
       include 'CMTPART'
+
+      character*18 vtufile
+
+      integer icalld
+      save    icalld
+      data    icalld  /0/
+
+      integer vtu
+
+! ----------------------------------------
+! Setup file names to write to mpi
+! ----------------------------------------
+      icalld = icalld+1
+      write(vtufile,'(A9,I5.5,A4)') 'particles', icalld, '.vtu' 
+      nptot = iglsum(n,1)
+
+      vtu=867+nid
+
+
+      open(unit=vtu,file=vtufile)
+
+      call vtu_write_frontmatter(vtu)
+
+      write(vtu,'(A8)') '<Points>'
+      call vtu_write_dataarray(vtu,"Position",3,jx)
+      write(vtu,'(A9)') '</Points>'
+
+      write(vtu,*) '<PointData'
+      write(vtu,*) 'Vectors="Velocity">'
+      call vtu_write_dataarray(vtu,"Velocity",3,jv0)
+      call vtu_write_dataarray(vtu,"Temperat",1,jv0)
+      call vtu_write_dataarray(vtu,"Radius  ",1,jrpe)
+      write(vtu,*) '</PointData>'
+
+      call vtu_write_endmatter(vtu)
+
+      close(vtu)
+
+      return
+      end
+c----------------------------------------------------------------------
+      subroutine vtu_write_dataarray(vtu,dataname,ncomp,jloc)
+      include 'SIZE'
+      include 'SOLN'
+      include 'INPUT'
+      include 'MASS'
+      include 'GEOM'
+      include 'TSTEP'
+      include 'CMTDATA'
+      include 'CMTPART'
+
+      integer vtu,ncomp,jloc
+      character*8 dataname
+
+      write(vtu,*) '<DataArray'
+      write(vtu,*) 'type="Float32"'
+      write(vtu,'(A6,A8,A1)') 'Name="',dataname,'"'
+      write(vtu,'(A20,I1.1,A1)') 'NumberOfComponents="',ncomp,'"'
+      write(vtu,*) 'format="ascii">'
+
+      ndum = ncomp*n
+      do i=1,n
+         do j=0,ncomp-1
+            write(vtu,'(ES20.12)',advance='no') rpart(jloc+j,i)
+            if (i*j .eq. ndum) 
+     >      write(vtu,'(ES20.12)',advance='yes') rpart(jloc+j,i)
+         enddo
+      enddo
+
+      write(vtu,*) '</DataArray>'
+
+      return
+      end
+c----------------------------------------------------------------------
+      subroutine vtu_write_endmatter(vtu)
+      include 'SIZE'
+      include 'SOLN'
+      include 'INPUT'
+      include 'MASS'
+      include 'GEOM'
+      include 'TSTEP'
+      include 'CMTDATA'
+      include 'CMTPART'
+
+      integer vtu
+
+      write(vtu,*) '</PointData>'
+      write(vtu,*) '<Cells>'
+      write(vtu,*) '<DataArray '
+      write(vtu,*) 'type="Int32" '
+      write(vtu,*) 'Name="connectivity" '
+      write(vtu,*) 'format="ascii">'
+      write(vtu,*) '</DataArray>'
+      write(vtu,*) '<DataArray '
+      write(vtu,*) 'type="Int32" '
+      write(vtu,*) 'Name="offsets" '
+      write(vtu,*) 'format="ascii">'
+      write(vtu,*) '</DataArray>'
+      write(vtu,*) '<DataArray '
+      write(vtu,*) 'type="Int32" '
+      write(vtu,*) 'Name="types" '
+      write(vtu,*) 'format="ascii">'
+      write(vtu,*) '</DataArray>'
+      write(vtu,*) '</Cells>'
+      write(vtu,*) '</Piece>'
+      write(vtu,*) '</UnstructuredGrid>'
+      write(vtu,*) '</VTKFile>'
+
+      return
+      end
+c----------------------------------------------------------------------
+      subroutine vtu_write_frontmatter(vtu)
+      include 'SIZE'
+      include 'SOLN'
+      include 'INPUT'
+      include 'MASS'
+      include 'GEOM'
+      include 'TSTEP'
+      include 'CMTDATA'
+      include 'CMTPART'
+
+      integer vtu
+
+      write(vtu,*) '<VTKFile'
+      write(vtu,*) 'type="UnstructuredGrid"'
+      write(vtu,*) 'version="0.1"'
+      write(vtu,*) 'byte_order="LittleEndian"'
+      write(vtu,*) '>'
+
+      write(vtu,*) '<UnstructuredGrid>'
+      write(vtu,*) '<Piece'
+      write(vtu,'(A16,I10.10,A1)') 'NumberOfPoints="',n,'"'
+      write(vtu,*) 'NumberOfCells="0"'
+      write(vtu,*) '>'
+
+      return
+      end
+c----------------------------------------------------------------------
+      subroutine output_parallel_restart_part_old
+      include 'SIZE'
+      include 'SOLN'
+      include 'INPUT'
+      include 'MASS'
+      include 'GEOM'
+      include 'TSTEP'
+      include 'CMTDATA'
+      include 'CMTPART'
       include 'mpif.h'
 
       common /nekmpi/ mid,np,nekcomm,nekgroup,nekreal
@@ -4340,45 +4486,7 @@ c----------------------------------------------------------------------
       return
       end
 c----------------------------------------------------------------------
-      subroutine particle_param_bcast
-      include 'SIZE'
-      include 'PARALLEL'
-      include 'CMTPART'
-
-      call bcast(rxbo , 6*wdsize)
-      call bcast(dp , 2*wdsize)
-      call bcast(dp_std , wdsize)
-      call bcast(tp_0 , wdsize)
-      call bcast(rho_p , wdsize)
-      call bcast(cp_p , wdsize)
-      call bcast(rspl , wdsize)
-      call bcast(dfilt , wdsize)
-      call bcast(ralphdecay , wdsize)
-      call bcast(ksp, wdsize)
-      call bcast(e_rest, wdsize)
-      call bcast(plane_wall_coords, 6*n_walls*wdsize)
-      call bcast(cyl_wall_coords, 6*n_walls*wdsize)
-
-
-      call bcast(nw, isize)
-      call bcast(part_force , 5*isize)
-      call bcast(time_integ , isize)
-      call bcast(two_way , isize)
-      call bcast(red_interp , isize)
-      call bcast(npio_method , isize)
-      call bcast(inject_rate, isize)
-      call bcast(time_delay, isize)
-      call bcast(nrandseed, isize)
-      call bcast(npro_method, isize)
-      call bcast(bc_part, 6*isize)
-      call bcast(ipart_restartr, isize)
-      call bcast(np_walls, isize)
-      call bcast(nc_walls, isize)
-
-      return
-      end
-c----------------------------------------------------------------------
-      subroutine particle_input_init
+      subroutine particle_input_defaults
       include 'SIZE'
       include 'CMTPART'
 
@@ -4423,7 +4531,7 @@ c----------------------------------------------------------------------
       return
       end
 c----------------------------------------------------------------------
-      subroutine read_particle_input
+      subroutine read_particle_input_par
       include 'SIZE'
       include 'INPUT'
       include 'CMTTIMERS'
@@ -4437,48 +4545,12 @@ c----------------------------------------------------------------------
       integer pos, fh, ios, line, dum
       parameter(fh = 15)
 
+      call particle_input_defaults
+
       ios  = 0
       line = 0
 
-      ! set some defaults
-      nw = 0
-      rxbo(1,1) = -1E8
-      rxbo(2,1) = -1E8
-      rxbo(1,2) = -1E8
-      rxbo(2,2) = -1E8
-      rxbo(1,3) = -1E8
-      rxbo(2,3) = -1E8
-      dp(1) = 0.
-      dp(2) = 0.
-      dp_std = -1.
-      tp_0  = 273.
-      rho_p = 2500.
-      cp_p  = 840.
-      do i=1,5
-         part_force(i) = 0
-      enddo
-      time_integ  = 1
-      two_way     = 1
-      red_interp  = 1
-      npio_method = 1
-      inject_rate = 0
-      time_delay  = 0
-      nrandseed   = 1
-      npro_method = 2
-      rspl        = 1.
-      dfilt       = 2.
-      ralphdecay  = 1E-2
-      do i=1,6
-         bc_part(i) = 1
-      enddo
-      ipart_restartr = 0
-      ksp            = 10.
-      e_rest         = 0.9
-
-      np_walls = 0
-      nc_walls = 0
-
-      open(fh, file='particles.inp')
+      open(fh, file='particles.par')
  
       do while (ios == 0)
          read(fh, '(A)', iostat=ios) buffer
@@ -4486,154 +4558,207 @@ c----------------------------------------------------------------------
             line = line + 1
       
             ! Find the first instance of whitespace.  Split label and data.
-            pos = scan(buffer, '    ')
+            pos = scan(buffer, '=')
             label = buffer(1:pos)
             buffer = buffer(pos+1:)
       
             select case (label)
-            case ('npart')
+            case ('npart =')
                read(buffer, *, iostat=ios) nw
                if(nid.eq.0)write(6,*) 'Read npart: ', nw
-            case ('distrib_box')
+            case ('distributebox =')
                read(buffer, *, iostat=ios) rxbo(1,1),rxbo(2,1),
      >                                     rxbo(1,2),rxbo(2,2),
      >                                     rxbo(1,3),rxbo(2,3)
-               if(nid.eq.0)write(6,*) 'Read distrib_box '
-            case ('distrib_cylz')
+               if(nid.eq.0)write(6,*) 'Read distributebox '
+            case ('distributecylz =')
                read(buffer, *, iostat=ios) rxbo(1,1),rxbo(2,1),
      >                                     rxbo(1,2),rxbo(2,2)
-               if(nid.eq.0)write(6,*) 'Read distrib_cylz '
-            case ('distrib_cylx')
+               if(nid.eq.0)write(6,*) 'Read distributecylz '
+            case ('distributecylx =')
                read(buffer, *, iostat=ios) rxbo(1,2),rxbo(2,2),
      >                                     rxbo(1,3),rxbo(2,3)
-               if(nid.eq.0)write(6,*) 'Read distrib_cylx '
-            case ('distrib_cyly')
+               if(nid.eq.0)write(6,*) 'Read distributecylx '
+            case ('distributecyly =')
                read(buffer, *, iostat=ios) rxbo(1,3),rxbo(2,3),
      >                                     rxbo(1,1),rxbo(2,1)
-               if(nid.eq.0)write(6,*) 'Read distrib_cyly '
-            case ('diam')
+               if(nid.eq.0)write(6,*) 'Read distributecyly '
+            case ('diameter =')
                read(buffer, *, iostat=ios) dp(1)
-               if(nid.eq.0)write(6,*) 'Read diam: ', dp(1)
+               if(nid.eq.0)write(6,*) 'Read diameter: ', dp(1)
                dp(2) = dp(1)
-            case ('diam_ur')
+            case ('diameteruniform =')
                read(buffer, *, iostat=ios) dp(1), dp(2)
-               if(nid.eq.0)write(6,*) 'Read diam_ur: ', dp(1), dp(2)
-            case ('diam_gauss')
+               if(nid.eq.0)write(6,*) 'Read diameteruniform: ', 
+     >                         dp(1), dp(2)
+            case ('diametergaussian =')
                read(buffer, *, iostat=ios) dp(1), dp_std
-               if(nid.eq.0)write(6,*) 'Read diam_gauss: ', dp(1), dp_std
+               if(nid.eq.0)write(6,*) 'Read diametergaussian: ', 
+     >                         dp(1), dp_std
                dp(2) = dp(1)
-            case ('temp')
+            case ('temperature =')
                read(buffer, *, iostat=ios) tp_0
-               if(nid.eq.0)write(6,*) 'Read temp: ', tp_0
-            case ('dens')
+               if(nid.eq.0)write(6,*) 'Read temperature: ', tp_0
+            case ('density =')
                read(buffer, *, iostat=ios) rho_p
-               if(nid.eq.0)write(6,*) 'Read dens: ', rho_p
-            case ('cp')
+               if(nid.eq.0)write(6,*) 'Read density: ', rho_p
+            case ('specificheat =')
                read(buffer, *, iostat=ios) cp_p
-               if(nid.eq.0)write(6,*) 'Read cp: ', cp_p
-            case ('force_qs')
+               if(nid.eq.0)write(6,*) 'Read specificheat: ', cp_p
+            case ('forceqs =')
                read(buffer, *, iostat=ios) part_force(1)
-               if(nid.eq.0)write(6,*) 'Read force_qs: ', part_force(1)
-            case ('force_un')
+               if(nid.eq.0)write(6,*) 'Read forceqs: ', part_force(1)
+            case ('forceun =')
                read(buffer, *, iostat=ios) part_force(2)
-               if(nid.eq.0)write(6,*) 'Read force_un: ', part_force(2)
-            case ('force_iu')
+               if(nid.eq.0)write(6,*) 'Read forceun: ', part_force(2)
+            case ('forceiu =')
                read(buffer, *, iostat=ios) part_force(3)
-               if(nid.eq.0)write(6,*) 'Read force_iu: ', part_force(3)
-            case ('heat_qs')
+               if(nid.eq.0)write(6,*) 'Read forceiu: ', part_force(3)
+            case ('heatqs =')
                read(buffer, *, iostat=ios) part_force(4)
-               if(nid.eq.0)write(6,*) 'Read heat_qs: ', part_force(4)
-            case ('heat_un')
+               if(nid.eq.0)write(6,*) 'Read heatqs: ', part_force(4)
+            case ('heatun =')
                read(buffer, *, iostat=ios) part_force(5)
-               if(nid.eq.0)write(6,*) 'Read heat_un: ', part_force(5)
-            case ('integrate')
+               if(nid.eq.0)write(6,*) 'Read heatun: ', part_force(5)
+            case ('timestepper =') 
                read(buffer, *, iostat=ios) time_integ
-               if(nid.eq.0)write(6,*) 'Read integrate: ', time_integ
-            case ('coupling')
+               if(nid.eq.0)write(6,*) 'Read timestepper: ', time_integ
+            case ('coupling =') 
                read(buffer, *, iostat=ios) two_way
                if(nid.eq.0)write(6,*) 'Read coupling: ', two_way
-            case ('interp')
+            case ('interpolation') 
                read(buffer, *, iostat=ios) red_interp
-               if(nid.eq.0)write(6,*) 'Read interp: ', red_interp
-            case ('io')
+               if(nid.eq.0)write(6,*) 'Read interpolation: ', red_interp
+            case ('io =')
                read(buffer, *, iostat=ios) npio_method
                if(nid.eq.0)write(6,*) 'Read io: ', npio_method
-            case ('inject')
+            case ('injectionstep =')
                read(buffer, *, iostat=ios) inject_rate
-               if(nid.eq.0)write(6,*) 'Read inject: ', inject_rate
-            case ('delay')
+               if(nid.eq.0)write(6,*) 'Read injectionstep: ',inject_rate
+            case ('delaystep =')
                read(buffer, *, iostat=ios) time_delay
-               if(nid.eq.0)write(6,*) 'Read delay: ', time_delay
-            case ('seed')
+               if(nid.eq.0)write(6,*) 'Read delaystep: ', time_delay
+            case ('seed =')
                read(buffer, *, iostat=ios) nrandseed
                if(nid.eq.0)write(6,*) 'Read seed: ', nrandseed
-            case ('project')
+            case ('projection =')
                read(buffer, *, iostat=ios) npro_method
-               if(nid.eq.0)write(6,*) 'Read project: ', npro_method
-            case ('spl')
+               if(nid.eq.0)write(6,*) 'Read projection: ', npro_method
+            case ('coarsegrain =')
                read(buffer, *, iostat=ios) rspl
-               if(nid.eq.0)write(6,*) 'Read spl: ', rspl
-            case ('filt')
+               if(nid.eq.0)write(6,*) 'Read coarsegrain: ', rspl
+            case ('filter =')
                read(buffer, *, iostat=ios) dfilt
-               if(nid.eq.0)write(6,*) 'Read filt: ', dfilt
-            case ('alpha')
+               if(nid.eq.0)write(6,*) 'Read filter: ', dfilt
+            case ('alpha =')
                read(buffer, *, iostat=ios) ralphdecay
                if(nid.eq.0)write(6,*) 'Read alpha: ', ralphdecay
-            case ('wall_plane')
-               np_walls = np_walls + 1
-               if (np_walls .gt. n_walls) then
-                  if(nid.eq.0)write(6,*) 
-     >                         'Increase max number particle wall plane'
-                  call exitt
-               endif
-               read(buffer, *, iostat=ios) plane_wall_coords(1,np_walls)
-     >                                    ,plane_wall_coords(2,np_walls)
-     >                                    ,plane_wall_coords(3,np_walls)
-     >                                    ,plane_wall_coords(4,np_walls)
-     >                                    ,plane_wall_coords(5,np_walls)
-     >                                    ,plane_wall_coords(6,np_walls)
-               if(nid.eq.0)write(6,*) 'Read wall_plane number ',np_walls
-            case ('wall_cyl')
-               nc_walls = nc_walls + 1
-               if (nc_walls .gt. n_walls) then
-                  if(nid.eq.0)
-     >                write(6,*) 'Increase max number particle wall cyl'
-                  call exitt
-               endif
-               read(buffer, *, iostat=ios) cyl_wall_coords(1,nc_walls)
-     >                                    ,cyl_wall_coords(2,nc_walls)
-     >                                    ,cyl_wall_coords(3,nc_walls)
-     >                                    ,cyl_wall_coords(4,nc_walls)
-               if(nid.eq.0)write(6,*) 'Read wall_cyl number ', nc_walls
-            case ('periodicx')
+
+            case ('wallp01 =') 
+                goto 1511
+            case ('wallp02 =') 
+                goto 1511
+            case ('wallp03 =') 
+                goto 1511
+            case ('wallp04 =') 
+                goto 1511
+            case ('wallp05 =') 
+                goto 1511
+            case ('wallp06 =') 
+                goto 1511
+            case ('wallp07 =') 
+                goto 1511
+            case ('wallp08 =') 
+                goto 1511
+            case ('wallp09 =') 
+                goto 1511
+            case ('wallc01 =') 
+                goto 1512
+            case ('wallc02 =') 
+                goto 1512
+            case ('wallc03 =') 
+                goto 1512
+            case ('wallc04 =') 
+                goto 1512
+            case ('wallc05 =') 
+                goto 1512
+            case ('wallc06 =') 
+                goto 1512
+            case ('wallc07 =') 
+                goto 1512
+            case ('wallc08 =') 
+                goto 1512
+            case ('wallc09 =') 
+                goto 1512
+            case ('periodicx =')
                read(buffer, *, iostat=ios)
                if(nid.eq.0)write(6,*) 'Read periodicx '
                bc_part(1) = 0
                bc_part(2) = 0
-            case ('periodicy')
+            case ('periodicy =')
                read(buffer, *, iostat=ios)
                if(nid.eq.0)write(6,*) 'Read periodicy '
                bc_part(3) = 0
                bc_part(4) = 0
-            case ('periodicz')
+            case ('periodicz =')
                read(buffer, *, iostat=ios)
                if(nid.eq.0)write(6,*) 'Read periodicz '
                bc_part(5) = 0
                bc_part(6) = 0
-            case ('restart')
+            case ('restartstep =')
                read(buffer, *, iostat=ios) ipart_restartr
-               if(nid.eq.0)write(6,*) 'Read restart: ', ipart_restartr
-            case ('spring')
+               if(nid.eq.0)write(6,*)'Read restartstep: ',ipart_restartr
+            case ('spring =')
                read(buffer, *, iostat=ios) ksp
                if(nid.eq.0)write(6,*) 'Read spring: ', ksp
-            case ('restitution')
+            case ('restitution =')
                read(buffer, *, iostat=ios) e_rest
                if(nid.eq.0)write(6,*) 'Read restitution: ', e_rest
             case default
                if(nid.eq.0)write(6,*) 'Skipping label at line', line
+ 1514 continue
             end select
+      ! keep reading
          end if
       enddo
+
+      ! finished reading
+      goto 1513
+
+      ! adding a wall plane
+ 1511 continue
+       np_walls = np_walls + 1
+       if (np_walls .gt. n_walls) then
+          if(nid.eq.0)write(6,*) 
+     >                 'Increase max number particle wall plane'
+          call exitt
+       endif
+       read(buffer, *, iostat=ios) plane_wall_coords(1,np_walls)
+     >                            ,plane_wall_coords(2,np_walls)
+     >                            ,plane_wall_coords(3,np_walls)
+     >                            ,plane_wall_coords(4,np_walls)
+     >                            ,plane_wall_coords(5,np_walls)
+     >                            ,plane_wall_coords(6,np_walls)
+       if(nid.eq.0)write(6,*) 'Read wall_plane number ',np_walls
+       goto 1514
+
+      ! adding a wall cylinder
+ 1512 continue
+       nc_walls = nc_walls + 1
+       if (nc_walls .gt. n_walls) then
+          if(nid.eq.0)
+     >        write(6,*) 'Increase max number particle wall cyl'
+          call exitt
+       endif
+       read(buffer, *, iostat=ios) cyl_wall_coords(1,nc_walls)
+     >                            ,cyl_wall_coords(2,nc_walls)
+     >                            ,cyl_wall_coords(3,nc_walls)
+     >                            ,cyl_wall_coords(4,nc_walls)
+       if(nid.eq.0)write(6,*) 'Read wall_cyl number ', nc_walls
+       goto 1514
+
+      ! upon exit
+ 1513 continue
 
       close(fh)
 
