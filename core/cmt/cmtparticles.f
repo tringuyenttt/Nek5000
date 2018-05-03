@@ -3406,14 +3406,19 @@ c----------------------------------------------------------------------
       call vtu_write_frontmatter(vtu)
 
       write(vtu,'(A8)') '<Points>'
-      call vtu_write_dataarray(vtu,"Position",3,jx)
+      call vtu_write_dataarray(vtu,"Position    ",3,jx    ,1)
       write(vtu,'(A9)') '</Points>'
 
-      write(vtu,*) '<PointData'
-      write(vtu,*) 'Vectors="Velocity">'
-      call vtu_write_dataarray(vtu,"Velocity",3,jv0)
-      call vtu_write_dataarray(vtu,"Temperat",1,jv0)
-      call vtu_write_dataarray(vtu,"Radius  ",1,jrpe)
+      write(vtu,*) '<PointData>'
+      call vtu_write_dataarray(vtu,"VelocityP   ",3,jv0   ,1)
+      call vtu_write_dataarray(vtu,"VelocityF   ",3,ju0   ,1)
+      call vtu_write_dataarray(vtu,"TemperatureP",1,jtemp ,1)
+      call vtu_write_dataarray(vtu,"TemperatureF",1,jtempf,1)
+      call vtu_write_dataarray(vtu,"RadiusCG    ",1,jrpe  ,1)
+      call vtu_write_dataarray(vtu,"Diameter    ",1,jdp   ,1)
+      call vtu_write_dataarray(vtu,"ID_1        ",1,jpid1 ,0)
+      call vtu_write_dataarray(vtu,"ID_2        ",1,jpid2 ,0)
+      call vtu_write_dataarray(vtu,"ID_3        ",1,jpid3 ,0)
       write(vtu,*) '</PointData>'
 
       call vtu_write_endmatter(vtu)
@@ -3423,7 +3428,7 @@ c----------------------------------------------------------------------
       return
       end
 c----------------------------------------------------------------------
-      subroutine vtu_write_dataarray(vtu,dataname,ncomp,jloc)
+      subroutine vtu_write_dataarray(vtu,dataname,ncomp,jloc,iorr)
       include 'SIZE'
       include 'SOLN'
       include 'INPUT'
@@ -3433,8 +3438,8 @@ c----------------------------------------------------------------------
       include 'CMTDATA'
       include 'CMTPART'
 
-      integer vtu,ncomp,jloc
-      character*8 dataname
+      integer vtu,ncomp,jloc,iorr
+      character*12 dataname
 
       write(vtu,*) '<DataArray'
       write(vtu,*) 'type="Float32"'
@@ -3445,9 +3450,11 @@ c----------------------------------------------------------------------
       ndum = ncomp*n
       do i=1,n
          do j=0,ncomp-1
-            write(vtu,'(ES20.12)',advance='no') rpart(jloc+j,i)
+            if (iorr .eq. 0) rdum = real(ipart(jloc+j,i))
+            if (iorr .eq. 1) rdum = rpart(jloc+j,i)
+            write(vtu,'(ES20.12)',advance='no') rdum
             if (i*j .eq. ndum) 
-     >      write(vtu,'(ES20.12)',advance='yes') rpart(jloc+j,i)
+     >      write(vtu,'(ES20.12)',advance='yes') rdum
          enddo
       enddo
 
@@ -3468,7 +3475,6 @@ c----------------------------------------------------------------------
 
       integer vtu
 
-      write(vtu,*) '</PointData>'
       write(vtu,*) '<Cells>'
       write(vtu,*) '<DataArray '
       write(vtu,*) 'type="Int32" '
@@ -3486,6 +3492,7 @@ c----------------------------------------------------------------------
       write(vtu,*) 'format="ascii">'
       write(vtu,*) '</DataArray>'
       write(vtu,*) '</Cells>'
+
       write(vtu,*) '</Piece>'
       write(vtu,*) '</UnstructuredGrid>'
       write(vtu,*) '</VTKFile>'
