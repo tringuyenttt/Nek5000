@@ -3409,7 +3409,7 @@ c----------------------------------------------------------------------
       call vtu_write_dataarray(vtu,"Position    ",3,jx    ,1)
       write(vtu,'(A9)') '</Points>'
 
-      write(vtu,*) '<PointData>'
+      write(vtu,*) '<PointData Vectors="vector">'
       call vtu_write_dataarray(vtu,"VelocityP   ",3,jv0   ,1)
       call vtu_write_dataarray(vtu,"VelocityF   ",3,ju0   ,1)
       call vtu_write_dataarray(vtu,"TemperatureP",1,jtemp ,1)
@@ -3443,7 +3443,7 @@ c----------------------------------------------------------------------
 
       write(vtu,*) '<DataArray'
       write(vtu,*) 'type="Float32"'
-      write(vtu,'(A6,A8,A1)') 'Name="',dataname,'"'
+      write(vtu,'(A6,A12,A1)') 'Name="',dataname,'"'
       write(vtu,'(A20,I1.1,A1)') 'NumberOfComponents="',ncomp,'"'
       write(vtu,*) 'format="ascii">'
 
@@ -3453,7 +3453,7 @@ c----------------------------------------------------------------------
             if (iorr .eq. 0) rdum = real(ipart(jloc+j,i))
             if (iorr .eq. 1) rdum = rpart(jloc+j,i)
             write(vtu,'(ES20.12)',advance='no') rdum
-            if (i*j .eq. ndum) 
+            if (i*(j+1) .eq. ndum) 
      >      write(vtu,'(ES20.12)',advance='yes') rdum
          enddo
       enddo
