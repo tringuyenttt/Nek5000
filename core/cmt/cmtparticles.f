@@ -3329,7 +3329,7 @@ c     output diagnostics to logfile
 
 c     output particle  information
       if     (abs(npio_method) .eq. 1) then
-         call output_parallel_lagrangian_parts
+c        call output_parallel_lagrangian_parts
 
       elseif (abs(npio_method) .eq. 2) then
 c        call output_parallel_lagrangian_parts
@@ -3380,52 +3380,215 @@ c----------------------------------------------------------------------
       include 'MASS'
       include 'GEOM'
       include 'TSTEP'
+      include 'PARALLEL'
       include 'CMTDATA'
       include 'CMTPART'
 
-      character*18 vtufile
+      common /myparth/ i_fp_hndl, i_cr_hndl
+
+      character*20 vtufile
+      character*50 dumstr
 
       integer icalld
       save    icalld
       data    icalld  /0/
 
-      integer vtu
+      integer vtu,prevs(2,np)
+      integer*4 iint
+      real stride_len
+
+      do i=1,np
+         prevs(1,i) = i-1
+         prevs(2,i) = n
+      enddo
+
+      nps   = 1 ! index of new proc for doing stuff
+      nglob = 1 ! unique key to sort by
+      nkey  = 1 ! number of keys (just 1 here)
+      ndum = 2
+      call fgslib_crystal_ituple_transfer(i_cr_hndl,prevs,
+     >                 ndum,np,np,nps)
+      call fgslib_crystal_ituple_sort(i_cr_hndl,prevs,
+     >                 ndum,np,nglob,nkey)
+
+      stride_len = 0
+      if (nid .ne. 0) then
+      do i=1,nid
+         stride_len = stride_len + prevs(2,i)
+      enddo
+      endif
+
+      do i = 1,n
+         idum = int((stride_len + i)/llpart)
+         ipart(jps,i) = idum
+      enddo
+      nl = 0
+      call fgslib_crystal_tuple_transfer(i_cr_hndl,n,llpart
+     >                  , ipart,ni,partl,nl,rpart,nr,jps)
+
+
+
+c     nptot = iglsum(n,1)
+c     npmax_set = int(nptot/llpart) + 1 ! use as few procs as possible
+c     npmax = np
+c     if (npmax .gt. npmax_set) npmax = npmax_set
 
 ! ----------------------------------------
 ! Setup file names to write to mpi
 ! ----------------------------------------
       icalld = icalld+1
-      write(vtufile,'(A9,I5.5,A4)') 'particles', icalld, '.vtu' 
-      nptot = iglsum(n,1)
+
+      if (n .gt. 0) then
+      write(vtufile,'(A4,I5.5,A2,I5.5,A4)')'part',icalld,'_p',nid,'.vtu'
+c     write(vtufile,'(A4,I5.5,A4)')'part',icalld,'.vtu'
+
 
       vtu=867+nid
 
 
-      open(unit=vtu,file=vtufile)
+      open(unit=vtu,file=vtufile,status='replace',
+     >             access='stream',form="unformatted")
 
-      call vtu_write_frontmatter(vtu)
+! ------------
+! FRONT MATTER
+! ------------
+      write(vtu) '<VTKFile '
+      write(vtu) 'type="UnstructuredGrid" '
+      write(vtu) 'version="0.1"> '
 
-      write(vtu,'(A8)') '<Points>'
-      call vtu_write_dataarray(vtu,"Position    ",3,jx    ,1)
-      write(vtu,'(A9)') '</Points>'
+      write(vtu) '<UnstructuredGrid> '
+      write(vtu) '<Piece '
+      write(dumstr,'(A16,I0,A2)') 'NumberOfPoints="',n,'" '
+      write(vtu) trim(dumstr), ' '
+      write(vtu) 'NumberOfCells="0"> '
 
-      write(vtu,*) '<PointData>'
-      call vtu_write_dataarray(vtu,"VelocityP   ",3,0*wdsize)
-      call vtu_write_dataarray(vtu,"VelocityF   ",3,3*wdsize)
-      call vtu_write_dataarray(vtu,"TemperatureP",1,6*wdsize)
-      call vtu_write_dataarray(vtu,"TemperatureF",1,7*wdsize)
-      call vtu_write_dataarray(vtu,"RadiusCG    ",1,8*wdsize)
-      call vtu_write_dataarray(vtu,"Diameter    ",1,9*wdsize1)
-      call vtu_write_dataarray(vtu,"ID_1        ",1,10*wdsize)
-      call vtu_write_dataarray(vtu,"ID_2        ",1,11*wdsize)
-      call vtu_write_dataarray(vtu,"ID_3        ",1,12*wdsize)
-      write(vtu,*) '</PointData>'
+! -----------
+! COORDINATES 
+! -----------
+      write(vtu) '<Points> '
+      iint = 0
+      call vtu_write_dataarray(vtu,"Position    ",3,iint)
+      write(vtu) '</Points> '
 
-      write(vtu,*) '<AppendedData encoding="base64/
+! ----
+! DATA 
+! ----
+      write(vtu) '<PointData> '
+      iint = iint + 3*wdsize*n + isize
+      call vtu_write_dataarray(vtu,"VelocityP   ",3,iint)
+      iint = iint + 3*wdsize*n + isize
+      call vtu_write_dataarray(vtu,"VelocityF   ",3,iint)
+      iint = iint + 3*wdsize*n + isize
+      call vtu_write_dataarray(vtu,"TemperatureP",1,iint)
+      iint = iint + 1*wdsize*n + isize
+      call vtu_write_dataarray(vtu,"TemperatureF",1,iint)
+      iint = iint + 1*wdsize*n + isize
+      call vtu_write_dataarray(vtu,"RadiusCG    ",1,iint)
+      iint = iint + 1*wdsize*n + isize
+      call vtu_write_dataarray(vtu,"Diameter    ",1,iint)
+      iint = iint + 1*wdsize*n + isize
+      call vtu_write_dataarray(vtu,"ID_1        ",1,iint)
+      iint = iint + 1*wdsize*n + isize
+      call vtu_write_dataarray(vtu,"ID_2        ",1,iint)
+      iint = iint + 1*wdsize*n + isize
+      call vtu_write_dataarray(vtu,"ID_3        ",1,iint)
+      write(vtu) '</PointData> '
 
-      call vtu_write_endmatter(vtu)
+! ----------
+! END MATTER
+! ----------
+      write(vtu) '<Cells> '
+      write(vtu) '<DataArray '
+      write(vtu) 'type="Int32" '
+      write(vtu) 'Name="connectivity" '
+      write(vtu) 'format="ascii"> '
+      write(vtu) '</DataArray> '
+      write(vtu) '<DataArray '
+      write(vtu) 'type="Int32" '
+      write(vtu) 'Name="offsets" '
+      write(vtu) 'format="ascii"> '
+      write(vtu) '</DataArray> '
+      write(vtu) '<DataArray '
+      write(vtu) 'type="Int32" '
+      write(vtu) 'Name="types" '
+      write(vtu) 'format="ascii"> '
+      write(vtu) '</DataArray> '
+      write(vtu) '</Cells> '
+      write(vtu) '</Piece> '
+      write(vtu) '</UnstructuredGrid> '
+
+! -----------
+! APPEND DATA  
+! -----------
+      write(vtu) '<AppendedData encoding="raw"> _'
+
+      iint=3*wdsize*n
+      write(vtu) iint
+      do i=1,n
+         write(vtu) rpart(jx,i)
+         write(vtu) rpart(jy,i)
+         write(vtu) rpart(jz,i)
+      enddo
+      iint=3*wdsize*n
+      write(vtu) iint
+      do i=1,n
+         write(vtu) rpart(jv0,i)
+         write(vtu) rpart(jv0+1,i)
+         write(vtu) rpart(jv0+2,i)
+      enddo
+      iint=3*wdsize*n
+      write(vtu) iint
+      do i=1,n
+         write(vtu) rpart(ju0,i)
+         write(vtu) rpart(ju0+1,i)
+         write(vtu) rpart(ju0+2,i)
+      enddo
+      iint=1*wdsize*n
+      write(vtu) iint
+      do i=1,n
+         write(vtu) rpart(jtemp,i)
+      enddo
+      iint=1*wdsize*n
+      write(vtu) iint
+      do i=1,n
+         write(vtu) rpart(jtempf,i)
+      enddo
+      iint=1*wdsize*n
+      write(vtu) iint
+      do i=1,n
+         write(vtu) rpart(jrpe,i)
+      enddo
+      iint=1*wdsize*n
+      write(vtu) iint
+      do i=1,n
+         write(vtu) rpart(jdp,i)
+      enddo
+      iint=1*wdsize*n
+      write(vtu) iint
+      do i=1,n
+         rdum = real(int(ipart(jpid1,i)))
+         write(vtu) rdum
+      enddo
+      iint=1*wdsize*n
+      write(vtu) iint
+      do i=1,n
+         rdum = real(int(ipart(jpid2,i)))
+         write(vtu) rdum
+      enddo
+      iint=1*wdsize*n
+      write(vtu) iint
+      do i=1,n
+         rdum = real(int(ipart(jpid3,i)))
+         write(vtu) rdum
+      enddo
+
+      write(vtu) ' </AppendedData> '
+      write(vtu) '</VTKFile> '
 
       close(vtu)
+      endif
+
+      call move_particles_inproc
 
       return
       end
@@ -3441,79 +3604,20 @@ c----------------------------------------------------------------------
       include 'CMTDATA'
       include 'CMTPART'
 
-      integer vtu,ncomp,idist
+      integer vtu,ncomp
+      integer*4 idist
       character*12 dataname
+      character*50 dumstr
 
-      write(vtu,*) '<DataArray'
-      write(vtu,*) 'type="Float64"'
-      write(vtu,'(A6,A12,A1)') 'Name="',dataname,'"'
-      write(vtu,'(A20,I1.1,A1)') 'NumberOfComponents="',ncomp,'"'
-      write(vtu,*) 'format="append"'
-      write(vtu,'(A8,I20.20,A2)') 'ofsett="',idist,'">'
-
-      return
-      end
-c----------------------------------------------------------------------
-      subroutine vtu_write_endmatter(vtu)
-      include 'SIZE'
-      include 'SOLN'
-      include 'INPUT'
-      include 'MASS'
-      include 'GEOM'
-      include 'TSTEP'
-      include 'CMTDATA'
-      include 'CMTPART'
-
-      integer vtu
-
-      write(vtu,*) '<Cells>'
-      write(vtu,*) '<DataArray '
-      write(vtu,*) 'type="Int32" '
-      write(vtu,*) 'Name="connectivity" '
-      write(vtu,*) 'format="ascii">'
-      write(vtu,*) '</DataArray>'
-      write(vtu,*) '<DataArray '
-      write(vtu,*) 'type="Int32" '
-      write(vtu,*) 'Name="offsets" '
-      write(vtu,*) 'format="ascii">'
-      write(vtu,*) '</DataArray>'
-      write(vtu,*) '<DataArray '
-      write(vtu,*) 'type="Int32" '
-      write(vtu,*) 'Name="types" '
-      write(vtu,*) 'format="ascii">'
-      write(vtu,*) '</DataArray>'
-      write(vtu,*) '</Cells>'
-
-      write(vtu,*) '</Piece>'
-      write(vtu,*) '</UnstructuredGrid>'
-      write(vtu,*) '</VTKFile>'
-
-      return
-      end
-c----------------------------------------------------------------------
-      subroutine vtu_write_frontmatter(vtu)
-      include 'SIZE'
-      include 'SOLN'
-      include 'INPUT'
-      include 'MASS'
-      include 'GEOM'
-      include 'TSTEP'
-      include 'CMTDATA'
-      include 'CMTPART'
-
-      integer vtu
-
-      write(vtu,*) '<VTKFile'
-      write(vtu,*) 'type="UnstructuredGrid"'
-      write(vtu,*) 'version="0.1"'
-      write(vtu,*) 'byte_order="LittleEndian"'
-      write(vtu,*) '>'
-
-      write(vtu,*) '<UnstructuredGrid>'
-      write(vtu,*) '<Piece'
-      write(vtu,'(A16,I10.10,A1)') 'NumberOfPoints="',n,'"'
-      write(vtu,*) 'NumberOfCells="0"'
-      write(vtu,*) '>'
+      write(vtu) '<DataArray '
+      write(vtu) 'type="Float64" '
+      write(dumstr,*)'Name="',trim(dataname),'" '
+      write(vtu) trim(dumstr), ' '
+      write(dumstr,'(A20,I0,A2)')'NumberOfComponents="',ncomp,'" '
+      write(vtu) trim(dumstr), ' '
+      write(vtu) 'format="append" '
+      write(dumstr,'(A8,I0,A3)') 'offset="',idist,'"/>'
+      write(vtu) trim(dumstr), ' '
 
       return
       end
@@ -3883,92 +3987,6 @@ c     setup files to write to mpi
          enddo
          n = i
       endif
-
-      return
-      end
-c----------------------------------------------------------------------
-      subroutine output_parallel_lagrangian_parts
-      include 'SIZE'
-      include 'SOLN'
-      include 'INPUT'
-      include 'MASS'
-      include 'GEOM'
-      include 'TSTEP'
-      include 'CMTDATA'
-      include 'CMTPART'
-      include 'mpif.h'
-
-      common /nekmpi/ mid,np,nekcomm,nekgroup,nekreal
-
-      integer icalld
-      save    icalld
-      data    icalld  /-1/
-
-      character*15 locstring, datastring
-      integer*8    disp, stride_len 
-      integer      status_mpi(MPI_STATUS_SIZE)
-      integer      prevs(0:np-1),npt_total,e,oldfile
-      real         one_t
-
-      rpi    = 4.0*atan(1.) ! pi
-
-c     setup files to write to mpi 
-      icalld = icalld+1
-      write(locstring,'(A7,I5.5,A3)') 'partxyz', icalld, '.3D' 
-      write(datastring,'(A8,I5.5)')   'partdata', icalld
-
-      ! these are the values that will be output in .3D binary files
-      ! kind of a dumb way to do it, but good for memory  and needed for
-      ! striding...
-      icount = 0
-      do i = 1,n
-         icount = icount + 1
-         rfpts(icount,1) = rpart(jx,i)
-         icount = icount + 1
-         rfpts(icount,1) = rpart(jy,i)
-         icount = icount + 1
-         rfpts(icount,1) = rpart(jz,i)
-         icount = icount + 1
-         rfpts(icount,1) = 2.*rpart(jrpe,i) ! output diameter
-      enddo
-     
-      call MPI_Send(n, 1, MPI_INTEGER, 0, 0, nekcomm, ierr)
-      npt_total = iglsum(n,1)
-
-      ! keep track of how many particles are on previous procs
-      if (nid.eq. 0) then
-c         output data so files can be easily converted to binary
-          open(364, file=datastring, action="write")
-             write(364,*) npt_total
-          close(364)
-
-          do i=0,np-1
-             call MPI_Recv(prevs(i),1,MPI_INTEGER,i,
-     >                        0,nekcomm,status_mpi,ierr)
-          enddo
-      endif
-      call MPI_BCAST(prevs,np, MPI_INTEGER,0,nekcomm,ierr) 
-
-      stride_len = 0
-      if (nid .ne. 0) then
-      do i=1,nid
-         stride_len = stride_len + prevs(i-1)
-      enddo
-      endif
-
-      call MPI_FILE_OPEN(nekcomm, locstring,
-     >                   MPI_MODE_CREATE + MPI_MODE_WRONLY, 
-     >                   MPI_INFO_NULL, oldfile, ierr) 
-   
-      disp = stride_len*4*8  ! 4 properties each with 8 bytes
-      call MPI_FILE_SET_VIEW(oldfile, disp, MPI_DOUBLE_PRECISION,
-     >                       MPI_DOUBLE_PRECISION, "native", 
-     >                       MPI_INFO_NULL, ierr) 
-      call MPI_FILE_WRITE(oldfile, rfpts(1,1), n*4,
-     >                  MPI_DOUBLE_PRECISION,
-     >                  MPI_STATUS_IGNORE, ierr) 
-
-      call MPI_FILE_CLOSE(oldfile, ierr) 
 
       return
       end
