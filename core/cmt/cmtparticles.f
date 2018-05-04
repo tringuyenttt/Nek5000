@@ -3,7 +3,9 @@ c----------------------------------------------------------------------
       include 'SIZE'
       include 'TOTAL'
       include 'CMTPART'
-      include 'CMTDATA'
+
+      integer              stage,nstage
+      common /tstepstage/ stage,nstage
 
       nstage_part = 3
       if (abs(time_integ) .eq. 2) nstage_part = 1
@@ -32,7 +34,6 @@ c----------------------------------------------------------------------
       include 'SIZE'
       include 'TOTAL'
       include 'CTIMER'
-      include 'CMTDATA'
       include 'CMTPART'
 
 c     common /elementload/ gfirst, inoassignd, resetFindpts, pload(lelg)
@@ -72,7 +73,6 @@ c     Place particles in this routine, also called for injection
 c
       include 'SIZE'
       include 'TOTAL'
-      include 'CMTDATA'
       include 'CMTPART'
 
       integer icalld
@@ -91,7 +91,6 @@ c        correct nwe if discrepancy on rank 0
          nw_tmp      = iglsum(nwe,1)
          ndef        = nw - nw_tmp
          if (nid .lt. ndef) nwe = nwe + 1
-c        if ((nw_tmp .ne. nw) .and. (nid.eq.0)) nwe = nwe +(nw - nw_tmp)
 
 c        main loop to distribute particles
          do i_pt_part = 1,nwe
@@ -217,41 +216,16 @@ c     this ONLY works with non curved elements.
 c
       include 'SIZE'
       include 'TOTAL'
-      include 'CTIMER'
-      include 'CMTTIMERS'
       include 'CMTPART'
 
 c     common /elementload/ gfirst, inoassignd, resetFindpts, pload(lelg)
 c     integer gfirst, inoassignd, resetFindpts, pload
 
-      rdum  = 1E8
-      rleng = 1E8
 
       if(istep.eq.0.or.istep.eq.1)then
 c     if((istep.eq.0) .or. (istep.eq.1).or.(resetFindpts.eq.1)) then 
         call domain_size(xdrange(1,1),xdrange(2,1),xdrange(1,2)
      $                  ,xdrange(2,2),xdrange(1,3),xdrange(2,3))
-        ntot = lx1*ly1*lz1*nelt
-        nxyz = lx1*ly1*lz1
-        do ie = 1,nelt
-           xerange(1,1,ie) = vlmin(xm1(1,1,1,ie),nxyz)
-           xerange(2,1,ie) = vlmax(xm1(1,1,1,ie),nxyz)
-           xerange(1,2,ie) = vlmin(ym1(1,1,1,ie),nxyz)
-           xerange(2,2,ie) = vlmax(ym1(1,1,1,ie),nxyz)
-           xerange(1,3,ie) = vlmin(zm1(1,1,1,ie),nxyz)
-           xerange(2,3,ie) = vlmax(zm1(1,1,1,ie),nxyz)
-
-           rdum1 = min(xerange(2,1,ie) - xerange(1,1,ie),
-     >                 xerange(2,2,ie) - xerange(1,2,ie))
-           if (if3d) rdum1 = min(rdum1,
-     >                 xerange(2,3,ie) - xerange(1,3,ie))
-           if (rdum1 .lt. rdum) rdum = rdum1
-        enddo  
-
-        rdum1 = glmin(rdum,1)
-        if (rdum1 .lt. rleng) then
-           rleng = rdum1
-        endif
       endif
 
       return
@@ -260,7 +234,6 @@ c----------------------------------------------------------------------
       subroutine set_part_params
       include 'SIZE'
       include 'TOTAL'
-      include 'CMTDATA'
       include 'CMTPART'
 
       integer icalld
@@ -282,7 +255,6 @@ c     setup items
       call rzero(ptdum,iptlen)
       call rzero(pttime,iptlen)
 
-c     filter width setup (note deltax is implicit in expressions b4 def)
       rtmp = 0.0 ! dummy number, max value it can be
 
       ! do nothing, no spreading
@@ -309,11 +281,9 @@ c----------------------------------------------------------------------
       subroutine set_check_spl_params
       include 'SIZE'
       include 'TOTAL'
-      include 'CMTDATA'
       include 'CMTPART'
 
       character*132 deathmessage
-
 
       rdeff_max = dp(2)/2.
       do i = 1,n
@@ -338,7 +308,6 @@ c----------------------------------------------------------------------
       subroutine set_dt_particles(rdt_part)
       include 'SIZE'
       include 'TOTAL'
-      include 'CMTDATA'
       include 'CMTPART'
 
       real dt_dum,dt_col,cflp,cflt
@@ -533,7 +502,6 @@ c     call routines in ordered way - main solver structure
 c
       include 'SIZE'
       include 'TOTAL'
-      include 'CMTDATA'
       include 'CMTPART'
 
       logical ifinject
@@ -629,10 +597,12 @@ c
       include 'INPUT'
       include 'GEOM'
       include 'SOLN'
-      include 'CMTDATA'
       include 'MASS'
       include 'TSTEP'
       include 'CMTPART'
+
+      real               phig(lx1,ly1,lz1,lelt)
+      common /otherpvar/ phig
 
       real    xx,yy,zz,vol,pfx,pfy,pfz,pmass,pmassf,vcell,multfc,multfci
      >       ,qgqf,rvx,rvy,rvz,rcountv(8,nelt),rx2(3)
@@ -838,8 +808,12 @@ c----------------------------------------------------------------------
       subroutine rk3_integrate
       include 'SIZE'
       include 'TOTAL'
-      include 'CMTDATA'
       include 'CMTPART'
+
+      integer              stage,nstage
+      common /tstepstage/ stage,nstage
+      real                  tcoef(3,3),dt_cmt,time_cmt
+      common /timestepcoef/ tcoef,dt_cmt,time_cmt
 
       common /myparts/ times(0:3),alpha(0:3),beta(0:3)
 
@@ -917,9 +891,7 @@ c     calculate the rhs of particle equation
 c
       include 'SIZE'
       include 'TOTAL'
-      include 'CMTDATA'
       include 'CMTPART'
-      include 'PERFECTGAS'
 
       real vel_diff,pmass,pmassf
 
@@ -1010,7 +982,6 @@ c     post calculate forces due to factoring of equations
 c
       include 'SIZE'
       include 'TOTAL'
-      include 'CMTDATA'
       include 'CMTPART'
 
       real uvel(0:2), vvel(0:2), pmass, pmassf,S_qs
@@ -1082,8 +1053,10 @@ c
       include 'INPUT'
       include 'GEOM'
       include 'SOLN'
-      include 'CMTDATA'
       include 'CMTPART'
+
+      real               phig(lx1,ly1,lz1,lelt)
+      common /otherpvar/ phig
 
       integer e
       real ur(lx1,ly1,lz1),us(lx1,ly1,lz1),ut(lx1,ly1,lz1),
@@ -1217,7 +1190,6 @@ c
 c
       include 'SIZE'
       include 'TOTAL'
-      include 'CMTDATA'
       include 'CMTPART'
 
       if (part_force(5) .eq. 0) then
@@ -1234,12 +1206,9 @@ c
 c
       include 'SIZE'
       include 'TOTAL'
-      include 'CMTDATA'
       include 'CMTPART'
 
       real nu_g,S_qs,rpra,kappa_g
-
-      pi      = 4.0d+0*atan(1.0d+0)
 
       kappa_g = abs(param(8))
 
@@ -1264,7 +1233,6 @@ c     extra body forces
 c
       include 'SIZE'
       include 'TOTAL'
-      include 'CMTDATA'
       include 'CMTPART'
 
       if (part_force(2) .ne. 0) then
@@ -1282,7 +1250,6 @@ c     extra body forces
 c
       include 'SIZE'
       include 'TOTAL'
-      include 'CMTDATA'
       include 'CMTPART'
 
       real S_qs
@@ -1315,8 +1282,6 @@ c-----------------------------------------------------------------------
 c     calculate quasi steady force with drag corrections
       include 'SIZE'
       include 'TOTAL'
-      include 'PERFECTGAS'
-      include 'CMTDATA'
       include 'CMTPART'
 
       real cd,S_qs
@@ -1387,8 +1352,10 @@ c     cd_std = 24/re_p already taken into account below
          rpart(jfqs+j,i) = rpart(jvol,i)*rbeta/rphip    
      >              *(rpart(ju0+j,i) - rpart(jv0+j,i))
 
-         if (abs(rphip) .lt. 1E-12) write(6,*)
-     >    'Use different drag model without volume fraction-divide by 0'
+         if (abs(rphip) .lt. 1E-12) then
+             write(6,*) 'Use different drag model w/o volume frac /0'
+             call exitt
+         endif
 
       elseif (part_force(1).eq.0) then
          S_qs = 0.
@@ -1407,7 +1374,6 @@ c     extra body forces
 c
       include 'SIZE'
       include 'TOTAL'
-      include 'CMTDATA'
       include 'CMTPART'
 
       real mcfac, rdum, rdum3(3)
@@ -1580,6 +1546,7 @@ c        search list of ghost particles
 
       endif
 
+
       pttime(11) = pttime(11) + dnekclock() - ptdum(11)
 
       return
@@ -1592,7 +1559,6 @@ c     extra body forces
 c
       include 'SIZE'
       include 'TOTAL'
-      include 'CMTDATA'
       include 'CMTPART'
 
       real fcf1(3),fcf2(3),er,eta,ere,mcfac
@@ -1670,7 +1636,6 @@ c-----------------------------------------------------------------------
 c
       include 'SIZE'
       include 'TOTAL'
-      include 'CMTDATA'
       include 'CMTPART'
 
       common /myparth/ i_fp_hndl, i_cr_hndl
@@ -1696,7 +1661,6 @@ c     bc_part = 0  => periodic search
 c
       include 'SIZE'
       include 'TOTAL'
-      include 'CMTDATA'
       include 'CMTPART'
 
       character*132 deathmessage
@@ -1732,7 +1696,6 @@ c     iptsgp(jgppt,j) and iptsgp(jgpes,j)
 c
       include 'SIZE'
       include 'TOTAL'
-      include 'CMTDATA'
       include 'CMTPART'
 
       real xdlen,ydlen,zdlen,rxdrng(3),rxnew(3)
@@ -2031,19 +1994,12 @@ c CREATING GHOST PARTICLES
          enddo
       enddo
 
-c     write(6,*) 'NFPTSGP',nfptsgp
-c     do i=1,nfptsgp
-c        write(6,*) rptsgp(jgpx,i),rptsgp(jgpy,i),rptsgp(jgpz,i),
-c    >              iptsgp(jgpps,i)
-c     enddo
-
       return
       end
 c-----------------------------------------------------------------------
       subroutine check_periodic_gp(rxnew,rxdrng,iadd)
       include 'SIZE'
       include 'TOTAL'
-      include 'CMTDATA'
       include 'CMTPART'
 c
       real rxnew(3), rxdrng(3)
@@ -2115,58 +2071,6 @@ c
       endif
   125 continue
 
-c     ! 2D 
-c     if (.not.if3d) then
-c        ntype     = 0 
-c        if (irett(1) .eq. 1) then
-c           ntype      = 1
-c           ntypel(1)  = 3
-c           if (irett(2) .eq. 1) then
-c              ntype      = 3
-c              ntypel(2)  = 4
-c              ntypel(3)  = 6
-c           endif
-c        elseif(irett(2) .eq. 1) then
-c           ntype      = 1
-c           ntypel(1)  = 4
-c        endif
-c     ! 3D 
-c     else
-c        ntype     = 0 
-c        if (irett(1) .eq. 1) then
-c           ntype      = 1
-c           ntypel(1)  = 3
-c           if (irett(2) .eq. 1) then
-c              ntype      = 3
-c              ntypel(2)  = 4
-c              ntypel(3)  = 6
-c              if (irett(3) .eq. 1) then
-c                 ntype      = 7
-c                 ntypel(3)  = 5
-c                 ntypel(4)  = 6
-c                 ntypel(5)  = 7
-c                 ntypel(6)  = 8
-c                 ntypel(7)  = 9
-c              endif
-c           elseif (irett(3) .eq. 1) then
-c              ntype      = 3
-c              ntypel(2)  = 5
-c              ntypel(3)  = 8
-c           endif
-c        elseif(irett(2) .eq. 1) then
-c           ntype      = 1
-c           ntypel(1)  = 4
-c           if (irett(3) .eq. 1) then
-c              ntype      = 3
-c              ntypel(2)  = 5
-c              ntypel(3)  = 7
-c           endif
-c        elseif(irett(3) .eq. 1) then
-c           ntype      = 1
-c           ntypel(1)  = 5
-c        endif
-c     endif
-
       rxnew(1) = xloc
       rxnew(2) = yloc
       rxnew(3) = zloc
@@ -2176,25 +2080,9 @@ c     endif
 c----------------------------------------------------------------------
       subroutine add_a_ghost_particle(rxnew,iadd,i)
 c
-c     this routine will create a ghost particle and append its position
-c     to rptsgp and its processor and element to iptsgp. nfptsgp will then
-c     be incremented. Note that ghost particles will not be created if 
-c     they are to be created on the same processor. In the near future, 
-c     this might not be true if periodic conditions are needed.
-c
-c     el_tmp_num holds vector coordinates of tmp=face,edge, or corners
-c     el_tmp_proc_map holds MPI rank of neighbor elements in el_tmp_num
-c                     order
-c     el_tmp_el_map holds local element number of neighbor elements
-c
-c     ii,jj,kk are vectors that tell what element a ghost particle
-c     should be sent to
-c
-c     i is which particle is creating the ghost particle from rpart,etc
 c
       include 'SIZE'
       include 'TOTAL'
-      include 'CMTDATA'
       include 'CMTPART'
 
       real    rxnew(3)
@@ -2228,7 +2116,6 @@ c-----------------------------------------------------------------------
       subroutine compute_neighbor_el_proc
       include 'SIZE'
       include 'TOTAL'
-      include 'CMTDATA'
       include 'CMTPART'
 
       common /myparth/ i_fp_hndl, i_cr_hndl
@@ -2253,17 +2140,7 @@ c     face, edge, and corner number, x,y,z are all inline, so stride=3
       nedgegp   = 4  ! number of edges
       ncornergp = 0  ! number of corners
 
-c        !TESTING
-c        nfacegp   = 4  ! number of faces
-c        nedgegp   = 0
-c        ncornergp   = 0
-
       if (if3d) then
-
-         !TESTING
-c        nfacegp   = 0  ! number of faces
-c        nedgegp   = 0
-c        ncornergp   = 0
          nfacegp   = 6  ! number of faces
          nedgegp   = 12 ! number of edges
          ncornergp = 8  ! number of corners
@@ -2501,7 +2378,6 @@ c Connect boxes to 1D processor map they should be arranged on
          enddo
       enddo
 
-
 ! ------------------------
 c SEND TO 1D PROCESSOR MAP
 ! ------------------------
@@ -2628,7 +2504,6 @@ c-----------------------------------------------------------------------
       subroutine extra_wall_particle_exp(rxyzp,rx2,ic)
       include 'SIZE'
       include 'TOTAL'
-      include 'CMTDATA'
       include 'CMTPART'
 c
       real rxyzp(n_walls*2,3), rx2(3), rx22(3)
@@ -2751,7 +2626,6 @@ c     check if particles are outside domain
 c     > if bc_part = 0 then it is periodic
 c     > if bc_part = -1,1 then particles are killed (outflow)
       include 'SIZE'
-      include 'CMTDATA'
       include 'CMTPART'
 
       integer in_part(llpart)
@@ -2832,7 +2706,6 @@ c-----------------------------------------------------------------------
       include 'SIZE'
       include 'INPUT'
       include 'SOLN'
-      include 'CMTDATA'
       include 'CMTPART'
       include 'GEOM'
 
@@ -2892,9 +2765,7 @@ c----------------------------------------------------------------------
       include 'INPUT'
       include 'MASS'
       include 'TSTEP'
-      include 'CMTDATA'
       include 'CMTPART'
-      include 'mpif.h'
 
       rdumt = dnekclock()
 
@@ -2908,10 +2779,6 @@ c     output diagnostics to logfile
          call output_particle_timers 
          call output_particle_diagnostics
       endif
-
-c     call output_along_line_avg_x
-c     call output_along_line_avg_y
-c     call output_along_line_avg_z
 
       call output_parallel_part
       call output_parallel_restart_part
@@ -2929,7 +2796,6 @@ c----------------------------------------------------------------------
       include 'GEOM'
       include 'TSTEP'
       include 'PARALLEL'
-      include 'CMTDATA'
       include 'CMTPART'
 
       common /myparth/ i_fp_hndl, i_cr_hndl
@@ -2942,7 +2808,7 @@ c----------------------------------------------------------------------
       save    icalld
       data    icalld  /0/
 
-      logical partl         ! This is a dummy placeholder, used in cr()
+      logical partl         
 
       integer vtu,vtu1,prevs(2,np)
       integer*4 iint
@@ -3305,7 +3171,6 @@ c----------------------------------------------------------------------
       include 'GEOM'
       include 'TSTEP'
       include 'PARALLEL'
-      include 'CMTDATA'
       include 'CMTPART'
 
       integer vtu,ncomp
@@ -3344,7 +3209,6 @@ c----------------------------------------------------------------------
       include 'GEOM'
       include 'TSTEP'
       include 'PARALLEL'
-      include 'CMTDATA'
       include 'CMTPART'
 
       common /myparth/ i_fp_hndl, i_cr_hndl
@@ -3506,7 +3370,6 @@ c----------------------------------------------------------------------
       include 'GEOM'
       include 'TSTEP'
       include 'PARALLEL'
-      include 'CMTDATA'
       include 'CMTPART'
 
       common /myparth/ i_fp_hndl, i_cr_hndl
@@ -3568,7 +3431,6 @@ c----------------------------------------------------------------------
 ! Parallel MPI file read in
 ! -------------------------
       disp   = isize + stride_len*lrf*isize ! is there real*4 var?
-      write(6,*) 'yooo', stride_len, disp
       icount = nread*lrf
       iorank = 0
       call byte_open_mpi(filename,pth,.true.,ierr)
@@ -3647,9 +3509,7 @@ c----------------------------------------------------------------------
       include 'MASS'
       include 'GEOM'
       include 'TSTEP'
-      include 'CMTDATA'
       include 'CMTPART'
-      include 'mpif.h'
 
       common /nekmpi/ mid,np,nekcomm,nekgroup,nekreal
 
@@ -3717,440 +3577,6 @@ c     print properties to logfile
       return
       end
 c----------------------------------------------------------------------
-      subroutine output_along_line_avg_x
-      include 'SIZE'
-      include 'SOLN'
-      include 'INPUT'
-      include 'MASS'
-      include 'GEOM'
-      include 'TSTEP'
-      include 'CMTDATA'
-      include 'CMTPART'
-
-      common /nekmpi/ mid,np,nekcomm,nekgroup,nekreal
-
-      integer icalld
-      save    icalld
-      data    icalld  /-1/
-
-      character*15 outstring
-      integer*8 disp, stride_len 
-      real send_vals(1+50)
-      real rxgls(lx1),uf(lx1,ly1,lz1,lelt,50),rcount(50),rdum(50),
-     >     rtmp(50)
-      integer nlfl
-
-      common /running_avgs/ rec_vals
-      real rec_vals(1+50,8000*15) !8000 elements, by nx1=15 max
-
-      nlfl = 21 
-
-      do ie=1,nelt
-      do k=1,nz1
-      do j=1,ny1
-      do i=1,nx1
-         uf(i,j,k,ie,1) = ptw(i,j,k,ie,1)
-         uf(i,j,k,ie,2) = ptw(i,j,k,ie,2)
-         uf(i,j,k,ie,3) = ptw(i,j,k,ie,3)
-         uf(i,j,k,ie,4) = ptw(i,j,k,ie,4)
-         uf(i,j,k,ie,5) = ptw(i,j,k,ie,5)
-         uf(i,j,k,ie,6) = ptw(i,j,k,ie,6)
-         uf(i,j,k,ie,7) = ptw(i,j,k,ie,7) 
-         uf(i,j,k,ie,8) = ptw(i,j,k,ie,8) 
-         uf(i,j,k,ie,9) = rhs_fluidp(i,j,k,ie,1)
-         uf(i,j,k,ie,10)= rhs_fluidp(i,j,k,ie,2)
-         uf(i,j,k,ie,11)= rhs_fluidp(i,j,k,ie,3)
-         uf(i,j,k,ie,12)= rhs_fluidp(i,j,k,ie,4)
-         uf(i,j,k,ie,13)= rhs_fluidp(i,j,k,ie,5)
-         uf(i,j,k,ie,14)= rhs_fluidp(i,j,k,ie,6)
-         uf(i,j,k,ie,15)= rhs_fluidp(i,j,k,ie,7)
-         uf(i,j,k,ie,16)= vx(i,j,k,ie)
-         uf(i,j,k,ie,17)= vy(i,j,k,ie)
-         uf(i,j,k,ie,18)= vz(i,j,k,ie)
-         uf(i,j,k,ie,19)= pr(i,j,k,ie) ! not set up for lx2 mesh!!
-         uf(i,j,k,ie,20)= vtrans(i,j,k,ie,1)
-         uf(i,j,k,ie,21)= t(i,j,k,ie,1)
-      enddo
-      enddo
-      enddo
-      enddo
-
-      icalld = icalld+1
-      write(outstring,'(A9,I5.5)') 'avgsdatax', icalld
-
-      rlengx = xm1(nx1,1,1,1) - xm1(1,1,1,1)
-      do i=1,nx1 
-         rxgls(i) = (xgll(i) + 1.)*rlengx/2.
-      enddo
-      
-      rthresh = rlengx/100.
-      rxs = xdrange(1,1)
-      rxt = rxs
-      icm = 1
-
-      do while (rxs .le. xdrange(2,1))
-
-         do i=1,nx1
-            rxs = rxt + rxgls(i)
-
-            call rzero(rdum,nlfl)
-            call rzero(rcount,nlfl)
-
-            do ie=1,nelt
-            do ik=1,nz1
-            do ij=1,ny1
-            do ii=1,nx1
-               rxv = xm1(ii,ij,ik,ie)
-               if (abs(rxv - rxs) .lt. rthresh) then
-                  do j = 1,nlfl
-                     rdum(j) = rdum(j) + uf(ii,ij,ik,ie,j)
-                     rcount(j) = rcount(j) + 1.
-                  enddo
-               endif
-            enddo
-            enddo
-            enddo
-            enddo
-
-            isz = 1
-            rec_vals(1,icm) = rxs
-
-            do j = 1,nlfl
-               rec_vals(j+1,icm) =  glsum(rdum(j),1)
-               rtmp(j) = glsum(rcount(j),1)
-               rec_vals(j+1,icm) = rec_vals(j+1,icm)/rtmp(j)
-            enddo
-
-            icm = icm + 1
-         enddo
-
-         rxt = rxs
-      enddo
-
-      if (nid.eq. 0) then
-          open(364, file=outstring, action="write",position="append")
-          do i =1,icm-1 ! last point has issues
-             write(364,600) rec_vals(1,i),
-     >                      rec_vals(2,i),
-     >                      rec_vals(3,i),
-     >                      rec_vals(4,i),
-     >                      rec_vals(5,i),
-     >                      rec_vals(6,i),
-     >                      rec_vals(7,i),
-     >                      rec_vals(8,i),
-     >                      rec_vals(9,i),
-     >                      rec_vals(10,i),
-     >                      rec_vals(11,i),
-     >                      rec_vals(12,i),
-     >                      rec_vals(13,i),
-     >                      rec_vals(14,i),
-     >                      rec_vals(15,i),
-     >                      rec_vals(16,i),
-     >                      rec_vals(17,i),
-     >                      rec_vals(18,i),
-     >                      rec_vals(19,i),
-     >                      rec_vals(20,i),
-     >                      rec_vals(21,i),
-     >                      rec_vals(22,i) ! add one
-          enddo
-          close(364)
-      endif
-      
-  600 FORMAT(22ES20.10)
-      return
-      end
-c----------------------------------------------------------------------
-      subroutine output_along_line_avg_y
-      include 'SIZE'
-      include 'SOLN'
-      include 'INPUT'
-      include 'MASS'
-      include 'GEOM'
-      include 'TSTEP'
-      include 'CMTDATA'
-      include 'CMTPART'
-
-      common /nekmpi/ mid,np,nekcomm,nekgroup,nekreal
-
-      integer icalld
-      save    icalld
-      data    icalld  /-1/
-
-      character*15 outstring
-      integer*8 disp, stride_len 
-      real send_vals(1+50)
-      real rygls(ly1),uf(lx1,ly1,lz1,lelt,50),rcount(50),rdum(50),
-     >     rtmp(50)
-      integer nlfl
-
-      real*8 rlengy
-
-      common /running_avgs/ rec_vals
-      real rec_vals(1+50,8000*15) !8000 elements, by nx1=15 max
-
-      nlfl = 21 
-
-      do ie=1,nelt
-      do k=1,nz1
-      do j=1,ny1
-      do i=1,nx1
-         uf(i,j,k,ie,1) = ptw(i,j,k,ie,1)
-         uf(i,j,k,ie,2) = ptw(i,j,k,ie,2)
-         uf(i,j,k,ie,3) = ptw(i,j,k,ie,3)
-         uf(i,j,k,ie,4) = ptw(i,j,k,ie,4)
-         uf(i,j,k,ie,5) = ptw(i,j,k,ie,5)
-         uf(i,j,k,ie,6) = ptw(i,j,k,ie,6)
-         uf(i,j,k,ie,7) = ptw(i,j,k,ie,7) 
-         uf(i,j,k,ie,8) = ptw(i,j,k,ie,8) 
-         uf(i,j,k,ie,9) = rhs_fluidp(i,j,k,ie,1)
-         uf(i,j,k,ie,10)= rhs_fluidp(i,j,k,ie,2)
-         uf(i,j,k,ie,11)= rhs_fluidp(i,j,k,ie,3)
-         uf(i,j,k,ie,12)= rhs_fluidp(i,j,k,ie,4)
-         uf(i,j,k,ie,13)= rhs_fluidp(i,j,k,ie,5)
-         uf(i,j,k,ie,14)= rhs_fluidp(i,j,k,ie,6)
-         uf(i,j,k,ie,15)= rhs_fluidp(i,j,k,ie,7)
-         uf(i,j,k,ie,16)= vx(i,j,k,ie)
-         uf(i,j,k,ie,17)= vy(i,j,k,ie)
-         uf(i,j,k,ie,18)= vz(i,j,k,ie)
-         uf(i,j,k,ie,19)= pr(i,j,k,ie) ! not set up for lx2 mesh!!
-         uf(i,j,k,ie,20)= vtrans(i,j,k,ie,1)
-         uf(i,j,k,ie,21)= t(i,j,k,ie,1)
-      enddo
-      enddo
-      enddo
-      enddo
-
-      icalld = icalld+1
-      write(outstring,'(A9,I5.5)') 'avgsdatay', icalld
-
-      rlengy = ym1(1,ny1,1,1) - ym1(1,1,1,1)
-      rlengy = glmin(rlengy,1)
-      do i=1,ny1 
-         rygls(i) = (ygll(i) + 1.)*rlengy/2.
-      enddo
-
-      rthresh = rlengy/100.
-      rys = xdrange(1,2)
-      ryt = rys
-      icm = 1
-
-      ! DZ FAKE
-      do while (rys .le. xdrange(2,2))
-c     do while (rys .le. 0.23)
-
-         do i=1,ny1
-            rys = ryt + rygls(i)
-
-            call rzero(rdum,nlfl)
-            call rzero(rcount,nlfl)
-
-            do ie=1,nelt
-            do ik=1,nz1
-            do ij=1,ny1
-            do ii=1,nx1
-               ryv = ym1(ii,ij,ik,ie)
-               if (abs(ryv - rys) .lt. rthresh) then
-                  do j = 1,nlfl
-                     rdum(j) = rdum(j) + uf(ii,ij,ik,ie,j)
-                     rcount(j) = rcount(j) + 1.
-                  enddo
-               endif
-            enddo
-            enddo
-            enddo
-            enddo
-
-            isz = 1
-            rec_vals(1,icm) = rys
-
-            do j = 1,nlfl
-               rec_vals(j+1,icm) =  glsum(rdum(j),1)
-               rtmp(j) = glsum(rcount(j),1)
-               rec_vals(j+1,icm) = rec_vals(j+1,icm)/rtmp(j)
-            enddo
-
-            icm = icm + 1
-         enddo
-
-         ryt = rys
-      enddo
-
-      if (nid.eq. 0) then
-          open(365, file=outstring, action="write",position="append")
-          do i =1,icm-1 ! last point has issues
-             write(365,600) rec_vals(1,i),
-     >                      rec_vals(2,i),
-     >                      rec_vals(3,i),
-     >                      rec_vals(4,i),
-     >                      rec_vals(5,i),
-     >                      rec_vals(6,i),
-     >                      rec_vals(7,i),
-     >                      rec_vals(8,i),
-     >                      rec_vals(9,i),
-     >                      rec_vals(10,i),
-     >                      rec_vals(11,i),
-     >                      rec_vals(12,i),
-     >                      rec_vals(13,i),
-     >                      rec_vals(14,i),
-     >                      rec_vals(15,i),
-     >                      rec_vals(16,i),
-     >                      rec_vals(17,i),
-     >                      rec_vals(18,i),
-     >                      rec_vals(19,i),
-     >                      rec_vals(20,i),
-     >                      rec_vals(21,i),
-     >                      rec_vals(22,i) ! add one
-          enddo
-          close(365)
-      endif
-      
-  600 FORMAT(22ES20.10)
-      return
-      end
-c----------------------------------------------------------------------
-      subroutine output_along_line_avg_z
-      include 'SIZE'
-      include 'SOLN'
-      include 'INPUT'
-      include 'MASS'
-      include 'GEOM'
-      include 'TSTEP'
-      include 'CMTDATA'
-      include 'CMTPART'
-
-      common /nekmpi/ mid,np,nekcomm,nekgroup,nekreal
-
-      integer icalld
-      save    icalld
-      data    icalld  /-1/
-
-      character*15 outstring
-      integer*8 disp, stride_len 
-      real send_vals(1+50)
-      real rzgls(lz1),uf(lx1,ly1,lz1,lelt,50),rcount(50),rdum(50),
-     >     rtmp(50)
-      integer nlfl
-
-      common /running_avgs/ rec_vals
-      real rec_vals(1+50,8000*15) !8000 elements, by nx1=15 max
-
-      nlfl = 21 
-
-      do ie=1,nelt
-      do k=1,nz1
-      do j=1,ny1
-      do i=1,nx1
-         uf(i,j,k,ie,1) = ptw(i,j,k,ie,1)
-         uf(i,j,k,ie,2) = ptw(i,j,k,ie,2)
-         uf(i,j,k,ie,3) = ptw(i,j,k,ie,3)
-         uf(i,j,k,ie,4) = ptw(i,j,k,ie,4)
-         uf(i,j,k,ie,5) = ptw(i,j,k,ie,5)
-         uf(i,j,k,ie,6) = ptw(i,j,k,ie,6)
-         uf(i,j,k,ie,7) = ptw(i,j,k,ie,7) 
-         uf(i,j,k,ie,8) = ptw(i,j,k,ie,8) 
-         uf(i,j,k,ie,9) = rhs_fluidp(i,j,k,ie,1)
-         uf(i,j,k,ie,10)= rhs_fluidp(i,j,k,ie,2)
-         uf(i,j,k,ie,11)= rhs_fluidp(i,j,k,ie,3)
-         uf(i,j,k,ie,12)= rhs_fluidp(i,j,k,ie,4)
-         uf(i,j,k,ie,13)= rhs_fluidp(i,j,k,ie,5)
-         uf(i,j,k,ie,14)= rhs_fluidp(i,j,k,ie,6)
-         uf(i,j,k,ie,15)= rhs_fluidp(i,j,k,ie,7)
-         uf(i,j,k,ie,16)= vx(i,j,k,ie)
-         uf(i,j,k,ie,17)= vy(i,j,k,ie)
-         uf(i,j,k,ie,18)= vz(i,j,k,ie)
-         uf(i,j,k,ie,19)= pr(i,j,k,ie) ! not set up for lx2 mesh!!
-         uf(i,j,k,ie,20)= vtrans(i,j,k,ie,1)
-         uf(i,j,k,ie,21)= t(i,j,k,ie,1)
-      enddo
-      enddo
-      enddo
-      enddo
-
-      icalld = icalld+1
-      write(outstring,'(A9,I5.5)') 'avgsdataz', icalld
-
-      rlengz = zm1(1,1,nz1,1) - zm1(1,1,1,1)
-      do i=1,nz1 
-         rzgls(i) = (zgll(i) + 1.)*rlengz/2.
-      enddo
-
-      rthresh = rlengz/100.
-      rzs = xdrange(1,3)
-      rzt = rzs
-      icm = 1
-
-      do while (rzs .le. xdrange(2,3))
-
-         do i=1,nz1
-            rzs = rzt + rzgls(i)
-
-            call rzero(rdum,nlfl)
-            call rzero(rcount,nlfl)
-
-            do ie=1,nelt
-            do ik=1,nz1
-            do ij=1,ny1
-            do ii=1,nx1
-               rzv = zm1(ii,ij,ik,ie)
-               if (abs(rzv - rzs) .lt. rthresh) then
-                  do j = 1,nlfl
-                     rdum(j) = rdum(j) + uf(ii,ij,ik,ie,j)
-                     rcount(j) = rcount(j) + 1.
-                  enddo
-               endif
-            enddo
-            enddo
-            enddo
-            enddo
-
-            isz = 1
-            rec_vals(1,icm) = rzs
-
-            do j = 1,nlfl
-               rec_vals(j+1,icm) =  glsum(rdum(j),1)
-               rtmp(j) = glsum(rcount(j),1)
-               rec_vals(j+1,icm) = rec_vals(j+1,icm)/rtmp(j)
-            enddo
-
-            icm = icm + 1
-         enddo
-
-         rzt = rzs
-      enddo
-
-      if (nid.eq. 0) then
-          open(366, file=outstring, action="write",position="append")
-          do i =1,icm-1 ! last point has issues
-             write(366,600) rec_vals(1,i),
-     >                      rec_vals(2,i),
-     >                      rec_vals(3,i),
-     >                      rec_vals(4,i),
-     >                      rec_vals(5,i),
-     >                      rec_vals(6,i),
-     >                      rec_vals(7,i),
-     >                      rec_vals(8,i),
-     >                      rec_vals(9,i),
-     >                      rec_vals(10,i),
-     >                      rec_vals(11,i),
-     >                      rec_vals(12,i),
-     >                      rec_vals(13,i),
-     >                      rec_vals(14,i),
-     >                      rec_vals(15,i),
-     >                      rec_vals(16,i),
-     >                      rec_vals(17,i),
-     >                      rec_vals(18,i),
-     >                      rec_vals(19,i),
-     >                      rec_vals(20,i),
-     >                      rec_vals(21,i),
-     >                      rec_vals(22,i) ! add one
-          enddo
-          close(366)
-      endif
-      
-  600 FORMAT(22ES20.10)
-      return
-      end
-c----------------------------------------------------------------------
       subroutine particle_input_defaults
       include 'SIZE'
       include 'CMTPART'
@@ -4199,7 +3625,6 @@ c----------------------------------------------------------------------
       subroutine read_particle_input_par
       include 'SIZE'
       include 'INPUT'
-      include 'CMTTIMERS'
       include 'TSTEP'
       include 'PARALLEL'
       include 'CMTPART'
@@ -4433,11 +3858,9 @@ c----------------------------------------------------------------------
 c----------------------------------------------------------------------
       subroutine output_particle_diagnostics
       include 'SIZE'
-      include 'CMTTIMERS'
       include 'TSTEP'
       include 'PARALLEL'
       include 'CMTPART'
-      include 'CMTDATA'
 
       integer icalld
       save icalld
@@ -4523,7 +3946,6 @@ c----------------------------------------------------------------------
 c----------------------------------------------------------------------
       subroutine output_particle_timers
       include 'SIZE'
-      include 'CMTTIMERS'
       include 'TSTEP'
       include 'PARALLEL'
       include 'CMTPART'
@@ -4787,8 +4209,8 @@ c----------------------------------------------------------------------
 C> Compute coefficients for Runge-Kutta stages \cite{TVDRK}
       subroutine set_tstep_coef_part(dt_in)
 
-      real tcoef(3,3),dt_cmt,time_cmt
-      COMMON /TIMESTEPCOEF/ tcoef,dt_cmt,time_cmt
+      real                  tcoef(3,3),dt_cmt,time_cmt
+      common /timestepcoef/ tcoef,dt_cmt,time_cmt
 
       real dt_in
 
@@ -4814,7 +4236,6 @@ c     compressible flow
 c
       include 'SIZE'
       include 'TOTAL'
-      include 'CMTDATA'
       include 'CMTPART'
 
       real div(lx2,ly2,lz2,lelv)
@@ -4869,13 +4290,6 @@ c
             phig_qtl(ix,iy,iz,ie) = phig_last(ix,iy,iz,ie,1) -
      >                              phig_last(ix,iy,iz,ie,2)
             phig_qtl(ix,iy,iz,ie) = phig_qtl(ix,iy,iz,ie)/rdt_in
-
-c           phig_qtl(ix,iy,iz,ie) =  (11./6.)*phig_last(ix,iy,iz,ie,1) 
-c    >                              -(3.    )*phig_last(ix,iy,iz,ie,2) 
-c    >                              +(3./2. )*phig_last(ix,iy,iz,ie,3) 
-c    >                              -(1./3. )*phig_last(ix,iy,iz,ie,4) 
-c           phig_qtl(ix,iy,iz,ie) = phig_qtl(ix,iy,iz,ie)/rdt_in
-
 
             phig_qtl(ix,iy,iz,ie) = phig_qtl(ix,iy,iz,ie) + 
      >          vx(ix,iy,iz,ie)/JACM1(ix,iy,iz,ie)* !d/dx
@@ -4940,12 +4354,14 @@ c
       include 'CMTDATA'
       include 'CMTPART'
 
+c     integer              stage,nstage
+c     common /tstepstage/ stage,nstage
+
       nmax_step = nsteps  ! number of pre-iteration steps
       ninj_step = 3000
 
       nstage_part = 3
       if (abs(time_integ) .eq. 2) nstage_part = 1
-
 
       ! pre simulation iteration for packed bed
       do istep=0,nmax_step
@@ -5038,9 +4454,6 @@ c----------------------------------------------------------------------
       include 'TOTAL'
       include 'NEKUSE'
       include 'CMTPART'
-      include 'CMTDATA'
-
-      common /save_dt_part/ rdpe_max, rdpe_min
 
       ! here we can actually shrik rdxgp,rdygp,rdzgp if projection 
       ! distance is larger. We only need collsion distance as dpe_max
@@ -5096,7 +4509,6 @@ c----------------------------------------------------------------------
       include 'TOTAL'
       include 'NEKUSE'
       include 'CMTPART'
-      include 'CMTDATA'
 
       integer ix,iy,iz,e
 
@@ -5134,7 +4546,6 @@ c-----------------------------------------------------------------------
       subroutine bdf_integrate
       include 'SIZE'
       include 'TOTAL'
-      include 'CMTDATA'
       include 'CMTPART'
 
       common /myparts/ times(0:3),alpha(0:3),beta(0:3)

@@ -28,32 +28,23 @@ c     particle options ----------------------------------------------
      >       ,ipart_restartr,npro_method,npio_method,icmtp
 
 c     particle parameters -------------------------------------------
-      common /part_paramsr/ deltaf, dp, deltax, rho_p, tau_p,mu_0,tp_0,
-     >                     vol_distrib,rsig,df_dp,dfilt,
-     >                     ralphdecay,rxbo,cp_p,rleng,
+      common /part_paramsr/ dp, rho_p, tau_p,mu_0,tp_0,
+     >                     rsig,dfilt,
+     >                     ralphdecay,rxbo,cp_p,
      >                     ksp,dt_part,e_rest,rspl,dp_std
       common /part_paramsi/ nw,nrandseed,nwe
-      real   deltaf,dp(2),deltax,rho_p,tau_p,mu_0,
-     >       vol_distrib,rsig,df_dp,dfilt,ralphdecay,rxbo(2,3),
-     >       cp_p,rleng,tp_0,ksp,dt_part,e_rest, dp_std
+      real   dp(2),rho_p,tau_p,mu_0,
+     >       rsig,dfilt,ralphdecay,rxbo(2,3),
+     >       cp_p,tp_0,ksp,dt_part,e_rest, dp_std
       integer nw,nrandseed,nwe
 
-c     barycentric interpolation -------------------------------------
-      common /BARYPARAMS/ xgll, ygll, zgll, wxgll, wygll, wzgll
-      real xgll(lx1), ygll(ly1), zgll(lz1),
-     >     wxgll(lx1), wygll(ly1), wzgll(lz1)
+c     user particles ------------------------------------------
+      real f_part(0:2)
+      common /part_use_r/ f_part
 
-c     initialize particles ------------------------------------------
-      real x_part(0:2),v_part(0:2),f_part(0:2),d_part
-      integer i_pt_part
-      common /part_use_r/ x_part,v_part,f_part,d_part
-      common /part_use_i/ i_pt_part
-
-c     domain and element size
+c     domain size
       real   xdrange(2,3)
       common /domainrange/ xdrange
-      real   xerange(2,3,lelt)
-      common /elementrange/ xerange
 
 c     ghost particles -----------------------------------------------
       parameter (llpart_gp=26*llpart)
@@ -101,7 +92,7 @@ c     move particles between procs ----------------------------------
       real    rdxgp, rdygp, rdzgp 
       common /new_gpr/ rdxgp, rdygp, rdzgp
 
-      parameter (n_walls = 49)
+      parameter (n_walls = 18)
       character*16 mystringpart
       integer np_walls,nc_walls
       real    plane_wall_coords(6,n_walls)
@@ -110,3 +101,4 @@ c     move particles between procs ----------------------------------
       common /rbc_part/ plane_wall_coords,cyl_wall_coords
       common /ibc_part/ np_walls,nc_walls
       common /cbc_part/ mystringpart
+
