@@ -4351,11 +4351,10 @@ c
       include 'SIZE'
       include 'TOTAL'
       include 'CTIMER'
-      include 'CMTDATA'
       include 'CMTPART'
 
-c     integer              stage,nstage
-c     common /tstepstage/ stage,nstage
+      integer              stage,nstage
+      common /tstepstage/ stage,nstage
 
       nmax_step = nsteps  ! number of pre-iteration steps
       ninj_step = 3000
