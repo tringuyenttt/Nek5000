@@ -1,12 +1,9 @@
 c----------------------------------------------------------------------
-c routine called in case of particle calls only in .usr file (i.e.,
-c  with nek5000 particles and not cmt-nek particles. must use 
-c  bdf/ext time integration. Otherwise, cmt-nek will not call this fxn.
       subroutine stokes_particles
       include 'SIZE'
       include 'TOTAL'
-      include 'CMTDATA'
       include 'CMTPART'
+      include 'CMTDATA'
 
       nstage_part = 3
       if (abs(time_integ) .eq. 2) nstage_part = 1
@@ -38,37 +35,33 @@ c----------------------------------------------------------------------
       include 'CMTDATA'
       include 'CMTPART'
 
-      common /elementload/ gfirst, inoassignd, resetFindpts, pload(lelg)
-      integer gfirst, inoassignd, resetFindpts, pload
+c     common /elementload/ gfirst, inoassignd, resetFindpts, pload(lelg)
+c     integer gfirst, inoassignd, resetFindpts, pload
 
       icmtp = idum
 
       call set_part_pointers
 c     call read_particle_input_par ! for lb code since no par file
       call set_bounds_box
-      call set_part_params ! n initialized here
+      call set_part_params 
       call place_particles
-      call update_particle_location   ! move outlier particles
-      call set_check_spl_params ! in case spl/collisions are set
-      call move_particles_inproc          ! initialize fp & cr comm handles
-      if (red_interp .eq. 1) call init_interpolation ! barycentric weights for interpolation
+      call update_particle_location   
+      call set_check_spl_params 
+      call move_particles_inproc          
       if (two_way.gt.1) then
-         call compute_neighbor_el_proc    ! compute list of neigh. el. ranks 
+         call compute_neighbor_el_proc    
          call create_extra_particles
          call send_ghost_particles
-         call spread_props_grid           ! put particle props on grid
+         call spread_props_grid           
       endif
-      call interp_props_part_location ! interpolate again for two-way
+      call interp_props_part_location 
 
       if (time_integ .lt. 0) call pre_sim_collisions ! e.g., settling p
    
-      resetFindpts = 0
+c     resetFindpts = 0
 c     call computeRatio
 c     call reinitialize
 c     call printVerify
-
-      ntmp  = iglsum(n,1)
-      if (nid.eq.0) write(6,*) 'Passed usr_particles_init', ntmp, n
 
       return
       end
@@ -191,15 +184,6 @@ c           set global particle id (3 part tag)
          nread_part = 1
          do j=1,nread_part
             call read_parallel_restart_part
-            do i=1,n
-           !rpart(jv0,i) = 0.
-           !rpart(jv0+1,i) = 0.
-           !rpart(jv0+2,i) = 0.
-            ry = rpart(jy,i) + rpart(jrpe,i)
-            if (ry .gt. 0.03) then
-c               rpart(jy,i) = -1E8
-            endif
-            enddo
             call update_particle_location   ! move outlier particles
             call move_particles_inproc
          enddo
@@ -223,9 +207,6 @@ c               rpart(jy,i) = -1E8
          enddo
       endif
 
-      if (nid.eq.0)
-     >            write(6,*)'Finished placing/reading particles'
-
       return
       end
 c----------------------------------------------------------------------
@@ -240,16 +221,14 @@ c
       include 'CMTTIMERS'
       include 'CMTPART'
 
-c     added by keke
-      common /elementload/ gfirst, inoassignd, resetFindpts, pload(lelg)
-      integer gfirst, inoassignd, resetFindpts, pload
-c     end added by keke
+c     common /elementload/ gfirst, inoassignd, resetFindpts, pload(lelg)
+c     integer gfirst, inoassignd, resetFindpts, pload
 
       rdum  = 1E8
       rleng = 1E8
 
-c     if(istep.eq.0.or.istep.eq.1)then
-      if((istep.eq.0) .or. (istep.eq.1).or.(resetFindpts.eq.1)) then !resetFindpts .eq. 0 added by keke
+      if(istep.eq.0.or.istep.eq.1)then
+c     if((istep.eq.0) .or. (istep.eq.1).or.(resetFindpts.eq.1)) then 
         call domain_size(xdrange(1,1),xdrange(2,1),xdrange(1,2)
      $                  ,xdrange(2,2),xdrange(1,3),xdrange(2,3))
         ntot = lx1*ly1*lz1*nelt
@@ -291,7 +270,7 @@ c----------------------------------------------------------------------
       character*132 deathmessage
 
       if (icalld .lt. 0) then
-         rdum   = ran2(-nrandseed*np-nid-1) ! initialize random number generator
+         rdum   = ran2(-nrandseed*np-nid-1) ! initialize
          icalld = icalld + 1
       endif
 
@@ -309,11 +288,8 @@ c     filter width setup (note deltax is implicit in expressions b4 def)
       ! do nothing, no spreading
       if (npro_method .eq. 0) then
 
-      ! box filter in this element, still no spreading
-      elseif (npro_method .eq. 1) then
-
       ! gaussian set by user input parameters
-      elseif (npro_method .eq. 2) then
+      elseif (npro_method .eq. 1) then
 
          rtmp = dfilt/2.*sqrt(-log(ralphdecay)/log(2.))
 
@@ -671,7 +647,7 @@ c
       if (abs(npro_method) .eq. 0) then
 
       ! gaussian spreading
-      elseif (abs(npro_method) .eq. 2) then
+      elseif (abs(npro_method) .eq. 1) then
 
       ! real particle projection
       do ip=1,n
@@ -1060,7 +1036,6 @@ c        momentum forcing to fluid
             rpart(jfiu+j,i) = rpart(jfiu+j,i) - ram_s
 
 c           note that no coupled f_un in this formulation
-c           rdum = rdum + rpart(jfun+j,i)
             rdum = rdum + rpart(jfiu+j,i)
             rdum = rdum + rpart(jfqs+j,i)
 
@@ -1130,7 +1105,6 @@ c     compute grad pr
       do e=1,nelt
         call gradl_rst(ur(1,1,1),us(1,1,1),ut(1,1,1),
      >                                        pm1(1,1,1,e,1),lx1,if3d)
-c       if(if3d) then ! 3d
             do i=1,nxyz
               rhs_fluidp(i,1,1,e,1) = 1.0d+0/JACM1(i,1,1,e)* !d/dx
      >             (ur(i,1,1)*RXM1(i,1,1,e) +
@@ -1151,25 +1125,21 @@ c       if(if3d) then ! 3d
      >              us(i,1,1)*SZM1(i,1,1,e) +
      >              ut(i,1,1)*TZM1(i,1,1,e))
             enddo
-c       endif ! end 3d
       enddo
 
       ! div (phi_p * v)
       do e=1,nelt
         call gradl_rst(ur(1,1,1),us(1,1,1),ut(1,1,1), ! x dir
      >                                        ptw(1,1,1,e,6),lx1,if3d)
-c       if(if3d) then ! 3d
             do i=1,nxyz
               rhs_fluidp(i,1,1,e,4) = 1.0d+0/JACM1(i,1,1,e)* !d/dx
      >             (ur(i,1,1)*RXM1(i,1,1,e) +
      >              us(i,1,1)*SXM1(i,1,1,e) +
      >              ut(i,1,1)*TXM1(i,1,1,e))
             enddo
-c       endif ! end 3d
 
         call gradl_rst(ur(1,1,1),us(1,1,1),ut(1,1,1), ! y dir
      >                                        ptw(1,1,1,e,7),lx1,if3d)
-c       if(if3d) then ! 3d
             do i=1,nxyz
               rhs_fluidp(i,1,1,e,4) = rhs_fluidp(i,1,1,e,4) +
      >             1.0d+0/JACM1(i,1,1,e)* !d/dy
@@ -1177,7 +1147,6 @@ c       if(if3d) then ! 3d
      >              us(i,1,1)*SYM1(i,1,1,e) +
      >              ut(i,1,1)*TYM1(i,1,1,e))
             enddo
-c        endif
 
         call gradl_rst(ur(1,1,1),us(1,1,1),ut(1,1,1), ! z dir
      >                                        ptw(1,1,1,e,8),lx1,if3d)
@@ -1206,7 +1175,6 @@ c     compute grad phi_g
       do e=1,nelt
         call gradl_rst(ur(1,1,1),us(1,1,1),ut(1,1,1),
      >                                        phig(1,1,1,e),lx1,if3d)
-c       if(if3d) then ! 3d
             do i=1,nxyz
               rhs_fluidp(i,1,1,e,5) = 1.0d+0/JACM1(i,1,1,e)*
      >             (ur(i,1,1)*RXM1(i,1,1,e) +
@@ -1227,7 +1195,6 @@ c       if(if3d) then ! 3d
      >              us(i,1,1)*SZM1(i,1,1,e) +
      >              ut(i,1,1)*TZM1(i,1,1,e))
             enddo
-c       endif ! end 3d
       enddo
 
       do e=1,nelt
@@ -1329,7 +1296,7 @@ c
 
          rpart(jcmiu,ii) = S_qs
          
-c        need to fix, fake, no D(rho_f u)/Dt contribution
+c        need to fix, for now, no D(rho_f u)/Dt contribution
          rpart(jfiu+jj,ii) = -1.*0.*S_qs*rpart(jvol,ii)*
      >                       rpart(jDuDt+jj,ii)
 
@@ -1611,28 +1578,6 @@ c        search list of ghost particles
      >                           rpart(jfcol,i),rdum3,idum)
          enddo
 
-!        collision with cylinders? put in rxbo(j,1) ...
-c        do j=1,2
-c           ! at this particles_location
-c           rtheta = atan2(rpart(jx+1,i),rpart(jx+0,i))
-c           rrad   = rxbo(j,1) ! assumes radius stored here
-
-c           rrp2   = 0.
-c           rvol2  = 1.
-c           rrho2  = 1E8
-c           rx2(1) = rrad*cos(rtheta)
-c           rx2(2) = rrad*sin(rtheta)
-c           rx2(3) = rpart(jx+2,i)
-c           rv2(1) = 0.
-c           rv2(2) = 0.
-c           rv2(3) = 0.
-
-c           idum = 0
-c           call compute_collide(mcfac,rrp2,rvol2,rrho2,rx2,rv2,
-c    >                              rpart(jfcol,i),rdum3,idum)
-c        enddo
-
-
       endif
 
       pttime(11) = pttime(11) + dnekclock() - ptdum(11)
@@ -1702,7 +1647,8 @@ c
 
       rfn1 = rnmag*rn_12x
       rfn2 = rnmag*rn_12y
-      rfn3 = rnmag*rn_12z
+      rfn3 = 0.0
+      if (if3d) rfn3 = rnmag*rn_12z
 
       fcf1(1) = fcf1(1) + rfn1
       fcf1(2) = fcf1(2) + rfn2
@@ -1714,6 +1660,7 @@ c
           fcf2(3) = fcf2(3) - rfn3
       endif
 
+
  1511 continue
 
       return
@@ -1721,27 +1668,19 @@ c
 c-----------------------------------------------------------------------
       subroutine send_ghost_particles
 c
-c     send only ghost particles
-c
-c     bc_part = -1,1  => non-periodic search
-c     bc_part = 0  => periodic search
-c
       include 'SIZE'
       include 'TOTAL'
       include 'CMTDATA'
       include 'CMTPART'
 
-      common /nekmpi/ mid,mp,nekcomm,nekgroup,nekreal
       common /myparth/ i_fp_hndl, i_cr_hndl
+      logical partl         
 
-      logical partl         ! dummy used in c_t_t()
-
-c     send ghost particles
+      ! send ghost particles
       call fgslib_crystal_tuple_transfer(i_cr_hndl,nfptsgp,llpart_gp
      $           , iptsgp,nigp,partl,0,rptsgp,nrgp,jgpps) ! jgpps is overwri
 
-      ! first, sort by element for ghost particles for projection
-      ! performance
+      ! sort by element for ghost particles for projection performance
       call fgslib_crystal_tuple_sort    (i_cr_hndl,nfptsgp
      $              , iptsgp,nigp,partl,0,rptsgp,nrgp,jgpes,1)
 
@@ -1877,26 +1816,12 @@ c CREATING GHOST PARTICLES
          kkp    = floor((rzval-xdrange(1,3))/rdzgp) 
          ndump  = iip + ndxgp*jjp + ndxgp*ndygp*kkp
 
-c        ! testing
-c        nfacegp = 1
-c        el_face_num(1) = 1
-c        el_face_num(2) = 0
-c        el_face_num(3) = 0
-
-c        nfacegp=0
-c        nedgegp=0
-c        ncornergp=0
-
-c           write(6,*) 'iip', iip, jjp, kkp
-
          ! faces
          do ifc=1,nfacegp
             ist = (ifc-1)*3
             ii1 = iip + el_face_num(ist+1) 
             jj1 = jjp + el_face_num(ist+2)
             kk1 = kkp + el_face_num(ist+3)
-
-c           write(6,*) 'yoo', ii1, jj1, kk1
 
             iig = ii1
             jjg = jj1
@@ -1969,8 +1894,6 @@ c           write(6,*) 'yoo', ii1, jj1, kk1
             jj1 = jjp + el_edge_num(ist+2)
             kk1 = kkp + el_edge_num(ist+3)
 
-c           write(6,*) 'yoo', ii1, jj1, kk1
-
             iig = ii1
             jjg = jj1
             kkg = kk1
@@ -2041,8 +1964,6 @@ c           write(6,*) 'yoo', ii1, jj1, kk1
             ii1 = iip + el_corner_num(ist+1) 
             jj1 = jjp + el_corner_num(ist+2)
             kk1 = kkp + el_corner_num(ist+3)
-
-c           write(6,*) 'yoo', ii1, jj1, kk1
 
             iig = ii1
             jjg = jj1
@@ -2581,26 +2502,6 @@ c Connect boxes to 1D processor map they should be arranged on
       enddo
 
 
-c     nps   = 6 ! index of new proc for doing stuff
-c     nglob = 2 ! unique key to sort by
-c     nkey  = 1 ! number of keys (just 1 here)
-c     call fgslib_crystal_ituple_sort(i_cr_hndl,ngp_valsp,
-c    >                 ngpvc,nlist,nglob,nkey)
-
-
-c     if (nid.eq.0) then
-c     write(6,*) 'GPLIST ORIG',nlist
-c     do i=1,nlist 
-c        write(6,*) ngp_valsp(1,i), ngp_valsp(2,i), ngp_valsp(3,i),
-c    >              ngp_valsp(4,i), ngp_valsp(5,i), ngp_valsp(6,i)
-c     enddo
-c     endif
-
-
-
-
-
-
 ! ------------------------
 c SEND TO 1D PROCESSOR MAP
 ! ------------------------
@@ -2637,15 +2538,6 @@ c SEND TO 1D PROCESSOR MAP
 
       nlist = ic
 
-c     if (nid.eq.0) then
-c     write(6,*) 'GPLIST BEFORE',nlist
-c     do i=1,nlist 
-c        write(6,*) ngp_valsp(1,i), ngp_valsp(2,i), ngp_valsp(3,i),
-c    >              ngp_valsp(4,i), ngp_valsp(5,i), ngp_valsp(6,i)
-c     enddo
-c     endif
-
-
       ! create dupicates to send to remote processors
       nlist_save = nlist
       do i=1,nlist_save
@@ -2669,38 +2561,6 @@ c     endif
          enddo
       enddo
 
-c     if (nid.eq.0) then
-c     write(6,*) 'GPLIST AFTER',nlist
-c     do i=1,nlist 
-c        write(6,*) ngp_valsp(1,i), ngp_valsp(2,i), ngp_valsp(3,i),
-c    >              ngp_valsp(4,i), ngp_valsp(5,i), ngp_valsp(6,i)
-c     enddo
-c     endif
-
-
-c        do j=1,nlist_save
-c           if (i.ne.j) then
-c           if (ngp_valsp(2,i) .eq. ngp_valsp(2,j)) then
-c              nlist = nlist + 1
-c              if (nlist .gt. nbox_gp) then
-c                 write(6,*)'Increase nbox_gp. In dup. loop',
-c    $                            nbox_gp, nlist, nid
-c                 call exitt
-c              endif
-c              do ic=1,6
-c                 ngp_valsp(ic,nlist) = ngp_valsp(ic,i)
-c              enddo
-c              ngp_valsp(6,nlist) = ngp_valsp(1,j)
-c           endif
-c           endif
-c        enddo
-c     enddo
-
-
-c        write(6,*) 'Passed from rank', nid
-c        call exitt
-
-
 ! ----------------------------------------------
 c SEND BACK TO ALL PROCESSORS WITH ADDITIONS NOW
 ! ----------------------------------------------
@@ -2711,40 +2571,6 @@ c SEND BACK TO ALL PROCESSORS WITH ADDITIONS NOW
      >                 ngpvc,nlist,nbox_gp,nps)
       call fgslib_crystal_ituple_sort(i_cr_hndl,ngp_valsp,
      >                 ngpvc,nlist,nglob,nkey)
-
-c     ! trim down so no duplicates
-c     do i=1,nlist
-c        ngp_trim(i) = 1
-c     enddo
-c     do i=1,nlist
-c     do j=i+1,nlist
-c        if (ngp_trim(j) .eq. 1) then
-c           if (ngp_valsp(1,i) .eq. ngp_valsp(1,j) ) then
-c           if (ngp_valsp(2,i) .eq. ngp_valsp(2,j) ) then
-c              ngp_trim(j) = 0
-c           endif
-c           endif
-c        endif
-c     enddo
-c     enddo
-c     ic = 0
-c     do i=1,nlist
-c        if (ngp_trim(i) .eq. 1) then
-c           ic = ic + 1
-c           call icopy(ngp_valsp(1,ic),ngp_valsp(1,i),ngpvc)
-c         endif
-c     enddo
-
-c     nlist = ic
-
-c     if (nid.eq.0) then
-c     write(6,*) 'GPLIST',nlist
-c     do i=1,nlist 
-c        write(6,*) ngp_valsp(1,i), ngp_valsp(2,i), ngp_valsp(3,i),
-c    >              ngp_valsp(4,i), ngp_valsp(5,i), ngp_valsp(6,i)
-c     enddo
-c     endif
-
 
 ! --------------------------------------------
 c ORGANIZE MAP OF REMOTE PROCESSORS TO SEND TO
@@ -2795,38 +2621,6 @@ c ORGANIZE MAP OF REMOTE PROCESSORS TO SEND TO
             endif
          endif
       enddo
-
-
-c        call create_extra_particles
-c        call send_ghost_particles
-c        call spread_props_grid    
-
-c        do ie=1,nelt
-c        do k=1,nz1
-c        do j=1,ny1
-c        do i=1,nx1
-c           ptw(i,j,k,ie,1) = real(mod_gp_grid(i,j,k,ie,1))
-c           ptw(i,j,k,ie,2) = real(mod_gp_grid(i,j,k,ie,2))
-c           ptw(i,j,k,ie,3) = real(mod_gp_grid(i,j,k,ie,3))
-
-c           ptw(i,j,k,ie,5) = real(nid)
-c        enddo
-c        enddo
-c        enddo
-c        enddo
-
-c        itmp = 1
-c        call outpost2(ptw(1,1,1,1,1),         ! fhyd_x
-c    >              ptw(1,1,1,1,2),         ! fhyd_y
-c    >              ptw(1,1,1,1,3),         ! fhyd_z
-c    >              ptw(1,1,1,1,4),         ! phi_p (but not if lx1!=lx2
-c    >              ptw(1,1,1,1,5),         ! phi_p
-c    >              itmp          ,        
-c    >              'ptw')
-c        call output_parallel_lagrangian_parts
-
-c        call exitt
-
 
       return
       end
@@ -3034,172 +2828,6 @@ c     > if bc_part = -1,1 then particles are killed (outflow)
 c-----------------------------------------------------------------------
 c     interpolation routines
 c-----------------------------------------------------------------------
-      subroutine init_interpolation
-      include 'SIZE' 
-      include 'INPUT' 
-      include 'CMTPART' 
-c
-c     calculates the barycentric lagrange weights
-c
-
-c     get gll points in all directions
-      call zwgll(xgll,wxgll,lx1)
-      call zwgll(ygll,wygll,ly1)
-      call rone(zgll,lz1)
-      if(if3d) call zwgll(zgll,wzgll,lz1)
-c     set all weights to ones first
-      call rone(wxgll,lx1)
-      call rone(wygll,ly1)
-      call rone(wzgll,lz1)
-c
-c     calc x bary weights
-      do j=1,nx1
-         do k=1,nx1
-            if (j .NE. k) then
-               wxgll(j) = wxgll(j)/(xgll(j) - xgll(k))
-            endif
-         enddo
-      enddo
-c     calc y bary weights
-      do j=1,nx1
-         do k=1,nx1
-            if (j .NE. k) then
-               wygll(j) = wygll(j)/(ygll(j) - ygll(k))
-            endif
-         enddo
-      enddo
-c     calc z bary weights
-      if (if3d) then
-      do j=1,nx1
-         do k=1,nx1
-            if (j .NE. k) then
-               wzgll(j) = wzgll(j)/(zgll(j) - zgll(k))
-            endif
-         enddo
-      enddo
-      endif
-
-      return 
-      end
-c-----------------------------------------------------------------------
-      subroutine init_baryinterp(x,y,z,nxyz)
-c     used for 3d interpolation only
-      include 'SIZE'
-      include 'CMTPART'
-      common /BARRYREP/ rep, bot
-      real              rep(lx1,ly1,lz1), bot
-
-      real x, y, z, repy, repz,repx,diff
-      real bwgtx(lx1),bwgty(ly1),bwgtz(lz1)
-
-      bot= 0.00
-      do k=1,nx1
-         diff = z - zgll(k)
-           if (abs(diff) .le. 1E-16) diff = sign(1E-16,diff)
-         bwgtz(k) = wzgll(k)/diff
-      enddo
-      do i=1,nx1
-         diff = x - xgll(i)
-           if (abs(diff) .le. 1E-16) diff = sign(1E-16,diff)
-         bwgtx(i) = wxgll(i)/diff
-      enddo 
-      do j=1,nx1
-         diff = y-ygll(j)
-           if (abs(diff) .le. 1E-16) diff = sign(1E-16,diff)
-         bwgty(j) = wygll(j)/diff
-      enddo
-
-      do k=1,nx1
-      do j=1,nx1
-         repdum = bwgty(j)*bwgtz(k)
-      do i=1,nx1
-         rep(i,j,k) =  repdum* bwgtx(i)
-         bot        =  bot + rep(i,j,k)
-      enddo
-      enddo
-      enddo 
-
-      do k=1,nx1
-      do j=1,nx1
-      do i=1,nx1
-         rep(i,j,k) =  rep(i,j,k)/bot
-      enddo
-      enddo
-      enddo
-
-      return
-      end
-c-----------------------------------------------------------------------
-      subroutine baryinterp(field,pofx,nxyz)
-c     used for 3d interpolation only
-      include 'SIZE'
-      include 'CMTPART'
-      common /BARRYREP/ rep, bot
-      real              rep(lx1,ly1,lz1), bot
-      real field(1),pofx,top
-
-      pofx = 0.00
-      do i=1,nxyz
-         pofx =  pofx + rep(i,1,1)*field(i)
-      enddo
-
-      return
-      end
-c-----------------------------------------------------------------------
-      subroutine triinterp(xf,yf,zf,field,x,y,z,r,s,t,ie,pval)
-c     
-c     used for 3d trilinear interpolation
-c
-      include 'SIZE'
-      include 'CMTPART'
-      include 'INPUT'
-
-      real field(nx1,ny1,nz1),xf(nx1,ny1,nz1),yf(nx1,ny1,nz1),
-     >                        zf(nx1,ny1,nz1)
-      real x,y,z,pval,c00,c01,c10,c11,c0,c1_0,c1_1,r,s,t
-
-      rdelta = 2./(nx1-1.)
-      sdelta = 2./(ny1-1.)
-      tdelta = 2./(nz1-1.)
-
-c     mxx = floor((1.+r)/rdelta)+1
-c     myy = floor((1.+s)/sdelta)+1
-c     mzz = floor((1.+t)/tdelta)+1
-
-      mxx = 0
-      myy = 0
-      mzz = 0
-
-      do k=1,nz1
-      do j=1,ny1
-      do i=1,nx1
-         if (xf(i,j,k) .lt. x) mxx = max(mxx,i)
-         if (yf(i,j,k) .lt. y) myy = max(myy,j)
-         if (zf(i,j,k) .lt. z) mzz = max(mzz,k)
-      enddo
-      enddo
-      enddo
-      if (.not.if3d) mzz = 1
-
-      xd = (x - xf(mxx,myy,mzz))/(xf(mxx+1,myy,mzz)-xf(mxx,myy,mzz))
-      yd = (y - yf(mxx,myy,mzz))/(yf(mxx,myy+1,mzz)-yf(mxx,myy,mzz))
-      c00=field(mxx,myy,mzz)*(1.-xd)+field(mxx+1,myy,mzz)*xd
-      c10=field(mxx,myy+1,mzz)*(1.-xd)+field(mxx+1,myy+1,mzz)*xd
-      c1_0 = c00*(1.-yd) + c10*yd
-      pval = c1_0
-
-      if (if3d) then
-         zd = (z - zf(mxx,myy,mzz))/(zf(mxx,myy,mzz+1)-zf(mxx,myy,mzz))
-         c01=field(mxx,myy,mzz+1)*(1.-xd)+field(mxx+1,myy,mzz+1)*xd
-         c11=field(mxx,myy+1,mzz+1)*(1.-xd)+field(mxx+1,myy+1,mzz+1)*xd
-         c1_1 = c01*(1.-yd) + c11*yd
-         pval = c1_0*(1.-zd) + c1_1*zd
-      endif
-
-
-      return
-      end
-c-----------------------------------------------------------------------
       subroutine interp_props_part_location
       include 'SIZE'
       include 'INPUT'
@@ -3207,97 +2835,51 @@ c-----------------------------------------------------------------------
       include 'CMTDATA'
       include 'CMTPART'
       include 'GEOM'
-      common /BARRYREP/ rep, bot
-      real              rep(lx1,ly1,lz1), bot
 
-      common /point2gridc/ p2gc
-      real   p2gc(lx1,ly1,lz1,lelt,4)
+      common /myparth/ i_fp_hndl, i_cr_hndl
 
-      if (red_interp .eq. 0) goto 1511
+      if (red_interp .eq. 0) then
 
-      nxyz = nx1*ny1*nz1
-        do i=1,n
-           rrdum = 1.0
-           if(if3d) rrdum = rpart(jr+2,i)
-           ie  =  ipart(je0,i) + 1
+      elseif (red_interp .eq. 1) then
+      ! note that all data is local now
+      call fgslib_findpts_eval_local(i_fp_hndl,rpart(ju0+0,1),nr,
+     &                                   ipart(je0,1)  ,ni,
+     &                                   rpart(jr,1)   ,nr,n,
+     &                                   vx)
+      call fgslib_findpts_eval_local(i_fp_hndl,rpart(ju0+1,1),nr,
+     &                                   ipart(je0,1)  ,ni,
+     &                                   rpart(jr,1)   ,nr,n,
+     &                                   vy)
+      call fgslib_findpts_eval_local(i_fp_hndl,rpart(ju0+2,1),nr,
+     &                                   ipart(je0,1)  ,ni,
+     &                                   rpart(jr,1)   ,nr,n,
+     &                                   vz)
+      call fgslib_findpts_eval_local(i_fp_hndl,rpart(jtempf,1),nr,
+     &                                   ipart(je0,1)   ,ni,
+     &                                   rpart(jr,1)    ,nr,n,
+     &                                   t)
+      call fgslib_findpts_eval_local(i_fp_hndl,rpart(jrho,1)  ,nr,
+     &                                   ipart(je0,1)   ,ni,
+     &                                   rpart(jr,1)    ,nr,n,
+     &                                   vtrans)
+      call fgslib_findpts_eval_local(i_fp_hndl,rpart(jDuDt+0,1) ,nr,
+     &                                   ipart(je0,1)     ,ni,
+     &                                   rpart(jr,1)      ,nr,n,
+     &                                   rhs_fluidp(1,1,1,1,1))
+      call fgslib_findpts_eval_local(i_fp_hndl,rpart(jDuDt+1,1) ,nr,
+     &                                   ipart(je0,1)     ,ni,
+     &                                   rpart(jr,1)      ,nr,n,
+     &                                   rhs_fluidp(1,1,1,1,2))
+      call fgslib_findpts_eval_local(i_fp_hndl,rpart(jDuDt+2,1) ,nr,
+     &                                   ipart(je0,1)     ,ni,
+     &                                   rpart(jr,1)      ,nr,n,
+     &                                   rhs_fluidp(1,1,1,1,3))
+      call fgslib_findpts_eval_local(i_fp_hndl,rpart(jvol1,1)   ,nr,
+     &                                   ipart(je0,1)     ,ni,
+     &                                   rpart(jr,1)      ,nr,n,
+     &                                   ptw(1,1,1,1,4))
+      endif
 
-           ! Barycentric or reduced barycentric lagrange interpolation
-           if (red_interp .eq. 1) then 
-
-           call init_baryinterp(rpart(jr,i),rpart(jr+1,i),rrdum,nxyz)
-
-           call baryinterp(vx(1,1,1,ie),rpart(ju0,i),nxyz)   !fluid uvel
-           call baryinterp(vy(1,1,1,ie),rpart(ju0+1,i),nxyz) !fluid vvel
-           call baryinterp(vz(1,1,1,ie),rpart(ju0+2,i),nxyz) !fluid wvel
-
-           call baryinterp(t(1,1,1,ie,1),rpart(jtempf,i),nxyz)    !fluid temp
-           call baryinterp(vtrans(1,1,1,ie,1),rpart(jrho,i),nxyz) !fluid dens
-           call baryinterp(rhs_fluidp(1,1,1,ie,1),rpart(jDuDt,i),nxyz)  !dp/dx
-           call baryinterp(rhs_fluidp(1,1,1,ie,2),rpart(jDuDt+1,i),nxyz)!dp/dy
-           call baryinterp(rhs_fluidp(1,1,1,ie,3),rpart(jDuDt+2,i),nxyz)!dp/dz
-           call baryinterp(ptw(1,1,1,ie,4),rpart(jvol1,i),nxyz)   !phi_p
-
-c          call baryinterp(p2gc(1,1,1,ie,4),rpart(jgam,i),nxyz)   !gam
-
-           ! trilinear interpolation between grid points
-           elseif (red_interp .eq. 2) then
-              call triinterp(xm1(1,1,1,ie),ym1(1,1,1,ie),
-     >                       zm1(1,1,1,ie),vx(1,1,1,ie),
-     >                       rpart(jx,i),rpart(jy,i),rpart(jz,i),
-     >                       rpart(jr,i),rpart(jr+1,i),rrdum,
-     >                       ie,rpart(ju0,i))
-              call triinterp(xm1(1,1,1,ie),ym1(1,1,1,ie),
-     >                       zm1(1,1,1,ie),vy(1,1,1,ie),
-     >                       rpart(jx,i),rpart(jy,i),rpart(jz,i),
-     >                       rpart(jr,i),rpart(jr+1,i),rrdum,
-     >                       ie,rpart(ju0+1,i))
-              call triinterp(xm1(1,1,1,ie),ym1(1,1,1,ie),
-     >                       zm1(1,1,1,ie),vz(1,1,1,ie),
-     >                       rpart(jx,i),rpart(jy,i),rpart(jz,i),
-     >                       rpart(jr,i),rpart(jr+1,i),rrdum,
-     >                       ie,rpart(ju0+2,i))
-
-              call triinterp(xm1(1,1,1,ie),ym1(1,1,1,ie),
-     >                       zm1(1,1,1,ie),t(1,1,1,ie,1),
-     >                       rpart(jx,i),rpart(jy,i),rpart(jz,i),
-     >                       rpart(jr,i),rpart(jr+1,i),rrdum,
-     >                       ie,rpart(jtempf,i))
-              call triinterp(xm1(1,1,1,ie),ym1(1,1,1,ie),
-     >                       zm1(1,1,1,ie),vtrans(1,1,1,ie,1),
-     >                       rpart(jx,i),rpart(jy,i),rpart(jz,i),
-     >                       rpart(jr,i),rpart(jr+1,i),rrdum,
-     >                       ie,rpart(jrho,i))
-              call triinterp(xm1(1,1,1,ie),ym1(1,1,1,ie),
-     >                       zm1(1,1,1,ie),rhs_fluidp(1,1,1,ie,1),
-     >                       rpart(jx,i),rpart(jy,i),rpart(jz,i),
-     >                       rpart(jr,i),rpart(jr+1,i),rrdum,
-     >                       ie,rpart(jDuDt,i))
-              call triinterp(xm1(1,1,1,ie),ym1(1,1,1,ie),
-     >                       zm1(1,1,1,ie),rhs_fluidp(1,1,1,ie,2),
-     >                       rpart(jx,i),rpart(jy,i),rpart(jz,i),
-     >                       rpart(jr,i),rpart(jr+1,i),rrdum,
-     >                       ie,rpart(jDuDt+1,i))
-              call triinterp(xm1(1,1,1,ie),ym1(1,1,1,ie),
-     >                       zm1(1,1,1,ie),rhs_fluidp(1,1,1,ie,3),
-     >                       rpart(jx,i),rpart(jy,i),rpart(jz,i),
-     >                       rpart(jr,i),rpart(jr+1,i),rrdum,
-     >                       ie,rpart(jDuDt+2,i))
-              call triinterp(xm1(1,1,1,ie),ym1(1,1,1,ie),
-     >                       zm1(1,1,1,ie),ptw(1,1,1,ie,4),
-     >                       rpart(jx,i),rpart(jy,i),rpart(jz,i),
-     >                       rpart(jr,i),rpart(jr+1,i),rrdum,
-     >                       ie,rpart(jvol1,i))
-
-c             call triinterp(xm1(1,1,1,ie),ym1(1,1,1,ie),
-c    >                       zm1(1,1,1,ie),p2gc(1,1,1,ie,4),
-c    >                       rpart(jx,i),rpart(jy,i),rpart(jz,i),
-c    >                       rpart(jr,i),rpart(jr+1,i),rrdum,
-c    >                       ie,rpart(jgam,i))
-           endif
-
-        enddo
-
- 1511 continue
 
       return
       end
@@ -3327,53 +2909,19 @@ c     output diagnostics to logfile
          call output_particle_diagnostics
       endif
 
-c     output particle  information
-      if     (abs(npio_method) .eq. 1) then
-c        call output_parallel_lagrangian_parts
+c     call output_along_line_avg_x
+c     call output_along_line_avg_y
+c     call output_along_line_avg_z
 
-      elseif (abs(npio_method) .eq. 2) then
-c        call output_parallel_lagrangian_parts
-         call output_along_line_avg_x
-         call output_along_line_avg_y
-         call output_along_line_avg_z
-
-      elseif (abs(npio_method) .eq. 3) then
-c        call output_parallel_lagrangian_parts
-         call output_along_line_avg_x
-
-      elseif (abs(npio_method) .eq. 4) then
-c        call output_parallel_lagrangian_parts
-         call output_along_line_avg_y
-
-      elseif (abs(npio_method) .eq. 5) then
-c        call output_parallel_lagrangian_parts
-         call output_along_line_avg_z
-
-      elseif (abs(npio_method) .eq. 6) then
-         call output_along_line_avg_x
-         call output_along_line_avg_y
-         call output_along_line_avg_z
-
-      elseif (abs(npio_method) .eq. 7) then
-         call output_along_line_avg_x
-
-      elseif (abs(npio_method) .eq. 8) then
-         call output_along_line_avg_y
-
-      elseif (abs(npio_method) .eq. 9) then
-         call output_along_line_avg_z
-
-      endif
-
-      ! Always output restart files
-      call output_parallel_restart_part 
+      call output_parallel_part
+      call output_parallel_restart_part
 
       pttime(1) = pttime(1) - (dnekclock() - rdumt)
 
       return
       end
 c----------------------------------------------------------------------
-      subroutine output_parallel_restart_part
+      subroutine output_parallel_part
       include 'SIZE'
       include 'SOLN'
       include 'INPUT'
@@ -3387,16 +2935,24 @@ c----------------------------------------------------------------------
       common /myparth/ i_fp_hndl, i_cr_hndl
 
       character*20 vtufile
+      character*14 vtufile1
       character*50 dumstr
 
       integer icalld
       save    icalld
       data    icalld  /0/
 
-      integer vtu,prevs(2,np)
+      logical partl         ! This is a dummy placeholder, used in cr()
+
+      integer vtu,vtu1,prevs(2,np)
       integer*4 iint
       real stride_len
 
+      icalld = icalld+1
+
+! --------------------------------------------------
+! FIRST GET HOW MANY PARTICLES WERE BEFORE THIS RANK
+! --------------------------------------------------
       do i=1,np
          prevs(1,i) = i-1
          prevs(2,i) = n
@@ -3418,6 +2974,9 @@ c----------------------------------------------------------------------
       enddo
       endif
 
+! -----------------------------------------------------
+! SEND PARTICLES TO A SMALLER NUMBER OF RANKS TO OUTPUT
+! -----------------------------------------------------
       do i = 1,n
          idum = int((stride_len + i)/llpart)
          ipart(jps,i) = idum
@@ -3426,21 +2985,90 @@ c----------------------------------------------------------------------
       call fgslib_crystal_tuple_transfer(i_cr_hndl,n,llpart
      >                  , ipart,ni,partl,nl,rpart,nr,jps)
 
+! -------------------
+! GET TOTAL PARTICLES
+! -------------------
+      nptot = iglsum(n,1)
+      npmax_set = int(nptot/llpart) + 1 ! use as few procs as possible
+      npmax = np
+      if (npmax .gt. npmax_set) npmax = npmax_set
+
+! -----------------------
+! WRITE PARALLEL VTU FILE
+! -----------------------
+      if (nid.eq.0) then
+         vtu1 = 107
+         write(vtufile1,'(A4,I5.5,A5)')'part',icalld,'.pvtu'
+         open(unit=vtu1,file=vtufile1,status='replace',
+     >             access='stream',form="unformatted")
+
+         write(vtu1) '<VTKFile '
+         write(vtu1) 'type="PUnstructuredGrid" '
+         write(vtu1) 'version="1.0"> '
+         
+         write(vtu1) '<PUnstructuredGrid GhostLevel="0">'
+
+         write(vtu1) '<PPoints> '
+         call vtu_write_dataarray(vtu1,"Position    ",3,0,0)
+         write(vtu1) '</PPoints> '
+         write(vtu1) '<PPointData> '
+         call vtu_write_dataarray(vtu1,"VelocityP   ",3,0,0)
+         call vtu_write_dataarray(vtu1,"VelocityF   ",3,0,0)
+         call vtu_write_dataarray(vtu1,"ForceQS     ",3,0,0)
+         call vtu_write_dataarray(vtu1,"ForceUN     ",3,0,0)
+         call vtu_write_dataarray(vtu1,"ForceIU     ",3,0,0)
+         call vtu_write_dataarray(vtu1,"ForceC      ",3,0,0)
+         call vtu_write_dataarray(vtu1,"ForceUSR    ",3,0,0)
+         call vtu_write_dataarray(vtu1,"ForceWork   ",1,0,0)
+         call vtu_write_dataarray(vtu1,"HeatQS      ",1,0,0)
+         call vtu_write_dataarray(vtu1,"HeatUN      ",1,0,0)
+         call vtu_write_dataarray(vtu1,"TemperatureP",1,0,0)
+         call vtu_write_dataarray(vtu1,"TemperatureF",1,0,0)
+         call vtu_write_dataarray(vtu1,"ParticleVF  ",1,0,0)
+         call vtu_write_dataarray(vtu1,"RadiusCG    ",1,0,0)
+         call vtu_write_dataarray(vtu1,"Diameter    ",1,0,0)
+         call vtu_write_dataarray(vtu1,"ID_1        ",1,0,0)
+         call vtu_write_dataarray(vtu1,"ID_2        ",1,0,0)
+         call vtu_write_dataarray(vtu1,"ID_3        ",1,0,0)
+         write(vtu1) '</PPointData> '
+
+         write(vtu1) '<PCells> '
+         write(vtu1) '<PDataArray '
+         write(vtu1) 'type="Int32" '
+         write(vtu1) 'Name="connectivity" '
+         write(vtu1) 'format="ascii"> '
+         write(vtu1) '</PDataArray> '
+         write(vtu1) '<PDataArray '
+         write(vtu1) 'type="Int32" '
+         write(vtu1) 'Name="offsets" '
+         write(vtu1) 'format="ascii"> '
+         write(vtu1) '</PDataArray> '
+         write(vtu1) '<PDataArray '
+         write(vtu1) 'type="Int32" '
+         write(vtu1) 'Name="types" '
+         write(vtu1) 'format="ascii"> '
+         write(vtu1) '</PDataArray> '
+         write(vtu1) '</PCells> '
+         
+         do j=0,npmax-1
+            write(vtufile,'(A4,I5.5,A2,I5.5,A4)')
+     >              'part',icalld,'_p',j,'.vtu'
+            write(vtu1) '<Piece Source="',trim(vtufile),'"/>'
+         enddo
+
+         write(vtu1) '</PUnstructuredGrid> '
+         write(vtu1) '</VTKFile> '
+
+         close(vtu1)
+
+      endif
 
 
-c     nptot = iglsum(n,1)
-c     npmax_set = int(nptot/llpart) + 1 ! use as few procs as possible
-c     npmax = np
-c     if (npmax .gt. npmax_set) npmax = npmax_set
-
-! ----------------------------------------
-! Setup file names to write to mpi
-! ----------------------------------------
-      icalld = icalld+1
-
+! ----------------------------------------------------
+! WRITE EACH INDIVIDUAL COMPONENT OF A BINARY VTU FILE
+! ----------------------------------------------------
       if (n .gt. 0) then
       write(vtufile,'(A4,I5.5,A2,I5.5,A4)')'part',icalld,'_p',nid,'.vtu'
-c     write(vtufile,'(A4,I5.5,A4)')'part',icalld,'.vtu'
 
 
       vtu=867+nid
@@ -3454,7 +3082,7 @@ c     write(vtufile,'(A4,I5.5,A4)')'part',icalld,'.vtu'
 ! ------------
       write(vtu) '<VTKFile '
       write(vtu) 'type="UnstructuredGrid" '
-      write(vtu) 'version="0.1"> '
+      write(vtu) 'version="1.0"> '
 
       write(vtu) '<UnstructuredGrid> '
       write(vtu) '<Piece '
@@ -3467,7 +3095,7 @@ c     write(vtufile,'(A4,I5.5,A4)')'part',icalld,'.vtu'
 ! -----------
       write(vtu) '<Points> '
       iint = 0
-      call vtu_write_dataarray(vtu,"Position    ",3,iint)
+      call vtu_write_dataarray(vtu,"Position    ",3,iint,1)
       write(vtu) '</Points> '
 
 ! ----
@@ -3475,23 +3103,41 @@ c     write(vtufile,'(A4,I5.5,A4)')'part',icalld,'.vtu'
 ! ----
       write(vtu) '<PointData> '
       iint = iint + 3*wdsize*n + isize
-      call vtu_write_dataarray(vtu,"VelocityP   ",3,iint)
+      call vtu_write_dataarray(vtu,"VelocityP   ",3,iint,1)
       iint = iint + 3*wdsize*n + isize
-      call vtu_write_dataarray(vtu,"VelocityF   ",3,iint)
+      call vtu_write_dataarray(vtu,"VelocityF   ",3,iint,1)
       iint = iint + 3*wdsize*n + isize
-      call vtu_write_dataarray(vtu,"TemperatureP",1,iint)
+      call vtu_write_dataarray(vtu,"ForceQS     ",3,iint,1)
+      iint = iint + 3*wdsize*n + isize
+      call vtu_write_dataarray(vtu,"ForceUN     ",3,iint,1)
+      iint = iint + 3*wdsize*n + isize
+      call vtu_write_dataarray(vtu,"ForceIU     ",3,iint,1)
+      iint = iint + 3*wdsize*n + isize
+      call vtu_write_dataarray(vtu,"ForceC      ",3,iint,1)
+      iint = iint + 3*wdsize*n + isize
+      call vtu_write_dataarray(vtu,"ForceUSR    ",3,iint,1)
+      iint = iint + 3*wdsize*n + isize
+      call vtu_write_dataarray(vtu,"ForceWork   ",1,iint,1)
       iint = iint + 1*wdsize*n + isize
-      call vtu_write_dataarray(vtu,"TemperatureF",1,iint)
+      call vtu_write_dataarray(vtu,"HeatQS      ",1,iint,1)
       iint = iint + 1*wdsize*n + isize
-      call vtu_write_dataarray(vtu,"RadiusCG    ",1,iint)
+      call vtu_write_dataarray(vtu,"HeatUN      ",1,iint,1)
       iint = iint + 1*wdsize*n + isize
-      call vtu_write_dataarray(vtu,"Diameter    ",1,iint)
+      call vtu_write_dataarray(vtu,"TemperatureP",1,iint,1)
       iint = iint + 1*wdsize*n + isize
-      call vtu_write_dataarray(vtu,"ID_1        ",1,iint)
+      call vtu_write_dataarray(vtu,"TemperatureF",1,iint,1)
       iint = iint + 1*wdsize*n + isize
-      call vtu_write_dataarray(vtu,"ID_2        ",1,iint)
+      call vtu_write_dataarray(vtu,"ParticleVF  ",1,iint,1)
       iint = iint + 1*wdsize*n + isize
-      call vtu_write_dataarray(vtu,"ID_3        ",1,iint)
+      call vtu_write_dataarray(vtu,"RadiusCG    ",1,iint,1)
+      iint = iint + 1*wdsize*n + isize
+      call vtu_write_dataarray(vtu,"Diameter    ",1,iint,1)
+      iint = iint + 1*wdsize*n + isize
+      call vtu_write_dataarray(vtu,"ID_1        ",1,iint,1)
+      iint = iint + 1*wdsize*n + isize
+      call vtu_write_dataarray(vtu,"ID_2        ",1,iint,1)
+      iint = iint + 1*wdsize*n + isize
+      call vtu_write_dataarray(vtu,"ID_3        ",1,iint,1)
       write(vtu) '</PointData> '
 
 ! ----------
@@ -3543,6 +3189,56 @@ c     write(vtufile,'(A4,I5.5,A4)')'part',icalld,'.vtu'
          write(vtu) rpart(ju0+1,i)
          write(vtu) rpart(ju0+2,i)
       enddo
+      iint=3*wdsize*n
+      write(vtu) iint
+      do i=1,n
+         write(vtu) rpart(jfqs,i)
+         write(vtu) rpart(jfqs+1,i)
+         write(vtu) rpart(jfqs+2,i)
+      enddo
+      iint=3*wdsize*n
+      write(vtu) iint
+      do i=1,n
+         write(vtu) rpart(jfun,i)
+         write(vtu) rpart(jfun+1,i)
+         write(vtu) rpart(jfun+2,i)
+      enddo
+      iint=3*wdsize*n
+      write(vtu) iint
+      do i=1,n
+         write(vtu) rpart(jfiu,i)
+         write(vtu) rpart(jfiu+1,i)
+         write(vtu) rpart(jfiu+2,i)
+      enddo
+      iint=3*wdsize*n
+      write(vtu) iint
+      do i=1,n
+         write(vtu) rpart(jfcol,i)
+         write(vtu) rpart(jfcol+1,i)
+         write(vtu) rpart(jfcol+2,i)
+      enddo
+      iint=3*wdsize*n
+      write(vtu) iint
+      do i=1,n
+         write(vtu) rpart(jfusr,i)
+         write(vtu) rpart(jfusr+1,i)
+         write(vtu) rpart(jfusr+2,i)
+      enddo
+      iint=1*wdsize*n
+      write(vtu) iint
+      do i=1,n
+         write(vtu) rpart(jg0,i)
+      enddo
+      iint=1*wdsize*n
+      write(vtu) iint
+      do i=1,n
+         write(vtu) rpart(jqqs,i)
+      enddo
+      iint=1*wdsize*n
+      write(vtu) iint
+      do i=1,n
+         write(vtu) rpart(jquu,i)
+      enddo
       iint=1*wdsize*n
       write(vtu) iint
       do i=1,n
@@ -3552,6 +3248,11 @@ c     write(vtufile,'(A4,I5.5,A4)')'part',icalld,'.vtu'
       write(vtu) iint
       do i=1,n
          write(vtu) rpart(jtempf,i)
+      enddo
+      iint=1*wdsize*n
+      write(vtu) iint
+      do i=1,n
+         write(vtu) rpart(jvol1,i)
       enddo
       iint=1*wdsize*n
       write(vtu) iint
@@ -3588,12 +3289,15 @@ c     write(vtufile,'(A4,I5.5,A4)')'part',icalld,'.vtu'
       close(vtu)
       endif
 
+! ---------------------------------------------------
+! SEND PARTICLES BACK TO ORIGINAL PROCESSOR WHEN DONE
+! ---------------------------------------------------
       call move_particles_inproc
 
       return
       end
 c----------------------------------------------------------------------
-      subroutine vtu_write_dataarray(vtu,dataname,ncomp,idist)
+      subroutine vtu_write_dataarray(vtu,dataname,ncomp,idist,ip)
       include 'SIZE'
       include 'SOLN'
       include 'INPUT'
@@ -3609,58 +3313,112 @@ c----------------------------------------------------------------------
       character*12 dataname
       character*50 dumstr
 
-      write(vtu) '<DataArray '
-      write(vtu) 'type="Float64" '
-      write(dumstr,*)'Name="',trim(dataname),'" '
-      write(vtu) trim(dumstr), ' '
-      write(dumstr,'(A20,I0,A2)')'NumberOfComponents="',ncomp,'" '
-      write(vtu) trim(dumstr), ' '
-      write(vtu) 'format="append" '
-      write(dumstr,'(A8,I0,A3)') 'offset="',idist,'"/>'
-      write(vtu) trim(dumstr), ' '
+      if (ip .eq. 0) then
+         write(vtu) '<PDataArray '
+         write(vtu) 'type="Float64" '
+         write(dumstr,*)'Name="',trim(dataname),'" '
+         write(vtu) trim(dumstr), ' '
+         write(dumstr,'(A20,I0,A2)')'NumberOfComponents="',ncomp,'" '
+         write(vtu) trim(dumstr), ' '
+         write(vtu) 'format="append"/> '
+      else
+         write(vtu) '<DataArray '
+         write(vtu) 'type="Float64" '
+         write(dumstr,*)'Name="',trim(dataname),'" '
+         write(vtu) trim(dumstr), ' '
+         write(dumstr,'(A20,I0,A2)')'NumberOfComponents="',ncomp,'" '
+         write(vtu) trim(dumstr), ' '
+         write(vtu) 'format="append" '
+         write(dumstr,'(A8,I0,A3)') 'offset="',idist,'"/>'
+         write(vtu) trim(dumstr), ' '
+      endif
 
       return
       end
 c----------------------------------------------------------------------
-      subroutine output_parallel_restart_part_old
+      subroutine output_parallel_restart_part
       include 'SIZE'
       include 'SOLN'
       include 'INPUT'
       include 'MASS'
       include 'GEOM'
       include 'TSTEP'
+      include 'PARALLEL'
       include 'CMTDATA'
       include 'CMTPART'
-      include 'mpif.h'
 
-      common /nekmpi/ mid,np,nekcomm,nekgroup,nekreal
       common /myparth/ i_fp_hndl, i_cr_hndl
 
       integer icalld
       save    icalld
       data    icalld  /0/
 
-      character*16 locstring, datastring
-      integer*8    disp, stride_len 
-      integer      status_mpi(MPI_STATUS_SIZE)
-      integer      prevs(0:np-1),npt_total,e,oldfile,count1(0:np-1)
-      integer      color,particle_io_comm,key
+      character*10 filename
 
       logical partl         ! This is a dummy placeholder, used in cr()
+
+      integer vtu,vtu1,prevs(2,np)
+      integer*4 iint
+      integer stride_len
+
+      integer*8 disp
+      integer*4 nptot
+      integer pth
+      real*4 rnptot, rnptot_new
 
 ! ----------------------------------------
 ! Setup file names to write to mpi
 ! ----------------------------------------
       icalld = icalld+1
-      write(locstring,'(A8,I5.5,A3)') 'rpartxyz', icalld, '.3D' 
-      write(datastring,'(A9,I5.5)')   'rpartdata', icalld
+      write(filename,'(A5,I5.5)') 'rpart', icalld
 
       nptot = iglsum(n,1)
-      if (nid.eq.0) then
-      open(364, file=datastring, action="write")
-         write(364,*) nptot
-      close(364)
+      rnptot = real(nptot)
+      pth = 174
+
+      disp   = 0
+      icount = 0
+      if (nid .eq. 0) icount = 1
+      iorank = 0
+      call byte_open_mpi(filename,pth,.false.,ierr)
+      call byte_set_view(disp,pth)
+      call byte_write_mpi(rnptot,icount,iorank,pth,ierr)
+      call byte_close_mpi(pth,ierr)
+
+! --------------------------------------------------
+! FIRST GET HOW MANY PARTICLES WERE BEFORE THIS RANK
+! --------------------------------------------------
+      do i=1,np
+         prevs(1,i) = i-1
+         prevs(2,i) = n
+      enddo
+
+      nps   = 1 ! index of new proc for doing stuff
+      nglob = 1 ! unique key to sort by
+      nkey  = 1 ! number of keys (just 1 here)
+      ndum = 2
+      call fgslib_crystal_ituple_transfer(i_cr_hndl,prevs,
+     >                 ndum,np,np,nps)
+      call fgslib_crystal_ituple_sort(i_cr_hndl,prevs,
+     >                 ndum,np,nglob,nkey)
+
+      stride_len = 0
+      if (nid .ne. 0) then
+      do i=1,nid
+         stride_len = stride_len + prevs(2,i)
+      enddo
       endif
+
+! -----------------------------------------------------
+! SEND PARTICLES TO A SMALLER NUMBER OF RANKS TO OUTPUT
+! -----------------------------------------------------
+      do i = 1,n
+         idum = int((stride_len + i)/llpart)
+         ipart(jps,i) = idum
+      enddo
+      nl = 0
+      call fgslib_crystal_tuple_transfer(i_cr_hndl,n,llpart
+     >                  , ipart,ni,partl,nl,rpart,nr,jps)
 
 ! ----------------------------------------
 ! Calculate how many processors to be used
@@ -3669,159 +3427,73 @@ c----------------------------------------------------------------------
       npmax = np
       if (npmax .gt. npmax_set) npmax = npmax_set
 
-! ----------------------------------------
-! Create communicator with that many ranks
-! ----------------------------------------
-      color = MPI_UNDEFINED
-      if (nid.lt.npmax) color = 0
-      key=nid
-      call MPI_Comm_split(nekcomm,color,key,particle_io_comm,ierr)
-
-! ------------------------------------
-! Get a global prefix sum of partilces
-! ------------------------------------
-      call MPI_Send(n, 1, MPI_INTEGER,0,0, nekcomm, ierr)
-      
-      ! keep track of how many particles are on previous procs
-      if (nid.eq. 0) then
-          prevs(0) = n
-          do i=0,np-1
-             call MPI_Recv(prevs(i),1,MPI_INTEGER,i,
-     >                     0,nekcomm,status_mpi,ierr)
-          enddo
-      endif
-      call MPI_BCAST(prevs,np,MPI_INTEGER,0,nekcomm,ierr)
-
-! ------------------------------------------------------
-! Each rank counts how many particles in ranks before it
-! ------------------------------------------------------
-      stride_len = 0
-      if (nid .ne. 0) then
-      do i=1,nid
-         stride_len = stride_len + prevs(i-1)
-      enddo
-      endif
-
-      ! but sort processors by ones that already have most particles
-      call isort(prevs,count1,np)
-
-c     do i=1,np
-c        if (nid.eq.0) write(6,*) 'sorted', count1(i-1) - 1
-c     enddo
-
-! -------------------------------------
-! Set new rank to send to and then send
-! -------------------------------------
+! ----------------------
+! COPY DATA FOR EASY I/O
+! ----------------------
       do i = 1,n
-         idum = int((stride_len + i)/llpart)
-c        ipart(jps,i) = count1(np-idum-1) -1
-         ipart(jps,i) = idum
+         rfpts(1,i) = rpart(jx,i)
+         rfpts(2,i) = rpart(jy,i)
+         rfpts(3,i) = rpart(jz,i)
+         rfpts(4,i) = rpart(jx1+0,i)
+         rfpts(5,i) = rpart(jx1+1,i)
+         rfpts(6,i) = rpart(jx1+2,i)
+         rfpts(7,i) = rpart(jx2+0,i)
+         rfpts(8,i) = rpart(jx2+1,i)
+         rfpts(9,i) = rpart(jx2+2,i)
+         rfpts(10,i) = rpart(jx3+0,i)
+         rfpts(11,i) = rpart(jx3+1,i)
+         rfpts(12,i) = rpart(jx3+2,i)
+      
+         rfpts(13,i) = rpart(jv0,i)
+         rfpts(14,i) = rpart(jv0+1,i)
+         rfpts(15,i) = rpart(jv0+2,i)
+         rfpts(16,i) = rpart(jv1+0,i)
+         rfpts(17,i) = rpart(jv1+1,i)
+         rfpts(18,i) = rpart(jv1+2,i)
+         rfpts(19,i) = rpart(jv2+0,i)
+         rfpts(20,i) = rpart(jv2+1,i)
+         rfpts(21,i) = rpart(jv2+2,i)
+         rfpts(22,i) = rpart(jv3+0,i)
+         rfpts(23,i) = rpart(jv3+1,i)
+         rfpts(24,i) = rpart(jv3+2,i)
+      
+         rfpts(25,i) = rpart(ju0,i)
+         rfpts(26,i) = rpart(ju0+1,i)
+         rfpts(27,i) = rpart(ju0+2,i)
+         rfpts(28,i) = rpart(ju1+0,i)
+         rfpts(29,i) = rpart(ju1+1,i)
+         rfpts(30,i) = rpart(ju1+2,i)
+         rfpts(31,i) = rpart(ju2+0,i)
+         rfpts(32,i) = rpart(ju2+1,i)
+         rfpts(33,i) = rpart(ju2+2,i)
+         rfpts(34,i) = rpart(ju3+0,i)
+         rfpts(35,i) = rpart(ju3+1,i)
+         rfpts(36,i) = rpart(ju3+2,i)
+      
+         rfpts(37,i) = rpart(jdp,i)
+         rfpts(38,i) = rpart(jspl,i)
+         rfpts(39,i) = rpart(jtemp,i)
+         rfpts(40,i) = real(ipart(jpid1,i))
+         rfpts(41,i) = real(ipart(jpid2,i))
+         rfpts(42,i) = real(ipart(jpid3,i))
       enddo
-      nl = 0
-      call fgslib_crystal_tuple_transfer(i_cr_hndl,n,llpart
-     >                  , ipart,ni,partl,nl,rpart,nr,jps)
 
-! -----------------------------------------
-! Only use npmax ranks to read in particles
-! -----------------------------------------
-      if (nid .lt. npmax) then
-
-         do i = 1,n
-            rfpts(1,i) = rpart(jx,i)
-            rfpts(2,i) = rpart(jy,i)
-            rfpts(3,i) = rpart(jz,i)
-            rfpts(4,i) = rpart(jx1+0,i)
-            rfpts(5,i) = rpart(jx1+1,i)
-            rfpts(6,i) = rpart(jx1+2,i)
-            rfpts(7,i) = rpart(jx2+0,i)
-            rfpts(8,i) = rpart(jx2+1,i)
-            rfpts(9,i) = rpart(jx2+2,i)
-            rfpts(10,i) = rpart(jx3+0,i)
-            rfpts(11,i) = rpart(jx3+1,i)
-            rfpts(12,i) = rpart(jx3+2,i)
-         
-            rfpts(13,i) = rpart(jv0,i)
-            rfpts(14,i) = rpart(jv0+1,i)
-            rfpts(15,i) = rpart(jv0+2,i)
-            rfpts(16,i) = rpart(jv1+0,i)
-            rfpts(17,i) = rpart(jv1+1,i)
-            rfpts(18,i) = rpart(jv1+2,i)
-            rfpts(19,i) = rpart(jv2+0,i)
-            rfpts(20,i) = rpart(jv2+1,i)
-            rfpts(21,i) = rpart(jv2+2,i)
-            rfpts(22,i) = rpart(jv3+0,i)
-            rfpts(23,i) = rpart(jv3+1,i)
-            rfpts(24,i) = rpart(jv3+2,i)
-         
-            rfpts(25,i) = rpart(ju0,i)
-            rfpts(26,i) = rpart(ju0+1,i)
-            rfpts(27,i) = rpart(ju0+2,i)
-            rfpts(28,i) = rpart(ju1+0,i)
-            rfpts(29,i) = rpart(ju1+1,i)
-            rfpts(30,i) = rpart(ju1+2,i)
-            rfpts(31,i) = rpart(ju2+0,i)
-            rfpts(32,i) = rpart(ju2+1,i)
-            rfpts(33,i) = rpart(ju2+2,i)
-            rfpts(34,i) = rpart(ju3+0,i)
-            rfpts(35,i) = rpart(ju3+1,i)
-            rfpts(36,i) = rpart(ju3+2,i)
-         
-            rfpts(37,i) = rpart(jdp,i)
-            rfpts(38,i) = rpart(jspl,i)
-            rfpts(39,i) = rpart(jtemp,i)
-            rfpts(40,i) = real(ipart(jpid1,i))
-            rfpts(41,i) = real(ipart(jpid2,i))
-            rfpts(42,i) = real(ipart(jpid3,i))
-         enddo
-
-! -----------------------------------------------
-! Each rank sends how many particles it will read
-! -----------------------------------------------
-         call MPI_Send(n, 1, MPI_INTEGER,0,0, particle_io_comm, ierr)
-         
-         ! keep track of how many particles are on previous procs
-         if (nid.eq. 0) then
-             prevs(0) = n
-             do i=0,npmax-1
-                call MPI_Recv(prevs(i),1,MPI_INTEGER,i,
-     >                        0,particle_io_comm,status_mpi,ierr)
-             enddo
-         endif
-         call MPI_BCAST(prevs,npmax,MPI_INTEGER,0,particle_io_comm,ierr)
-
-! ------------------------------------------------------
-! Each rank counts how many particles in ranks before it
-! ------------------------------------------------------
-         stride_len = 0
-         if (nid .ne. 0) then
-         do i=1,nid
-            stride_len = stride_len + prevs(i-1)
-         enddo
-         endif
-
-! -------------------------
-! Parallel MPI file read in
-! -------------------------
-         call MPI_FILE_OPEN(particle_io_comm, locstring,
-     >                   MPI_MODE_CREATE + MPI_MODE_WRONLY, 
-     >                   MPI_INFO_NULL, oldfile, ierr) 
-   
-         disp = stride_len*lrf*8  ! lrf properties each with 8 bytes
-         call MPI_FILE_SET_VIEW(oldfile, disp, MPI_DOUBLE_PRECISION,
-     >                       MPI_DOUBLE_PRECISION, "native", 
-     >                       MPI_INFO_NULL, ierr) 
-         call MPI_FILE_WRITE(oldfile, rfpts(1,1), n*lrf,
-     >                  MPI_DOUBLE_PRECISION,
-     >                  MPI_STATUS_IGNORE, ierr) 
-
-         call MPI_FILE_CLOSE(oldfile, ierr) 
-
-      endif
+! -------------------------------
+! WRITE PARTICLES TO RESTART FILE
+! -------------------------------
+      disp   = isize + stride_len*lrf*isize ! is there real*4 var?
+      icount = n*lrf
+      iorank = 0
+      call byte_open_mpi(filename,pth,.false.,ierr)
+      call byte_set_view(disp,pth)
+      call byte_write_mpi(rfpts,icount,iorank,pth,ierr)
+      call byte_close_mpi(pth,ierr)
 
 ! ----------------------------------------
 ! Move particles back to where they belong
 ! ----------------------------------------
       call move_particles_inproc
+
 
       return
       end
@@ -3833,160 +3505,137 @@ c----------------------------------------------------------------------
       include 'MASS'
       include 'GEOM'
       include 'TSTEP'
+      include 'PARALLEL'
       include 'CMTDATA'
       include 'CMTPART'
-      include 'mpif.h'
 
-      common /nekmpi/ mid,np,nekcomm,nekgroup,nekreal
+      common /myparth/ i_fp_hndl, i_cr_hndl
 
-      character*16 locstring, datastring
-      integer*8    disp, stride_len 
-      integer      status_mpi(MPI_STATUS_SIZE)
-      integer      prevs(0:np-1),npt_total,e,oldfile
-      integer      color,particle_io_comm,key
+      character*10 filename
+
+      logical partl         ! This is a dummy placeholder, used in cr()
+
+      integer vtu,vtu1,prevs(2,np)
+      integer*4 iint
+      integer stride_len
+
+      integer*8 disp
+      integer*4 nptot
+      integer pth, nread
+      real*4 rnptot
 
       rpi    = 4.0d+0*atan(1.d+0) ! pi
 
-c     setup files to write to mpi 
-      write(locstring,'(A8,I5.5,A3)') 'rpartxyz', ipart_restartr, '.3D' 
-      write(datastring,'(A9,I5.5)')   'rpartdata', ipart_restartr
+! ------------------------------
+! LOAD TOTAL NUMBER OF PARTICLES
+! ------------------------------
+      write(filename,'(A5,I5.5)') 'rpart', ipart_restartr
 
-      open(364, file=datastring, action="read")
-         read(364,*) nw
-      close(364)
+      pth = 185
 
-! ----------------------------------------
-! Calculate how many processors to be used
-! ----------------------------------------
-      npmax_set = int(nw/llpart) + 1 ! use as few procs as possible
+      disp = 0
+      icount = 0
+      if (nid .eq. 0) icount = 1
+      iorank = 0
+      call byte_open_mpi(filename,pth,.true.,ierr)
+      call byte_set_view(disp,pth)
+      call byte_read_mpi(rnptot,icount,iorank,pth,ierr)
+      call byte_close_mpi(pth,ierr)
+
+      nptot = int(rnptot)
+      call bcast(nptot, isize)
+
+! --------------------------------------------------
+! FIRST GET HOW MANY PARTICLES WERE BEFORE THIS RANK
+! --------------------------------------------------
+      npmax_set = int(nptot/llpart) + 1 ! use as few procs as possible
       npmax = np
       if (npmax .gt. npmax_set) npmax = npmax_set
 
-! ----------------------------------------
-! Create communicator with that many ranks
-! ----------------------------------------
-      color = MPI_UNDEFINED
-      if (nid.lt.npmax) color = 0
-      key=nid
-      call MPI_Comm_split(nekcomm,color,key,particle_io_comm,ierr)
+      nread = llpart
+      if (nid .gt. npmax-1) nread = 0
 
-! -----------------------------------------
-! Only use npmax ranks to read in particles
-! -----------------------------------------
-      if (nid .lt. npmax) then
+      ndiff = nptot - (npmax-1)*llpart
+      if (ndiff .gt. 0) then
+         if (nid .eq. npmax-1) nread = ndiff
+      endif
 
-! -------------------------------------------------------
-! Each rank computes the number of particles it will read
-! -------------------------------------------------------
-         nnp       = int(nw/npmax) 
-         if (nid.gt.npmax-1) nnp = 0
-         nw_tmp    = nnp*npmax
-         ndef      = nw - nw_tmp
-         if (nid .lt. ndef) nnp = nnp + 1
-         
-! -----------------------------------------------
-! Each rank sends how many particles it will read
-! -----------------------------------------------
-         call MPI_Send(nnp, 1, MPI_INTEGER,0,0, particle_io_comm, ierr)
-         
-         ! keep track of how many particles are on previous procs
-         if (nid.eq. 0) then
-             prevs(0) = nnp
-             do i=0,npmax-1
-                call MPI_Recv(prevs(i),1,MPI_INTEGER,i,
-     >                        0,particle_io_comm,status_mpi,ierr)
-             enddo
-         endif
-         call MPI_BCAST(prevs,npmax,MPI_INTEGER,0,particle_io_comm,ierr)
+      stride_len = 0
+      if (nid .le. npmax-1) stride_len = nid*llpart
 
-! ------------------------------------------------------
-! Each rank counts how many particles in ranks before it
-! ------------------------------------------------------
-         stride_len = 0
-         if (nid .ne. 0) then
-         do i=1,nid
-            stride_len = stride_len + prevs(i-1)
-         enddo
-         endif
 
 ! -------------------------
 ! Parallel MPI file read in
 ! -------------------------
-         call MPI_FILE_OPEN(particle_io_comm, locstring,
-     >                   MPI_MODE_RDONLY, 
-     >                   MPI_INFO_NULL, oldfile, ierr) 
-   
-         disp = stride_len*lrf*8  ! lrf properties each with 8 bytes
-         call MPI_FILE_SET_VIEW(oldfile, disp, MPI_DOUBLE_PRECISION,
-     >                       MPI_DOUBLE_PRECISION, "native", 
-     >                       MPI_INFO_NULL, ierr) 
-         call MPI_FILE_READ(oldfile, rfpts(1,1), nnp*lrf,
-     >                  MPI_DOUBLE_PRECISION,
-     >                  MPI_STATUS_IGNORE, ierr) 
-
-         call MPI_FILE_CLOSE(oldfile, ierr) 
+      disp   = isize + stride_len*lrf*isize ! is there real*4 var?
+      write(6,*) 'yooo', stride_len, disp
+      icount = nread*lrf
+      iorank = 0
+      call byte_open_mpi(filename,pth,.true.,ierr)
+      call byte_set_view(disp,pth)
+      call byte_read_mpi(rfpts,icount,iorank,pth,ierr)
+      call byte_close_mpi(pth,ierr)
 
 ! ----------------------------------------
 ! Assign values read in to rpart and ipart
 ! ----------------------------------------
-         i = n ! if there are previous particles
-         do ii = 1,nnp
-            i = n + ii
-            rpart(jx,i)    =  rfpts(1,ii) 
-            rpart(jy,i)    =  rfpts(2,ii)
-            rpart(jz,i)    =  rfpts(3,ii)  
-            rpart(jx1+0,i) =  rfpts(4,ii)  
-            rpart(jx1+1,i) =  rfpts(5,ii)
-            rpart(jx1+2,i) =  rfpts(6,ii)  
-            rpart(jx2+0,i) =  rfpts(7,ii)  
-            rpart(jx2+1,i) =  rfpts(8,ii)
-            rpart(jx2+2,i) =  rfpts(9,ii)  
-            rpart(jx3+0,i) =  rfpts(10,ii)
-            rpart(jx3+1,i) =  rfpts(11,ii)
-            rpart(jx3+2,i) =  rfpts(12,ii)
-                                           
-            rpart(jv0,i)   =  rfpts(13,ii)
-            rpart(jv0+1,i) =  rfpts(14,ii)
-            rpart(jv0+2,i) =  rfpts(15,ii)
-            rpart(jv1+0,i) =  rfpts(16,ii)
-            rpart(jv1+1,i) =  rfpts(17,ii)
-            rpart(jv1+2,i) =  rfpts(18,ii)
-            rpart(jv2+0,i) =  rfpts(19,ii)
-            rpart(jv2+1,i) =  rfpts(20,ii)
-            rpart(jv2+2,i) =  rfpts(21,ii)
-            rpart(jv3+0,i) =  rfpts(22,ii)
-            rpart(jv3+1,i) =  rfpts(23,ii)
-            rpart(jv3+2,i) =  rfpts(24,ii)
-                                           
-            rpart(ju0,i)   =  rfpts(25,ii)
-            rpart(ju0+1,i) =  rfpts(26,ii)
-            rpart(ju0+2,i) =  rfpts(27,ii)
-            rpart(ju1+0,i) =  rfpts(28,ii)
-            rpart(ju1+1,i) =  rfpts(29,ii)
-            rpart(ju1+2,i) =  rfpts(30,ii)
-            rpart(ju2+0,i) =  rfpts(31,ii)
-            rpart(ju2+1,i) =  rfpts(32,ii)
-            rpart(ju2+2,i) =  rfpts(33,ii)
-            rpart(ju3+0,i) =  rfpts(34,ii)
-            rpart(ju3+1,i) =  rfpts(35,ii)
-            rpart(ju3+2,i) =  rfpts(36,ii)
-                                           
-            rpart(jdp,i)   =  rfpts(37,ii)
-            rpart(jspl,i)  =  rfpts(38,ii)
-            rpart(jtemp,i) =  rfpts(39,ii)
-            ipart(jpid1,i) =  nint(rfpts(40,ii))
-            ipart(jpid2,i) =  nint(rfpts(41,ii))
-            ipart(jpid3,i) =  nint(rfpts(42,ii))
-        
-            ! extra stuff
-            rpart(jtaup,i) = rpart(jdp,i)**2*rho_p/18.0d+0/mu_0
-            rpart(jrhop,i) = rho_p      ! material density of particle
-            rpart(jvol,i) = rpart(jspl,i)*rpi*rpart(jdp,i)**3/6.d+0! particle volume
-            rpart(jgam,i)  = 1.          ! initial integration correction
-            rpart(jrpe,i) = rpart(jspl,i)**(1./3.)*rpart(jdp,i)/2.
-         enddo
-         n = i
-      endif
+      i = n ! if there are previous particles
+      do ii = 1,nread
+         i = n + ii
+         rpart(jx,i)    =  rfpts(1,ii) 
+         rpart(jy,i)    =  rfpts(2,ii)
+         rpart(jz,i)    =  rfpts(3,ii)  
+         rpart(jx1+0,i) =  rfpts(4,ii)  
+         rpart(jx1+1,i) =  rfpts(5,ii)
+         rpart(jx1+2,i) =  rfpts(6,ii)  
+         rpart(jx2+0,i) =  rfpts(7,ii)  
+         rpart(jx2+1,i) =  rfpts(8,ii)
+         rpart(jx2+2,i) =  rfpts(9,ii)  
+         rpart(jx3+0,i) =  rfpts(10,ii)
+         rpart(jx3+1,i) =  rfpts(11,ii)
+         rpart(jx3+2,i) =  rfpts(12,ii)
+                                        
+         rpart(jv0,i)   =  rfpts(13,ii)
+         rpart(jv0+1,i) =  rfpts(14,ii)
+         rpart(jv0+2,i) =  rfpts(15,ii)
+         rpart(jv1+0,i) =  rfpts(16,ii)
+         rpart(jv1+1,i) =  rfpts(17,ii)
+         rpart(jv1+2,i) =  rfpts(18,ii)
+         rpart(jv2+0,i) =  rfpts(19,ii)
+         rpart(jv2+1,i) =  rfpts(20,ii)
+         rpart(jv2+2,i) =  rfpts(21,ii)
+         rpart(jv3+0,i) =  rfpts(22,ii)
+         rpart(jv3+1,i) =  rfpts(23,ii)
+         rpart(jv3+2,i) =  rfpts(24,ii)
+                                        
+         rpart(ju0,i)   =  rfpts(25,ii)
+         rpart(ju0+1,i) =  rfpts(26,ii)
+         rpart(ju0+2,i) =  rfpts(27,ii)
+         rpart(ju1+0,i) =  rfpts(28,ii)
+         rpart(ju1+1,i) =  rfpts(29,ii)
+         rpart(ju1+2,i) =  rfpts(30,ii)
+         rpart(ju2+0,i) =  rfpts(31,ii)
+         rpart(ju2+1,i) =  rfpts(32,ii)
+         rpart(ju2+2,i) =  rfpts(33,ii)
+         rpart(ju3+0,i) =  rfpts(34,ii)
+         rpart(ju3+1,i) =  rfpts(35,ii)
+         rpart(ju3+2,i) =  rfpts(36,ii)
+                                        
+         rpart(jdp,i)   =  rfpts(37,ii)
+         rpart(jspl,i)  =  rfpts(38,ii)
+         rpart(jtemp,i) =  rfpts(39,ii)
+         ipart(jpid1,i) =  nint(rfpts(40,ii))
+         ipart(jpid2,i) =  nint(rfpts(41,ii))
+         ipart(jpid3,i) =  nint(rfpts(42,ii))
+      
+         ! extra stuff
+         rpart(jtaup,i) = rpart(jdp,i)**2*rho_p/18.0d+0/mu_0
+         rpart(jrhop,i) = rho_p      ! material density of particle
+         rpart(jvol,i) = rpart(jspl,i)*rpi*rpart(jdp,i)**3/6.d+0! particle volume
+         rpart(jgam,i)  = 1.          ! initial integration correction
+         rpart(jrpe,i) = rpart(jspl,i)**(1./3.)*rpart(jdp,i)/2.
+      enddo
+      n = i
 
       return
       end
@@ -4530,7 +4179,7 @@ c----------------------------------------------------------------------
       inject_rate = 0
       time_delay  = 0
       nrandseed   = 1
-      npro_method = 2
+      npro_method = 1
       rspl        = 1.
       dfilt       = 2.
       ralphdecay  = 1E-2
@@ -4925,8 +4574,8 @@ c     is insufficient room.
       common /nekmpi/ mid,mp,nekcomm,nekgroup,nekreal
       common /myparth/ i_fp_hndl, i_cr_hndl
 
-      common /elementload/ gfirst, inoassignd, resetFindpts, pload(lelg)
-      integer gfirst, inoassignd, resetFindpts, pload
+c     common /elementload/ gfirst, inoassignd, resetFindpts, pload(lelg)
+c     integer gfirst, inoassignd, resetFindpts, pload
 
       integer icalld1
       save    icalld1
@@ -4936,14 +4585,14 @@ c     is insufficient room.
 
       nl = 0                ! No logicals exchanged
 
-c     if (icalld1.eq.0) then
-      if (icalld1.eq.0 .or. (resetFindpts .eq. 1)) then
+      if (icalld1.eq.0) then
+c     if (icalld1.eq.0 .or. (resetFindpts .eq. 1)) then
          tolin = 1.e-12
          if (wdsize.eq.4) tolin = 1.e-6
          call intpts_setup  (tolin,i_fp_hndl)
          call fgslib_crystal_setup (i_cr_hndl,nekcomm,np)
 
-         if (resetFindpts .eq. 1) icalld1 = 0
+c        if (resetFindpts .eq. 1) icalld1 = 0
       endif
 
       icalld1 = icalld1 + 1
@@ -5291,10 +4940,6 @@ c
       include 'CMTDATA'
       include 'CMTPART'
 
-      common /elementload/ gfirst, inoassignd, resetFindpts, pload(lelg)
-      integer gfirst, inoassignd, resetFindpts, pload
-
-
       nmax_step = nsteps  ! number of pre-iteration steps
       ninj_step = 3000
 
@@ -5356,6 +5001,10 @@ c              ! Update where particle is stored at
                   pttime(6) = pttime(6) + dnekclock() - ptdum(6)
                endif
             endif
+            ! Interpolate Eulerian properties to particle location
+            ptdum(7) = dnekclock()
+               call interp_props_part_location
+            pttime(7) = pttime(7) + dnekclock() - ptdum(7)
 
             ! Evaluate particle force models
             ptdum(8) = dnekclock()
@@ -5380,7 +5029,6 @@ c              ! Update where particle is stored at
 
       if (nid.eq.0) write(6,*) 'FINISHED PRE COLLISIONS - EXITING NOW'
       call exitt
-
 
       return
       end
