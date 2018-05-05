@@ -79,8 +79,10 @@ c
       save    icalld
       data    icalld  /-1/
 
-      real unif_random,unif_random_norm,unif_random_cyl
-      external unif_random,unif_random_norm,unif_random_cyl
+      real     unif_random,unif_random_norm,unif_random_cyl
+     >        ,unif_random_sphere
+      external unif_random,unif_random_norm,unif_random_cyl,
+     >         unif_random_sphere
 
       icalld = icalld + 1
 
@@ -96,54 +98,84 @@ c        main loop to distribute particles
          do i_pt_part = 1,nwe
             n = n + 1
 
-            ! distribute in cylinder aligned with z
-            if (rxbo(1,3) .lt. -1E7) then
-               rrad = unif_random_cyl(rxbo(1,1),rxbo(2,1))
+            ! sphere or cylinder
+            if (rxbo(1,1) .lt. -1E7) then
+
+               ! distribute in cylinder 
+               if (rxco(6) .gt. -1E7) then
+               rnx = rxco(1)
+               rny = rxco(2)
+               rnz = rxco(3)
+
+               rx0 = rxco(4)
+               ry0 = rxco(5)
+               rz0 = 1.0
+               if (if3d) rz0 = rxco(6)
+
+               rmag = sqrt(rnx**2 + rny**2 + rnz**2)
+               rnx = rnx/rmag
+               rny = rny/rmag
+               rnz = rnz/rmag
+
+               rin  = rxco(7)
+               rout = rxco(8)
+               rht  = 0.
+               if (if3d) rht  = rxco(9)
+
+               rrad = unif_random_cyl(rin,rout)
                rthet= unif_random(0.,2.*pi)
-               rxtr = unif_random(rxbo(1,2),rxbo(2,2))
+               rxtr = unif_random(-rht/2.,rht/2.)
 
                do j=0,2
-                  if (j.eq. 0) rdum = rrad*cos(rthet)
-                  if (j.eq. 1) rdum = rrad*sin(rthet)
-                  if (j.eq. 2) rdum = rxtr
+               ! x cylinder
+               if ( abs(rnx).gt.abs(rny).and.abs(rnx).gt.abs(rnz)) then
+                  if (j.eq. 0) rdum = rx0 + rxtr
+                  if (j.eq. 1) rdum = ry0 + rrad*cos(rthet)
+                  if (j.eq. 2) rdum = rz0 + rrad*sin(rthet)
+               endif
+               ! y cylinder
+               if ( abs(rny).gt.abs(rnx).and.abs(rny).gt.abs(rnz)) then
+                  if (j.eq. 0) rdum = rx0 + rrad*sin(rthet)
+                  if (j.eq. 1) rdum = ry0 + rxtr
+                  if (j.eq. 2) rdum = rz0 + rrad*cos(rthet)
+               endif
+               ! z cylinder
+               if ( abs(rnz).gt.abs(rnx).and.abs(rnz).gt.abs(rny)) then
+                  if (j.eq. 0) rdum = rx0 + rrad*cos(rthet)
+                  if (j.eq. 1) rdum = ry0 + rrad*sin(rthet)
+                  if (j.eq. 2) rdum = rz0 + rxtr
+               endif
                   rpart(jx +j,n) = rdum
                   rpart(jx1+j,n) = rdum
                   rpart(jx2+j,n) = rdum
                   rpart(jx3+j,n) = rdum
                enddo
 
-            ! distribute in cylinder aligned with x
-            elseif (rxbo(1,1) .lt. -1E7) then
-               rrad = unif_random_cyl(rxbo(1,2),rxbo(2,2))
-               rthet= unif_random(0.,2.*pi)
-               rxtr = unif_random(rxbo(1,3),rxbo(2,3))
+               ! distribute sphere
+               else
+               rx0 = rxco(1)
+               ry0 = rxco(2)
+               rz0 = 1.0
+               if (if3d) rz0 = rxco(3)
+               rin  = rxco(4)
+               rout = rxco(5)
+
+               rrad  = unif_random_sphere(rin,rout)
+               rthet1= unif_random(0.,1.)
+               rthet1= acos(2.*rthet1 - 1) !tricky tricky
+               rthet2= unif_random(0.,2.*pi)
 
                do j=0,2
-                  if (j.eq. 0) rdum = rxtr
-                  if (j.eq. 1) rdum = rrad*cos(rthet)
-                  if (j.eq. 2) rdum = rrad*sin(rthet)
+                  if (j.eq. 0) rdum = rx0 + rrad*sin(rthet1)*cos(rthet2)
+                  if (j.eq. 1) rdum = ry0 + rrad*sin(rthet1)*sin(rthet2)
+                  if (j.eq. 2) rdum = rz0 + rrad*cos(rthet1)
                   rpart(jx +j,n) = rdum
                   rpart(jx1+j,n) = rdum
                   rpart(jx2+j,n) = rdum
                   rpart(jx3+j,n) = rdum
                enddo
-
-            ! distribute in cylinder aligned with y
-            elseif (rxbo(1,1) .lt. -1E7) then
-               rrad = unif_random_cyl(rxbo(1,3),rxbo(2,3))
-               rthet= unif_random(0.,2.*pi)
-               rxtr = unif_random(rxbo(1,1),rxbo(2,1))
-
-               do j=0,2
-                  if (j.eq. 0) rdum = rrad*sin(rthet)
-                  if (j.eq. 1) rdum = rxtr
-                  if (j.eq. 2) rdum = rrad*cos(rthet)
-                  rpart(jx +j,n) = rdum
-                  rpart(jx1+j,n) = rdum
-                  rpart(jx2+j,n) = rdum
-                  rpart(jx3+j,n) = rdum
-               enddo
-
+               endif
+                  
             ! distribute in box
             else
                do j=0,2
@@ -3589,6 +3621,15 @@ c----------------------------------------------------------------------
       rxbo(2,2) = -1E8
       rxbo(1,3) = -1E8
       rxbo(2,3) = -1E8
+      rxco(1) = -1E8
+      rxco(2) = -1E8
+      rxco(3) = -1E8
+      rxco(4) = -1E8
+      rxco(5) = -1E8
+      rxco(6) = -1E8
+      rxco(7) = -1E8
+      rxco(8) = -1E8
+      rxco(9) = -1E8
       dp(1) = 0.
       dp(2) = 0.
       dp_std = -1.
@@ -3661,18 +3702,15 @@ c----------------------------------------------------------------------
      >                                     rxbo(1,2),rxbo(2,2),
      >                                     rxbo(1,3),rxbo(2,3)
                if(nid.eq.0)write(6,*) 'Read distributebox '
-            case ('distributecylz =')
-               read(buffer, *, iostat=ios) rxbo(1,1),rxbo(2,1),
-     >                                     rxbo(1,2),rxbo(2,2)
-               if(nid.eq.0)write(6,*) 'Read distributecylz '
-            case ('distributecylx =')
-               read(buffer, *, iostat=ios) rxbo(1,2),rxbo(2,2),
-     >                                     rxbo(1,3),rxbo(2,3)
-               if(nid.eq.0)write(6,*) 'Read distributecylx '
-            case ('distributecyly =')
-               read(buffer, *, iostat=ios) rxbo(1,3),rxbo(2,3),
-     >                                     rxbo(1,1),rxbo(2,1)
-               if(nid.eq.0)write(6,*) 'Read distributecyly '
+            case ('distributecylinder =')
+               read(buffer, *, iostat=ios) rxco(1),rxco(2),rxco(3),
+     >                                     rxco(4),rxco(5),rxco(6), 
+     >                                     rxco(7),rxco(8),rxco(9)
+               if(nid.eq.0)write(6,*) 'Read distributecylinder '
+            case ('distributesphere =')
+               read(buffer, *, iostat=ios) rxco(1),rxco(2),rxco(3),
+     >                                     rxco(4),rxco(5)
+               if(nid.eq.0)write(6,*) 'Read distributesphere '
             case ('diameter =')
                read(buffer, *, iostat=ios) dp(1)
                if(nid.eq.0)write(6,*) 'Read diameter: ', dp(1)
@@ -4177,26 +4215,47 @@ c
       return
       end
 c-----------------------------------------------------------------------
-      function unif_random_cyl(rxl,rxr)
+      function unif_random_sphere(rxl,rxr)
 c
 c     must initialize ran2 first
 c
       parameter (nxfn = 10000)
-      real xl,xr,unif_random_cyl,rstd,rxfne(nxfn),rcdf(nxfn)
+      real xl,xr,unif_random_sphere,rxfne(nxfn)
 
       real    unif_random
       external unif_random
 
       rxlf  = rxl
       rxrf  = rxr
-      rdxf  = (rxrf-rxlf)/(nxfn-1.)
-      rdxf  = (1. - (rxlf/rxrf)**2)/(nxfn-1.)
+      rdxf  = (1. - (rxlf/rxrf)**3)/(nxfn-1.)
 
-      rnormalized_cdf = (rxr)**2
+      do i=1,nxfn
+         rxfne(i) = (rxlf/rxrf)**3 + (i-1.)*rdxf
+      enddo
+
+      rdum = unif_random((rxl/rxr)**3,rxr/rxr)
+
+      unif_random_sphere = rxr*(rdum)**(1./3.)
+
+      return
+      end
+c-----------------------------------------------------------------------
+      function unif_random_cyl(rxl,rxr)
+c
+c     must initialize ran2 first
+c
+      parameter (nxfn = 10000)
+      real xl,xr,unif_random_cyl,rxfne(nxfn)
+
+      real    unif_random
+      external unif_random
+
+      rxlf  = rxl
+      rxrf  = rxr
+      rdxf  = (1. - (rxlf/rxrf)**2)/(nxfn-1.)
 
       do i=1,nxfn
          rxfne(i) = (rxlf/rxrf)**2 + (i-1.)*rdxf
-         rcdf(i)  = (rxfne(i))**2 / rnormalized_cdf
       enddo
 
       rdum = unif_random((rxl/rxr)**2,rxr/rxr)

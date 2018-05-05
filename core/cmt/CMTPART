@@ -30,11 +30,11 @@ c     particle options ----------------------------------------------
 c     particle parameters -------------------------------------------
       common /part_paramsr/ dp, rho_p, tau_p,mu_0,tp_0,
      >                     rsig,dfilt,
-     >                     ralphdecay,rxbo,cp_p,
+     >                     ralphdecay,rxbo,rxco,cp_p,
      >                     ksp,dt_part,e_rest,rspl,dp_std
       common /part_paramsi/ nw,nrandseed,nwe
       real   dp(2),rho_p,tau_p,mu_0,
-     >       rsig,dfilt,ralphdecay,rxbo(2,3),
+     >       rsig,dfilt,ralphdecay,rxbo(2,3),rxco(9),
      >       cp_p,tp_0,ksp,dt_part,e_rest, dp_std
       integer nw,nrandseed,nwe
 

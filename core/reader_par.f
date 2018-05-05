@@ -839,32 +839,17 @@ c set particle options
          if (i.eq.5) rxbo(1,3) = d_out
          if (i.eq.6) rxbo(2,3) = d_out
       enddo
-      call finiparser_findTokens('particle:distributecylz',',',ifnd)
+      call finiparser_findTokens('particle:distributecylinder',',',ifnd)
       do i = 1,min(ifnd,15)
          call finiparser_getToken(initc(i),i)
          read(initc(i),*) d_out
-         if (i.eq.1) rxbo(1,1) = d_out
-         if (i.eq.2) rxbo(2,1) = d_out
-         if (i.eq.3) rxbo(1,2) = d_out
-         if (i.eq.4) rxbo(2,2) = d_out
+         rxco(i) = d_out
       enddo
-      call finiparser_findTokens('particle:distributecylx',',',ifnd)
+      call finiparser_findTokens('particle:distributesphere',',',ifnd)
       do i = 1,min(ifnd,15)
          call finiparser_getToken(initc(i),i)
          read(initc(i),*) d_out
-         if (i.eq.1) rxbo(1,2) = d_out
-         if (i.eq.2) rxbo(2,2) = d_out
-         if (i.eq.3) rxbo(1,3) = d_out
-         if (i.eq.4) rxbo(2,3) = d_out
-      enddo
-      call finiparser_findTokens('particle:distributecyly',',',ifnd)
-      do i = 1,min(ifnd,15)
-         call finiparser_getToken(initc(i),i)
-         read(initc(i),*) d_out
-         if (i.eq.1) rxbo(1,3) = d_out
-         if (i.eq.2) rxbo(2,3) = d_out
-         if (i.eq.3) rxbo(1,1) = d_out
-         if (i.eq.4) rxbo(2,1) = d_out
+         rxco(i) = d_out
       enddo
 
       call finiparser_getDbl(d_out,'particle:diameter',ifnd)
@@ -943,7 +928,6 @@ c set particle options
       do i=1,15
          call blank(initc(i),132)
       enddo
-
 #endif
 
 
@@ -1022,6 +1006,7 @@ C
       call bcast(initc, 15*132*csize) 
 #ifdef CMTPART
       call bcast(rxbo , 6*wdsize)
+      call bcast(rxco , 9*wdsize)
       call bcast(dp , 2*wdsize)
       call bcast(dp_std , wdsize)
       call bcast(tp_0 , wdsize)
@@ -1034,7 +1019,6 @@ C
       call bcast(e_rest, wdsize)
       call bcast(plane_wall_coords, 6*n_walls*wdsize)
       call bcast(cyl_wall_coords, 6*n_walls*wdsize)
-
 
       call bcast(nw, isize)
       call bcast(part_force , 5*isize)
