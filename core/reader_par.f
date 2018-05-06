@@ -803,10 +803,6 @@ c set particle options
       if(ifnd .eq. 1) time_delay = int(d_out)
       call finiparser_getDbl(d_out,'particle:seed',ifnd)
       if(ifnd .eq. 1) nrandseed = int(d_out)
-      call finiparser_getDbl(d_out,'particle:interpolation',ifnd)
-      if(ifnd .eq. 1) red_interp = int(d_out)
-      call finiparser_getDbl(d_out,'particle:projection',ifnd)
-      if(ifnd .eq. 1) npro_method = int(d_out)
       call finiparser_getDbl(d_out,'particle:coarsegrain',ifnd)
       if(ifnd .eq. 1) rspl = d_out
       call finiparser_getDbl(d_out,'particle:filter',ifnd)
@@ -881,7 +877,7 @@ c set particle options
       endif
       call finiparser_getBool(i_out,'particle:projection',ifnd)
       if(ifnd .eq. 1) then
-        if(i_out .eq. 1) npro_method = 2
+        if(i_out .eq. 1) npro_method = 1
       endif
 
       call finiparser_getBool(i_out,'particle:periodicx',ifnd)

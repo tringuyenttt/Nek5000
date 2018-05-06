@@ -1322,7 +1322,17 @@ c     cd_std = 24/re_p already taken into account below
       S_qs = rpart(jvol,i)*rpart(jrhop,i)/rpart(jtaup,i)
       ! note rpart(jvol,i) already has super particle loading!
 
-      if (part_force(1).eq.1) then
+      if (abs(part_force(1)).eq.1) then
+         if (part_force(1) .lt. 0) then
+         rphip = rpart(jvol1,i)
+         if (rphip .gt. 0.3) rphip = 0.3
+         rcd2 = (1. - 2.*rphip)/(1. - rphip)**3
+         S_qs = S_qs*rcd2
+         endif
+
+         rpart(jfqs+j,i) = S_qs*(rpart(ju0+j,i) - rpart(jv0+j,i))
+
+      elseif (abs(part_force(1)).eq.2) then
          rrep = rpart(jre,i)
          rrma = rpart(ja,i)
          rmacr= 0.6
@@ -1334,27 +1344,29 @@ c     cd_std = 24/re_p already taken into account below
          
          S_qs = S_qs*rcd1
 
+         if (part_force(1) .lt. 0) then
          rphip = rpart(jvol1,i)
          if (rphip .gt. 0.3) rphip = 0.3
          rcd2 = (1. - 2.*rphip)/(1. - rphip)**3
-
          S_qs = S_qs*rcd2
+         endif
 
          rpart(jfqs+j,i) = S_qs*(rpart(ju0+j,i) - rpart(jv0+j,i))
-      elseif (part_force(1).eq.2) then
+      elseif (abs(part_force(1)).eq.3) then
          rrep = rpart(jre,i)
          rcd_std = 1.+0.15*rrep**(0.687) + 
      >               0.42*(1.+42500./rrep**(1.16))**(-1)
          S_qs = S_qs*rcd_std
 
+         if (part_force(1) .lt. 0) then
          rphip = rpart(jvol1,i)
          if (rphip .gt. 0.3) rphip = 0.3
          rcd2 = (1. - 2.*rphip)/(1. - rphip)**3
-
          S_qs = S_qs*rcd2
+         endif
 
          rpart(jfqs+j,i) = S_qs*(rpart(ju0+j,i) - rpart(jv0+j,i))
-      elseif (part_force(1).eq.3) then
+      elseif (abs(part_force(1)).eq.4) then
          vel_diff = rpart(jre,i)*mu_0/rpart(jrho,i)/rpart(jdp,i)
          
          rphip = rpart(jvol1,i)
@@ -1543,7 +1555,13 @@ c        search list of ghost particles
             rnx = cyl_wall_coords(1,j)
             rny = cyl_wall_coords(2,j)
             rnz = cyl_wall_coords(3,j)
-            rrad = cyl_wall_coords(4,j)
+            rpx = cyl_wall_coords(4,j)
+            rpy = cyl_wall_coords(5,j)
+            rpz = 1.0
+            if (if3d) rpz = cyl_wall_coords(6,j)
+
+
+            rrad = cyl_wall_coords(7,j)
 
             rx2(1) = rpart(jx,i)
             rx2(2) = rpart(jy,i)
@@ -1551,17 +1569,17 @@ c        search list of ghost particles
             ! for now only works with cylinders aligned with axes at
             ! origin
             if (rnz .gt. 0.5) then
-               rtheta = atan2(rpart(jy,i),rpart(jx,i))
-               rx2(1) = rrad*cos(rtheta)
-               rx2(2) = rrad*sin(rtheta)
+               rtheta = atan2(rpart(jy,i)-rpy,rpart(jx,i)-rpx)
+               rx2(1) = rpx+rrad*cos(rtheta)
+               rx2(2) = rpy+rrad*sin(rtheta)
             elseif (rnx .gt. 0.5) then
-               rtheta = atan2(rpart(jz,i),rpart(jy,i))
-               rx2(2) = rrad*cos(rtheta)
-               rx2(3) = rrad*sin(rtheta)
+               rtheta = atan2(rpart(jz,i)-rpz,rpart(jy,i)-rpy)
+               rx2(2) = rpy+rrad*cos(rtheta)
+               rx2(3) = rpz+rrad*sin(rtheta)
             elseif (rny .gt. 0.5) then
-               rtheta = atan2(rpart(jx,i),rpart(jz,i))
-               rx2(3) = rrad*cos(rtheta)
-               rx2(1) = rrad*sin(rtheta)
+               rtheta = atan2(rpart(jx,i)-rpx,rpart(jz,i)-rpz)
+               rx2(3) = rpz+rrad*cos(rtheta)
+               rx2(1) = rpx+rrad*sin(rtheta)
             endif
 
             rrp2   = 0.
@@ -2667,6 +2685,7 @@ c     > if bc_part = -1,1 then particles are killed (outflow)
       do i=1,n
          in_part(i) = 0
          do j=0,ndim-1
+            if (ipart(jrc,i) .ne. 0) then
             if (rpart(jx0+j,i).lt.xdrange(1,j+1))then
                if (((bc_part(1).eq.0) .and. (j.eq.0)) .or.   ! periodic
      >             ((bc_part(3).eq.0) .and. (j.eq.1)) .or.     
@@ -2680,12 +2699,7 @@ c     > if bc_part = -1,1 then particles are killed (outflow)
                   rpart(jx3+j,i) = xdrange(2,j+1) +
      &                             abs(xdrange(1,j+1) - rpart(jx3+j,i))
                   goto 1512
-               elseif (((bc_part(1).ne.0) .and. (j.eq.0)) .or. ! outflow
-     >                 ((bc_part(3).ne.0) .and. (j.eq.1)) .or.     
-     >                 ((bc_part(5).ne.0) .and. (j.eq.2)) ) then
-                  in_part(i) = -1
-                  goto 1511
-               endif
+                endif
             endif
             if (rpart(jx0+j,i).gt.xdrange(2,j+1))then
                if (((bc_part(1).eq.0) .and. (j.eq.0)) .or.   ! periodic
@@ -2700,22 +2714,15 @@ c     > if bc_part = -1,1 then particles are killed (outflow)
                   rpart(jx3+j,i) = xdrange(1,j+1) -
      &                             abs(rpart(jx3+j,i) - xdrange(2,j+1))
                   goto 1512
-               elseif (((bc_part(1).ne.0) .and. (j.eq.0)) .or. ! outflow
-     >                 ((bc_part(3).ne.0) .and. (j.eq.1)) .or.     
-     >                 ((bc_part(5).ne.0) .and. (j.eq.2)) ) then
-                  in_part(i) = -1
-                  goto 1511
-               endif
+                endif
+            endif
+            in_part(i) = -1 ! only if periodic check fails it will get here
             endif
  1512 continue
          enddo
  1511 continue
       enddo
 
-      nbc_sum = abs(bc_part(1)) + abs(bc_part(2)) + 
-     >          abs(bc_part(3)) + abs(bc_part(4)) +
-     >          abs(bc_part(5)) + abs(bc_part(6)) ! all periodic, don't search
-      if (nbc_sum .gt. 0) then
       ic = 0
       do i=1,n
          if (in_part(i).eq.0) then
@@ -2727,7 +2734,6 @@ c     > if bc_part = -1,1 then particles are killed (outflow)
          endif
       enddo
       n = ic
-      endif
 
       return
       end
@@ -3669,10 +3675,20 @@ c----------------------------------------------------------------------
       include 'TSTEP'
       include 'PARALLEL'
       include 'CMTPART'
+c
+c     only used for load balanced code since there is no par file in 
+c     old version of the code. To convert from standard nek5000 input:
+c         periodic* = only needs to be included for it to be periodic
+c         so yes or no doesn't matter
+c
+c         remove commas seperating parameter inputs
+c
+c         must be lowercase key words with one space then an equal sign
+c         followed by another space
 
       character*72 dum_str
 
-      character*100 buffer, label
+      character*200 buffer, label
       integer pos, fh, ios, line, dum
       parameter(fh = 15)
 
@@ -3783,41 +3799,41 @@ c----------------------------------------------------------------------
                if(nid.eq.0)write(6,*) 'Read alpha: ', ralphdecay
 
             case ('wallp01 =') 
-                goto 1511
+                call add_wall_list(np_walls,buffer,plane_wall_coords,6)
             case ('wallp02 =') 
-                goto 1511
+                call add_wall_list(np_walls,buffer,plane_wall_coords,6)
             case ('wallp03 =') 
-                goto 1511
+                call add_wall_list(np_walls,buffer,plane_wall_coords,6)
             case ('wallp04 =') 
-                goto 1511
+                call add_wall_list(np_walls,buffer,plane_wall_coords,6)
             case ('wallp05 =') 
-                goto 1511
+                call add_wall_list(np_walls,buffer,plane_wall_coords,6)
             case ('wallp06 =') 
-                goto 1511
+                call add_wall_list(np_walls,buffer,plane_wall_coords,6)
             case ('wallp07 =') 
-                goto 1511
+                call add_wall_list(np_walls,buffer,plane_wall_coords,6)
             case ('wallp08 =') 
-                goto 1511
+                call add_wall_list(np_walls,buffer,plane_wall_coords,6)
             case ('wallp09 =') 
-                goto 1511
+                call add_wall_list(np_walls,buffer,plane_wall_coords,6)
             case ('wallc01 =') 
-                goto 1512
+                call add_wall_list(nc_walls,buffer,cyl_wall_coords,7)
             case ('wallc02 =') 
-                goto 1512
+                call add_wall_list(nc_walls,buffer,cyl_wall_coords,7)
             case ('wallc03 =') 
-                goto 1512
+                call add_wall_list(nc_walls,buffer,cyl_wall_coords,7)
             case ('wallc04 =') 
-                goto 1512
+                call add_wall_list(nc_walls,buffer,cyl_wall_coords,7)
             case ('wallc05 =') 
-                goto 1512
+                call add_wall_list(nc_walls,buffer,cyl_wall_coords,7)
             case ('wallc06 =') 
-                goto 1512
+                call add_wall_list(nc_walls,buffer,cyl_wall_coords,7)
             case ('wallc07 =') 
-                goto 1512
+                call add_wall_list(nc_walls,buffer,cyl_wall_coords,7)
             case ('wallc08 =') 
-                goto 1512
+                call add_wall_list(nc_walls,buffer,cyl_wall_coords,7)
             case ('wallc09 =') 
-                goto 1512
+                call add_wall_list(nc_walls,buffer,cyl_wall_coords,7)
             case ('periodicx =')
                read(buffer, *, iostat=ios)
                if(nid.eq.0)write(6,*) 'Read periodicx '
@@ -3844,52 +3860,50 @@ c----------------------------------------------------------------------
                if(nid.eq.0)write(6,*) 'Read restitution: ', e_rest
             case default
                if(nid.eq.0)write(6,*) 'Skipping label at line', line
- 1514 continue
             end select
-      ! keep reading
          end if
       enddo
 
-      ! finished reading
-      goto 1513
-
-      ! adding a wall plane
- 1511 continue
-       np_walls = np_walls + 1
-       if (np_walls .gt. n_walls) then
-          if(nid.eq.0)write(6,*) 
-     >                 'Increase max number particle wall plane'
-          call exitt
-       endif
-       read(buffer, *, iostat=ios) plane_wall_coords(1,np_walls)
-     >                            ,plane_wall_coords(2,np_walls)
-     >                            ,plane_wall_coords(3,np_walls)
-     >                            ,plane_wall_coords(4,np_walls)
-     >                            ,plane_wall_coords(5,np_walls)
-     >                            ,plane_wall_coords(6,np_walls)
-       if(nid.eq.0)write(6,*) 'Read wall_plane number ',np_walls
-       goto 1514
-
-      ! adding a wall cylinder
- 1512 continue
-       nc_walls = nc_walls + 1
-       if (nc_walls .gt. n_walls) then
-          if(nid.eq.0)
-     >        write(6,*) 'Increase max number particle wall cyl'
-          call exitt
-       endif
-       read(buffer, *, iostat=ios) cyl_wall_coords(1,nc_walls)
-     >                            ,cyl_wall_coords(2,nc_walls)
-     >                            ,cyl_wall_coords(3,nc_walls)
-     >                            ,cyl_wall_coords(4,nc_walls)
-       if(nid.eq.0)write(6,*) 'Read wall_cyl number ', nc_walls
-       goto 1514
-
-      ! upon exit
- 1513 continue
-
       close(fh)
 
+
+      return
+      end
+c----------------------------------------------------------------------
+      subroutine add_wall_list(ninc,buf,list,ncomp)
+      include 'SIZE'
+      include 'TOTAL'
+      include 'CMTPART'
+
+      integer ninc,ncom
+      real list(ncomp,n_walls)
+      character*200 buf
+
+      ninc = ninc + 1
+      if (ninc .gt. n_walls) then
+         if (nid.eq.0) then
+             write(6,*) 'Increase max number particle wall',ncomp
+             call exitt
+          endif
+      endif
+      if (ncomp .eq. 7) then
+         read(buf, *, iostat=ios) cyl_wall_coords(1,nc_walls)
+     >                           ,cyl_wall_coords(2,nc_walls)
+     >                           ,cyl_wall_coords(3,nc_walls)
+     >                           ,cyl_wall_coords(4,nc_walls)
+     >                           ,cyl_wall_coords(5,nc_walls)
+     >                           ,cyl_wall_coords(6,nc_walls)
+     >                           ,cyl_wall_coords(7,nc_walls)
+         if(nid.eq.0)write(6,*) 'Read wall_cyl number ', ninc
+      elseif(ncomp .eq. 6) then
+         read(buf, *, iostat=ios) plane_wall_coords(1,np_walls)
+     >                           ,plane_wall_coords(2,np_walls)
+     >                           ,plane_wall_coords(3,np_walls)
+     >                           ,plane_wall_coords(4,np_walls)
+     >                           ,plane_wall_coords(5,np_walls)
+     >                           ,plane_wall_coords(6,np_walls)
+          if(nid.eq.0)write(6,*) 'Read wall_plane number ',ninc
+       endif
 
       return
       end
