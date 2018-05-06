@@ -2654,6 +2654,9 @@ c----------------------------------------------------------------------
       include 'PARALLEL'
       include 'LPM'
 
+      real                  tcoef(3,3),dt_cmt,time_cmt
+      common /timestepcoef/ tcoef,dt_cmt,time_cmt
+
       common /myparth/ i_fp_hndl, i_cr_hndl
 
       character*20 vtufile
@@ -2736,17 +2739,26 @@ c----------------------------------------------------------------------
          write(vtu1) '<PPointData> '
          call vtu_write_dataarray(vtu1,"VelocityP   ",3,0,0)
          call vtu_write_dataarray(vtu1,"VelocityF   ",3,0,0)
-         call vtu_write_dataarray(vtu1,"ForceQS     ",3,0,0)
-         call vtu_write_dataarray(vtu1,"ForceUN     ",3,0,0)
-         call vtu_write_dataarray(vtu1,"ForceIU     ",3,0,0)
-         call vtu_write_dataarray(vtu1,"ForceC      ",3,0,0)
          call vtu_write_dataarray(vtu1,"ForceUSR    ",3,0,0)
-         call vtu_write_dataarray(vtu1,"ForceWork   ",1,0,0)
-         call vtu_write_dataarray(vtu1,"HeatQS      ",1,0,0)
-         call vtu_write_dataarray(vtu1,"HeatUN      ",1,0,0)
-         call vtu_write_dataarray(vtu1,"TemperatureP",1,0,0)
+         if (part_force(1) .ne. 0)
+     >      call vtu_write_dataarray(vtu1,"ForceQS     ",3,0,0)
+         if (part_force(2) .ne. 0)
+     >      call vtu_write_dataarray(vtu1,"ForceUN     ",3,0,0)
+         if (part_force(3) .ne. 0)
+     >      call vtu_write_dataarray(vtu1,"ForceIU     ",3,0,0)
+         if (two_way .gt. 2)
+     >      call vtu_write_dataarray(vtu1,"ForceC      ",3,0,0)
+         if (part_force(1) .ne. 0 .or. part_force(3) .ne. 0)
+     >      call vtu_write_dataarray(vtu1,"ForceWork   ",1,0,0)
+         if (part_force(4) .ne. 0)
+     >      call vtu_write_dataarray(vtu1,"HeatQS      ",1,0,0)
+         if (part_force(5) .ne. 0)
+     >      call vtu_write_dataarray(vtu1,"HeatUN      ",1,0,0)
+         if (part_force(4) .ne. 0 .and. part_force(5) .ne. 0)
+     >      call vtu_write_dataarray(vtu1,"TemperatureP",1,0,0)
          call vtu_write_dataarray(vtu1,"TemperatureF",1,0,0)
-         call vtu_write_dataarray(vtu1,"ParticleVF  ",1,0,0)
+         if (two_way .ge. 2)
+     >      call vtu_write_dataarray(vtu1,"ParticleVF  ",1,0,0)
          call vtu_write_dataarray(vtu1,"RadiusCG    ",1,0,0)
          call vtu_write_dataarray(vtu1,"Diameter    ",1,0,0)
          call vtu_write_dataarray(vtu1,"ID_1        ",1,0,0)
@@ -2807,6 +2819,31 @@ c----------------------------------------------------------------------
       write(vtu) 'version="1.0"> '
 
       write(vtu) '<UnstructuredGrid> '
+
+      write(vtu) '<FieldData> ' 
+      write(vtu) '<DataArray '  ! time
+      write(vtu) 'type="Float32" '
+      write(vtu) 'Name="TIME" '
+      write(vtu) 'NumberOfTuples="1" '
+      write(vtu) 'format="ascii"> '
+#ifdef CMTNEK
+      write(dumstr,'(ES30.16)') time_cmt
+#else
+      write(dumstr,'(ES30.16)') time
+#endif
+      write(vtu) trim(dumstr), ' '
+      write(vtu) '</DataArray> '
+
+      write(vtu) '<DataArray '  ! cycle
+      write(vtu) 'type="Int32" '
+      write(vtu) 'Name="CYCLE" '
+      write(vtu) 'NumberOfTuples="1" '
+      write(vtu) 'format="ascii"> '
+      write(dumstr,'(I0)') istep
+      write(vtu) trim(dumstr), ' '
+      write(vtu) '</DataArray> '
+      write(vtu) '</FieldData>'
+
       write(vtu) '<Piece '
       write(dumstr,'(A16,I0,A2)') 'NumberOfPoints="',n,'" '
       write(vtu) trim(dumstr), ' '
@@ -2823,33 +2860,58 @@ c----------------------------------------------------------------------
 ! ----
 ! DATA 
 ! ----
+      idum = 0
       write(vtu) '<PointData> '
       iint = iint + 3*wdsize*n + isize
       call vtu_write_dataarray(vtu,"VelocityP   ",3,iint,1)
       iint = iint + 3*wdsize*n + isize
       call vtu_write_dataarray(vtu,"VelocityF   ",3,iint,1)
       iint = iint + 3*wdsize*n + isize
-      call vtu_write_dataarray(vtu,"ForceQS     ",3,iint,1)
-      iint = iint + 3*wdsize*n + isize
-      call vtu_write_dataarray(vtu,"ForceUN     ",3,iint,1)
-      iint = iint + 3*wdsize*n + isize
-      call vtu_write_dataarray(vtu,"ForceIU     ",3,iint,1)
-      iint = iint + 3*wdsize*n + isize
-      call vtu_write_dataarray(vtu,"ForceC      ",3,iint,1)
-      iint = iint + 3*wdsize*n + isize
       call vtu_write_dataarray(vtu,"ForceUSR    ",3,iint,1)
-      iint = iint + 3*wdsize*n + isize
-      call vtu_write_dataarray(vtu,"ForceWork   ",1,iint,1)
-      iint = iint + 1*wdsize*n + isize
-      call vtu_write_dataarray(vtu,"HeatQS      ",1,iint,1)
-      iint = iint + 1*wdsize*n + isize
-      call vtu_write_dataarray(vtu,"HeatUN      ",1,iint,1)
-      iint = iint + 1*wdsize*n + isize
-      call vtu_write_dataarray(vtu,"TemperatureP",1,iint,1)
-      iint = iint + 1*wdsize*n + isize
+      if (part_force(1) .ne. 0) then
+         iint = iint + 3*wdsize*n + isize
+         call vtu_write_dataarray(vtu,"ForceQS     ",3,iint,1)
+      endif
+      if (part_force(2) .ne. 0) then
+         iint = iint + 3*wdsize*n + isize
+         call vtu_write_dataarray(vtu,"ForceUN     ",3,iint,1)
+      endif
+      if (part_force(3) .ne. 0) then
+         iint = iint + 3*wdsize*n + isize
+         call vtu_write_dataarray(vtu,"ForceIU     ",3,iint,1)
+      endif
+      if (two_way .gt. 2) then
+         iint = iint + 3*wdsize*n + isize
+         call vtu_write_dataarray(vtu,"ForceC      ",3,iint,1)
+      endif
+      idum = 3
+      if (part_force(1) .ne. 0 .or. part_force(3) .ne. 0) then
+         iint = iint + idum*wdsize*n + isize
+         call vtu_write_dataarray(vtu,"ForceWork   ",1,iint,1)
+         idum = 1
+      endif
+      if (part_force(4) .ne. 0) then
+         iint = iint + idum*wdsize*n + isize
+         call vtu_write_dataarray(vtu,"HeatQS      ",1,iint,1)
+         idum = 1
+      endif
+      if (part_force(5) .ne. 0) then
+         iint = iint + idum*wdsize*n + isize
+         call vtu_write_dataarray(vtu,"HeatUN      ",1,iint,1)
+         idum = 1
+      endif
+      if (part_force(4) .ne. 0 .and. part_force(5) .ne. 0) then
+         iint = iint + idum*wdsize*n + isize
+         call vtu_write_dataarray(vtu,"TemperatureP",1,iint,1)
+         idum = 1
+      endif
+      iint = iint + idum*wdsize*n + isize
       call vtu_write_dataarray(vtu,"TemperatureF",1,iint,1)
-      iint = iint + 1*wdsize*n + isize
-      call vtu_write_dataarray(vtu,"ParticleVF  ",1,iint,1)
+      if (two_way .ge. 2) then
+         iint = iint + 1*wdsize*n + isize
+         call vtu_write_dataarray(vtu,"ParticleVF  ",1,iint,1)
+      endif
+
       iint = iint + 1*wdsize*n + isize
       call vtu_write_dataarray(vtu,"RadiusCG    ",1,iint,1)
       iint = iint + 1*wdsize*n + isize
@@ -2914,68 +2976,86 @@ c----------------------------------------------------------------------
       iint=3*wdsize*n
       write(vtu) iint
       do i=1,n
-         write(vtu) rpart(jfqs,i)
-         write(vtu) rpart(jfqs+1,i)
-         write(vtu) rpart(jfqs+2,i)
-      enddo
-      iint=3*wdsize*n
-      write(vtu) iint
-      do i=1,n
-         write(vtu) rpart(jfun,i)
-         write(vtu) rpart(jfun+1,i)
-         write(vtu) rpart(jfun+2,i)
-      enddo
-      iint=3*wdsize*n
-      write(vtu) iint
-      do i=1,n
-         write(vtu) rpart(jfiu,i)
-         write(vtu) rpart(jfiu+1,i)
-         write(vtu) rpart(jfiu+2,i)
-      enddo
-      iint=3*wdsize*n
-      write(vtu) iint
-      do i=1,n
-         write(vtu) rpart(jfcol,i)
-         write(vtu) rpart(jfcol+1,i)
-         write(vtu) rpart(jfcol+2,i)
-      enddo
-      iint=3*wdsize*n
-      write(vtu) iint
-      do i=1,n
          write(vtu) rpart(jfusr,i)
          write(vtu) rpart(jfusr+1,i)
          write(vtu) rpart(jfusr+2,i)
       enddo
-      iint=1*wdsize*n
-      write(vtu) iint
-      do i=1,n
-         write(vtu) rpart(jg0,i)
-      enddo
-      iint=1*wdsize*n
-      write(vtu) iint
-      do i=1,n
-         write(vtu) rpart(jqqs,i)
-      enddo
-      iint=1*wdsize*n
-      write(vtu) iint
-      do i=1,n
-         write(vtu) rpart(jquu,i)
-      enddo
-      iint=1*wdsize*n
-      write(vtu) iint
-      do i=1,n
-         write(vtu) rpart(jtemp,i)
-      enddo
+      if (part_force(1) .ne. 0) then
+         iint=3*wdsize*n
+         write(vtu) iint
+         do i=1,n
+            write(vtu) rpart(jfqs,i)
+            write(vtu) rpart(jfqs+1,i)
+            write(vtu) rpart(jfqs+2,i)
+         enddo
+      endif
+      if (part_force(2) .ne. 0) then
+         iint=3*wdsize*n
+         write(vtu) iint
+         do i=1,n
+            write(vtu) rpart(jfun,i)
+            write(vtu) rpart(jfun+1,i)
+            write(vtu) rpart(jfun+2,i)
+         enddo
+      endif
+      if (part_force(3) .ne. 0) then
+         iint=3*wdsize*n
+         write(vtu) iint
+         do i=1,n
+            write(vtu) rpart(jfiu,i)
+            write(vtu) rpart(jfiu+1,i)
+            write(vtu) rpart(jfiu+2,i)
+         enddo
+      endif
+      if (two_way .gt. 2) then
+         iint=3*wdsize*n
+         write(vtu) iint
+         do i=1,n
+            write(vtu) rpart(jfcol,i)
+            write(vtu) rpart(jfcol+1,i)
+            write(vtu) rpart(jfcol+2,i)
+         enddo
+      endif
+      if (part_force(1) .ne. 0 .or. part_force(3) .ne. 0) then
+         iint=1*wdsize*n
+         write(vtu) iint
+         do i=1,n
+            write(vtu) rpart(jg0,i)
+         enddo
+      endif
+      if (part_force(4) .ne. 0) then
+         iint=1*wdsize*n
+         write(vtu) iint
+         do i=1,n
+            write(vtu) rpart(jqqs,i)
+         enddo
+      endif
+      if (part_force(5) .ne. 0) then
+         iint=1*wdsize*n
+         write(vtu) iint
+         do i=1,n
+            write(vtu) rpart(jquu,i)
+         enddo
+      endif
+      if (part_force(4) .ne. 0 .and. part_force(5) .ne. 0) then
+         iint=1*wdsize*n
+         write(vtu) iint
+         do i=1,n
+            write(vtu) rpart(jtemp,i)
+         enddo
+      endif
       iint=1*wdsize*n
       write(vtu) iint
       do i=1,n
          write(vtu) rpart(jtempf,i)
       enddo
-      iint=1*wdsize*n
-      write(vtu) iint
-      do i=1,n
-         write(vtu) rpart(jvol1,i)
-      enddo
+      if (two_way .ge. 2) then
+         iint=1*wdsize*n
+         write(vtu) iint
+         do i=1,n
+            write(vtu) rpart(jvol1,i)
+         enddo
+      endif
       iint=1*wdsize*n
       write(vtu) iint
       do i=1,n
