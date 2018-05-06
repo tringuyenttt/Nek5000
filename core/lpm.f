@@ -97,9 +97,16 @@ c        correct nwe if discrepancy on rank 0
 c        main loop to distribute particles
          do i_pt_part = 1,nwe
             n = n + 1
+  754 continue
+            ! Error checking
+            if (n.gt.llpart)then 
+               if (nid.eq.0)
+     >            write(6,*)'Not enough space to store more particles'
+               call exitt
+            endif
 
             ! sphere or cylinder
-            if (rxbo(1,1) .lt. -1E7) then
+            if (rxco(1) .gt. -1E7) then
 
                ! distribute in cylinder 
                if (rxco(6) .gt. -1E7) then
@@ -175,6 +182,18 @@ c        main loop to distribute particles
                   rpart(jx3+j,n) = rdum
                enddo
                endif
+
+               ! check if box defined and if it is, particles must fit 
+               ! in that box even if spere or cylinder distribution.
+               ! If not, try placing again
+               if (rxbo(1,1) .gt. -1E7) then
+                  do j=0,ldim-1
+                     if ((rpart(jx+j,n) .gt. rxbo(2,j+1)) .or.
+     >                   (rpart(jx+j,n) .lt. rxbo(1,j+1))) then
+                        goto 754
+                     endif
+                  enddo
+               endif
                   
             ! distribute in box
             else
@@ -221,12 +240,6 @@ c           set global particle id (3 part tag)
 
       endif
 
-      ! Error checking
-      if (n.gt.llpart)then 
-         if (nid.eq.0)
-     >      write(6,*)'Not enough space to store more particles'
-         call exitt
-      endif
 
       ! force 2d z to be 1
       if (.not. if3d) then
@@ -3474,12 +3487,12 @@ c----------------------------------------------------------------------
       return
       end
 c----------------------------------------------------------------------
-      subroutine read_particle_input_par
-      include 'SIZE'
-      include 'INPUT'
-      include 'TSTEP'
-      include 'PARALLEL'
-      include 'LPM'
+c     subroutine read_particle_input_par
+c     include 'SIZE'
+c     include 'INPUT'
+c     include 'TSTEP'
+c     include 'PARALLEL'
+c     include 'LPM'
 c
 c     only used for load balanced code since there is no par file in 
 c     old version of the code. To convert from standard nek5000 input:
@@ -3491,227 +3504,227 @@ c
 c         must be lowercase key words with one space then an equal sign
 c         followed by another space
 
-      character*72 dum_str
+c     character*72 dum_str
 
-      character*200 buffer, label
-      integer pos, fh, ios, line, dum
-      parameter(fh = 15)
+c     character*200 buffer, label
+c     integer pos, fh, ios, line, dum
+c     parameter(fh = 15)
 
-      call lpm_input_defaults
+c     call lpm_input_defaults
 
-      ios  = 0
-      line = 0
+c     ios  = 0
+c     line = 0
 
-      open(fh, file='particles.par')
- 
-      do while (ios == 0)
-         read(fh, '(A)', iostat=ios) buffer
-         if (ios == 0) then
-            line = line + 1
-      
-            ! Find the first instance of whitespace.  Split label and data.
-            pos = scan(buffer, '=')
-            label = buffer(1:pos)
-            buffer = buffer(pos+1:)
-      
-            select case (label)
-            case ('npart =')
-               read(buffer, *, iostat=ios) nw
-               if(nid.eq.0)write(6,*) 'Read npart: ', nw
-            case ('distributebox =')
-               read(buffer, *, iostat=ios) rxbo(1,1),rxbo(2,1),
-     >                                     rxbo(1,2),rxbo(2,2),
-     >                                     rxbo(1,3),rxbo(2,3)
-               if(nid.eq.0)write(6,*) 'Read distributebox '
-            case ('distributecylinder =')
-               read(buffer, *, iostat=ios) rxco(1),rxco(2),rxco(3),
-     >                                     rxco(4),rxco(5),rxco(6), 
-     >                                     rxco(7),rxco(8),rxco(9)
-               if(nid.eq.0)write(6,*) 'Read distributecylinder '
-            case ('distributesphere =')
-               read(buffer, *, iostat=ios) rxco(1),rxco(2),rxco(3),
-     >                                     rxco(4),rxco(5)
-               if(nid.eq.0)write(6,*) 'Read distributesphere '
-            case ('diameter =')
-               read(buffer, *, iostat=ios) dp(1)
-               if(nid.eq.0)write(6,*) 'Read diameter: ', dp(1)
-               dp(2) = dp(1)
-            case ('diameteruniform =')
-               read(buffer, *, iostat=ios) dp(1), dp(2)
-               if(nid.eq.0)write(6,*) 'Read diameteruniform: ', 
-     >                         dp(1), dp(2)
-            case ('diametergaussian =')
-               read(buffer, *, iostat=ios) dp(1), dp_std
-               if(nid.eq.0)write(6,*) 'Read diametergaussian: ', 
-     >                         dp(1), dp_std
-               dp(2) = dp(1)
-            case ('temperature =')
-               read(buffer, *, iostat=ios) tp_0
-               if(nid.eq.0)write(6,*) 'Read temperature: ', tp_0
-            case ('density =')
-               read(buffer, *, iostat=ios) rho_p
-               if(nid.eq.0)write(6,*) 'Read density: ', rho_p
-            case ('specificheat =')
-               read(buffer, *, iostat=ios) cp_p
-               if(nid.eq.0)write(6,*) 'Read specificheat: ', cp_p
-            case ('forceqs =')
-               read(buffer, *, iostat=ios) part_force(1)
-               if(nid.eq.0)write(6,*) 'Read forceqs: ', part_force(1)
-            case ('forceun =')
-               read(buffer, *, iostat=ios) part_force(2)
-               if(nid.eq.0)write(6,*) 'Read forceun: ', part_force(2)
-            case ('forceiu =')
-               read(buffer, *, iostat=ios) part_force(3)
-               if(nid.eq.0)write(6,*) 'Read forceiu: ', part_force(3)
-            case ('heatqs =')
-               read(buffer, *, iostat=ios) part_force(4)
-               if(nid.eq.0)write(6,*) 'Read heatqs: ', part_force(4)
-            case ('heatun =')
-               read(buffer, *, iostat=ios) part_force(5)
-               if(nid.eq.0)write(6,*) 'Read heatun: ', part_force(5)
-            case ('timestepper =') 
-               read(buffer, *, iostat=ios) time_integ
-               if(nid.eq.0)write(6,*) 'Read timestepper: ', time_integ
-            case ('coupling =') 
-               read(buffer, *, iostat=ios) two_way
-               if(nid.eq.0)write(6,*) 'Read coupling: ', two_way
-            case ('interpolation') 
-               read(buffer, *, iostat=ios) red_interp
-               if(nid.eq.0)write(6,*) 'Read interpolation: ', red_interp
-            case ('io =')
-               read(buffer, *, iostat=ios) npio_method
-               if(nid.eq.0)write(6,*) 'Read io: ', npio_method
-            case ('injectionstep =')
-               read(buffer, *, iostat=ios) inject_rate
-               if(nid.eq.0)write(6,*) 'Read injectionstep: ',inject_rate
-            case ('delaystep =')
-               read(buffer, *, iostat=ios) time_delay
-               if(nid.eq.0)write(6,*) 'Read delaystep: ', time_delay
-            case ('seed =')
-               read(buffer, *, iostat=ios) nrandseed
-               if(nid.eq.0)write(6,*) 'Read seed: ', nrandseed
-            case ('projection =')
-               read(buffer, *, iostat=ios) npro_method
-               if(nid.eq.0)write(6,*) 'Read projection: ', npro_method
-            case ('coarsegrain =')
-               read(buffer, *, iostat=ios) rspl
-               if(nid.eq.0)write(6,*) 'Read coarsegrain: ', rspl
-            case ('filter =')
-               read(buffer, *, iostat=ios) dfilt
-               if(nid.eq.0)write(6,*) 'Read filter: ', dfilt
-            case ('alpha =')
-               read(buffer, *, iostat=ios) ralphdecay
-               if(nid.eq.0)write(6,*) 'Read alpha: ', ralphdecay
+c     open(fh, file='particles.par')
+c
+c     do while (ios == 0)
+c        read(fh, '(A)', iostat=ios) buffer
+c        if (ios == 0) then
+c           line = line + 1
+c     
+c           ! Find the first instance of whitespace.  Split label and data.
+c           pos = scan(buffer, '=')
+c           label = buffer(1:pos)
+c           buffer = buffer(pos+1:)
+c     
+c           select case (label)
+c           case ('npart =')
+c              read(buffer, *, iostat=ios) nw
+c              if(nid.eq.0)write(6,*) 'Read npart: ', nw
+c           case ('distributebox =')
+c              read(buffer, *, iostat=ios) rxbo(1,1),rxbo(2,1),
+c    >                                     rxbo(1,2),rxbo(2,2),
+c    >                                     rxbo(1,3),rxbo(2,3)
+c              if(nid.eq.0)write(6,*) 'Read distributebox '
+c           case ('distributecylinder =')
+c              read(buffer, *, iostat=ios) rxco(1),rxco(2),rxco(3),
+c    >                                     rxco(4),rxco(5),rxco(6), 
+c    >                                     rxco(7),rxco(8),rxco(9)
+c              if(nid.eq.0)write(6,*) 'Read distributecylinder '
+c           case ('distributesphere =')
+c              read(buffer, *, iostat=ios) rxco(1),rxco(2),rxco(3),
+c    >                                     rxco(4),rxco(5)
+c              if(nid.eq.0)write(6,*) 'Read distributesphere '
+c           case ('diameter =')
+c              read(buffer, *, iostat=ios) dp(1)
+c              if(nid.eq.0)write(6,*) 'Read diameter: ', dp(1)
+c              dp(2) = dp(1)
+c           case ('diameteruniform =')
+c              read(buffer, *, iostat=ios) dp(1), dp(2)
+c              if(nid.eq.0)write(6,*) 'Read diameteruniform: ', 
+c    >                         dp(1), dp(2)
+c           case ('diametergaussian =')
+c              read(buffer, *, iostat=ios) dp(1), dp_std
+c              if(nid.eq.0)write(6,*) 'Read diametergaussian: ', 
+c    >                         dp(1), dp_std
+c              dp(2) = dp(1)
+c           case ('temperature =')
+c              read(buffer, *, iostat=ios) tp_0
+c              if(nid.eq.0)write(6,*) 'Read temperature: ', tp_0
+c           case ('density =')
+c              read(buffer, *, iostat=ios) rho_p
+c              if(nid.eq.0)write(6,*) 'Read density: ', rho_p
+c           case ('specificheat =')
+c              read(buffer, *, iostat=ios) cp_p
+c              if(nid.eq.0)write(6,*) 'Read specificheat: ', cp_p
+c           case ('forceqs =')
+c              read(buffer, *, iostat=ios) part_force(1)
+c              if(nid.eq.0)write(6,*) 'Read forceqs: ', part_force(1)
+c           case ('forceun =')
+c              read(buffer, *, iostat=ios) part_force(2)
+c              if(nid.eq.0)write(6,*) 'Read forceun: ', part_force(2)
+c           case ('forceiu =')
+c              read(buffer, *, iostat=ios) part_force(3)
+c              if(nid.eq.0)write(6,*) 'Read forceiu: ', part_force(3)
+c           case ('heatqs =')
+c              read(buffer, *, iostat=ios) part_force(4)
+c              if(nid.eq.0)write(6,*) 'Read heatqs: ', part_force(4)
+c           case ('heatun =')
+c              read(buffer, *, iostat=ios) part_force(5)
+c              if(nid.eq.0)write(6,*) 'Read heatun: ', part_force(5)
+c           case ('timestepper =') 
+c              read(buffer, *, iostat=ios) time_integ
+c              if(nid.eq.0)write(6,*) 'Read timestepper: ', time_integ
+c           case ('coupling =') 
+c              read(buffer, *, iostat=ios) two_way
+c              if(nid.eq.0)write(6,*) 'Read coupling: ', two_way
+c           case ('interpolation') 
+c              read(buffer, *, iostat=ios) red_interp
+c              if(nid.eq.0)write(6,*) 'Read interpolation: ', red_interp
+c           case ('io =')
+c              read(buffer, *, iostat=ios) npio_method
+c              if(nid.eq.0)write(6,*) 'Read io: ', npio_method
+c           case ('injectionstep =')
+c              read(buffer, *, iostat=ios) inject_rate
+c              if(nid.eq.0)write(6,*) 'Read injectionstep: ',inject_rate
+c           case ('delaystep =')
+c              read(buffer, *, iostat=ios) time_delay
+c              if(nid.eq.0)write(6,*) 'Read delaystep: ', time_delay
+c           case ('seed =')
+c              read(buffer, *, iostat=ios) nrandseed
+c              if(nid.eq.0)write(6,*) 'Read seed: ', nrandseed
+c           case ('projection =')
+c              read(buffer, *, iostat=ios) npro_method
+c              if(nid.eq.0)write(6,*) 'Read projection: ', npro_method
+c           case ('coarsegrain =')
+c              read(buffer, *, iostat=ios) rspl
+c              if(nid.eq.0)write(6,*) 'Read coarsegrain: ', rspl
+c           case ('filter =')
+c              read(buffer, *, iostat=ios) dfilt
+c              if(nid.eq.0)write(6,*) 'Read filter: ', dfilt
+c           case ('alpha =')
+c              read(buffer, *, iostat=ios) ralphdecay
+c              if(nid.eq.0)write(6,*) 'Read alpha: ', ralphdecay
 
-            case ('wallp01 =') 
-                call add_wall_list(np_walls,buffer,plane_wall_coords,6)
-            case ('wallp02 =') 
-                call add_wall_list(np_walls,buffer,plane_wall_coords,6)
-            case ('wallp03 =') 
-                call add_wall_list(np_walls,buffer,plane_wall_coords,6)
-            case ('wallp04 =') 
-                call add_wall_list(np_walls,buffer,plane_wall_coords,6)
-            case ('wallp05 =') 
-                call add_wall_list(np_walls,buffer,plane_wall_coords,6)
-            case ('wallp06 =') 
-                call add_wall_list(np_walls,buffer,plane_wall_coords,6)
-            case ('wallp07 =') 
-                call add_wall_list(np_walls,buffer,plane_wall_coords,6)
-            case ('wallp08 =') 
-                call add_wall_list(np_walls,buffer,plane_wall_coords,6)
-            case ('wallp09 =') 
-                call add_wall_list(np_walls,buffer,plane_wall_coords,6)
-            case ('wallc01 =') 
-                call add_wall_list(nc_walls,buffer,cyl_wall_coords,7)
-            case ('wallc02 =') 
-                call add_wall_list(nc_walls,buffer,cyl_wall_coords,7)
-            case ('wallc03 =') 
-                call add_wall_list(nc_walls,buffer,cyl_wall_coords,7)
-            case ('wallc04 =') 
-                call add_wall_list(nc_walls,buffer,cyl_wall_coords,7)
-            case ('wallc05 =') 
-                call add_wall_list(nc_walls,buffer,cyl_wall_coords,7)
-            case ('wallc06 =') 
-                call add_wall_list(nc_walls,buffer,cyl_wall_coords,7)
-            case ('wallc07 =') 
-                call add_wall_list(nc_walls,buffer,cyl_wall_coords,7)
-            case ('wallc08 =') 
-                call add_wall_list(nc_walls,buffer,cyl_wall_coords,7)
-            case ('wallc09 =') 
-                call add_wall_list(nc_walls,buffer,cyl_wall_coords,7)
-            case ('periodicx =')
-               read(buffer, *, iostat=ios)
-               if(nid.eq.0)write(6,*) 'Read periodicx '
-               bc_part(1) = 0
-               bc_part(2) = 0
-            case ('periodicy =')
-               read(buffer, *, iostat=ios)
-               if(nid.eq.0)write(6,*) 'Read periodicy '
-               bc_part(3) = 0
-               bc_part(4) = 0
-            case ('periodicz =')
-               read(buffer, *, iostat=ios)
-               if(nid.eq.0)write(6,*) 'Read periodicz '
-               bc_part(5) = 0
-               bc_part(6) = 0
-            case ('restartstep =')
-               read(buffer, *, iostat=ios) ipart_restartr
-               if(nid.eq.0)write(6,*)'Read restartstep: ',ipart_restartr
-            case ('spring =')
-               read(buffer, *, iostat=ios) ksp
-               if(nid.eq.0)write(6,*) 'Read spring: ', ksp
-            case ('restitution =')
-               read(buffer, *, iostat=ios) e_rest
-               if(nid.eq.0)write(6,*) 'Read restitution: ', e_rest
-            case default
-               if(nid.eq.0)write(6,*) 'Skipping label at line', line
-            end select
-         end if
-      enddo
+c           case ('wallp01 =') 
+c               call add_wall_list(np_walls,buffer,plane_wall_coords,6)
+c           case ('wallp02 =') 
+c               call add_wall_list(np_walls,buffer,plane_wall_coords,6)
+c           case ('wallp03 =') 
+c               call add_wall_list(np_walls,buffer,plane_wall_coords,6)
+c           case ('wallp04 =') 
+c               call add_wall_list(np_walls,buffer,plane_wall_coords,6)
+c           case ('wallp05 =') 
+c               call add_wall_list(np_walls,buffer,plane_wall_coords,6)
+c           case ('wallp06 =') 
+c               call add_wall_list(np_walls,buffer,plane_wall_coords,6)
+c           case ('wallp07 =') 
+c               call add_wall_list(np_walls,buffer,plane_wall_coords,6)
+c           case ('wallp08 =') 
+c               call add_wall_list(np_walls,buffer,plane_wall_coords,6)
+c           case ('wallp09 =') 
+c               call add_wall_list(np_walls,buffer,plane_wall_coords,6)
+c           case ('wallc01 =') 
+c               call add_wall_list(nc_walls,buffer,cyl_wall_coords,7)
+c           case ('wallc02 =') 
+c               call add_wall_list(nc_walls,buffer,cyl_wall_coords,7)
+c           case ('wallc03 =') 
+c               call add_wall_list(nc_walls,buffer,cyl_wall_coords,7)
+c           case ('wallc04 =') 
+c               call add_wall_list(nc_walls,buffer,cyl_wall_coords,7)
+c           case ('wallc05 =') 
+c               call add_wall_list(nc_walls,buffer,cyl_wall_coords,7)
+c           case ('wallc06 =') 
+c               call add_wall_list(nc_walls,buffer,cyl_wall_coords,7)
+c           case ('wallc07 =') 
+c               call add_wall_list(nc_walls,buffer,cyl_wall_coords,7)
+c           case ('wallc08 =') 
+c               call add_wall_list(nc_walls,buffer,cyl_wall_coords,7)
+c           case ('wallc09 =') 
+c               call add_wall_list(nc_walls,buffer,cyl_wall_coords,7)
+c           case ('periodicx =')
+c              read(buffer, *, iostat=ios)
+c              if(nid.eq.0)write(6,*) 'Read periodicx '
+c              bc_part(1) = 0
+c              bc_part(2) = 0
+c           case ('periodicy =')
+c              read(buffer, *, iostat=ios)
+c              if(nid.eq.0)write(6,*) 'Read periodicy '
+c              bc_part(3) = 0
+c              bc_part(4) = 0
+c           case ('periodicz =')
+c              read(buffer, *, iostat=ios)
+c              if(nid.eq.0)write(6,*) 'Read periodicz '
+c              bc_part(5) = 0
+c              bc_part(6) = 0
+c           case ('restartstep =')
+c              read(buffer, *, iostat=ios) ipart_restartr
+c              if(nid.eq.0)write(6,*)'Read restartstep: ',ipart_restartr
+c           case ('spring =')
+c              read(buffer, *, iostat=ios) ksp
+c              if(nid.eq.0)write(6,*) 'Read spring: ', ksp
+c           case ('restitution =')
+c              read(buffer, *, iostat=ios) e_rest
+c              if(nid.eq.0)write(6,*) 'Read restitution: ', e_rest
+c           case default
+c              if(nid.eq.0)write(6,*) 'Skipping label at line', line
+c           end select
+c        end if
+c     enddo
 
-      close(fh)
+c     close(fh)
 
 
-      return
-      end
+c     return
+c     end
 c----------------------------------------------------------------------
-      subroutine add_wall_list(ninc,buf,list,ncomp)
-      include 'SIZE'
-      include 'TOTAL'
-      include 'LPM'
+c     subroutine add_wall_list(ninc,buf,list,ncomp)
+c     include 'SIZE'
+c     include 'TOTAL'
+c     include 'LPM'
 
-      integer ninc,ncom
-      real list(ncomp,n_walls)
-      character*200 buf
+c     integer ninc,ncom
+c     real list(ncomp,n_walls)
+c     character*200 buf
 
-      ninc = ninc + 1
-      if (ninc .gt. n_walls) then
-         if (nid.eq.0) then
-             write(6,*) 'Increase max number particle wall',ncomp
-             call exitt
-          endif
-      endif
-      if (ncomp .eq. 7) then
-         read(buf, *, iostat=ios) cyl_wall_coords(1,nc_walls)
-     >                           ,cyl_wall_coords(2,nc_walls)
-     >                           ,cyl_wall_coords(3,nc_walls)
-     >                           ,cyl_wall_coords(4,nc_walls)
-     >                           ,cyl_wall_coords(5,nc_walls)
-     >                           ,cyl_wall_coords(6,nc_walls)
-     >                           ,cyl_wall_coords(7,nc_walls)
-         if(nid.eq.0)write(6,*) 'Read wall_cyl number ', ninc
-      elseif(ncomp .eq. 6) then
-         read(buf, *, iostat=ios) plane_wall_coords(1,np_walls)
-     >                           ,plane_wall_coords(2,np_walls)
-     >                           ,plane_wall_coords(3,np_walls)
-     >                           ,plane_wall_coords(4,np_walls)
-     >                           ,plane_wall_coords(5,np_walls)
-     >                           ,plane_wall_coords(6,np_walls)
-          if(nid.eq.0)write(6,*) 'Read wall_plane number ',ninc
-       endif
+c     ninc = ninc + 1
+c     if (ninc .gt. n_walls) then
+c        if (nid.eq.0) then
+c            write(6,*) 'Increase max number particle wall',ncomp
+c            call exitt
+c         endif
+c     endif
+c     if (ncomp .eq. 7) then
+c        read(buf, *, iostat=ios) cyl_wall_coords(1,nc_walls)
+c    >                           ,cyl_wall_coords(2,nc_walls)
+c    >                           ,cyl_wall_coords(3,nc_walls)
+c    >                           ,cyl_wall_coords(4,nc_walls)
+c    >                           ,cyl_wall_coords(5,nc_walls)
+c    >                           ,cyl_wall_coords(6,nc_walls)
+c    >                           ,cyl_wall_coords(7,nc_walls)
+c        if(nid.eq.0)write(6,*) 'Read wall_cyl number ', ninc
+c     elseif(ncomp .eq. 6) then
+c        read(buf, *, iostat=ios) plane_wall_coords(1,np_walls)
+c    >                           ,plane_wall_coords(2,np_walls)
+c    >                           ,plane_wall_coords(3,np_walls)
+c    >                           ,plane_wall_coords(4,np_walls)
+c    >                           ,plane_wall_coords(5,np_walls)
+c    >                           ,plane_wall_coords(6,np_walls)
+c         if(nid.eq.0)write(6,*) 'Read wall_plane number ',ninc
+c      endif
 
-      return
-      end
+c     return
+c     end
 c----------------------------------------------------------------------
       subroutine output_particle_diagnostics
       include 'SIZE'
