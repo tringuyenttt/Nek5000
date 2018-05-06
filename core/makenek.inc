@@ -39,7 +39,7 @@ if [ "$PPLIST" == "?" ]; then
   echo "  EXTBAR      add underscore to exit call (for BGQ)"
   echo "  NEKNEK      activate overlapping mesh solver (experimental)"
   echo "  CMTNEK      activate DG compressible-flow solver (experimental)"
-  echo "  CMTPART     activate Lagrangian Particles (experimental)"
+  echo "  LPM         activate Lagrangian Particles (experimental)"
   exit 1
 fi
 
@@ -230,7 +230,6 @@ PPLIST="${PPLIST}"
 
 # add user defined preprocessor symbols
 CMT=0
-CMTPRT=0
 NEKNEK=0
 MPIIO=1
 for i in $PPLIST
@@ -241,8 +240,8 @@ do
    if [ "$i" == "CMTNEK" ]; then
      CMT=1
    fi
-   if [ "$i" == "CMTPART" ]; then
-     CMTPRT=1
+   if [ "$i" == "LPM" ]; then
+     LPM=1
    fi
    if [ "$i" == "NOMPIIO" ]; then
      MPIIO=0
@@ -296,14 +295,13 @@ sed -e "s:^FC[ ]*=.*:FC\:=$FC:" \
 -e "s/^MPI[ ]*=.*/MPI:=$MPI/" \
 -e "s/^CVODE[ ]*=.*/CVODE:=$CVODE/" \
 -e "s/^CMT[ ]*=.*/CMT:=$CMT/" \
--e "s/^CMTPRT[ ]*=.*/CMTPRT:=$CMTPRT/" \
+-e "s/^LPM[ ]*=.*/LPM:=$LPM/" \
 -e "s/^NEKNEK[ ]*=.*/NEKNEK:=$NEKNEK/" \
 -e "s/^VISIT[ ]*=.*/VISIT:=${VISIT}/" \
 -e "s:^USR[ ]*=.*:USR\:=$USR:" \
 -e "s:^USR_LFLAGS[ ]*=.*:USR_LFLAGS\:=$USR_LFLAGS:" \
 -e "s:^S[ ]*=.*:S\:=${SOURCE_ROOT}/core:" \
 -e "s:^SCMT[ ]*=.*:SCMT\:=${SOURCE_ROOT}/core/cmt:" \
--e "s:^SCMTPRT[ ]*=.*:SCMTPRT\:=${SOURCE_ROOT}/core/cmt:" \
 $SOURCE_ROOT/core/makefile.template >.makefile
 
 if [ $VISIT -ne 0 ]; then
@@ -411,7 +409,7 @@ if ! cat SIZE | grep -qi 'ldimt_proj' ; then
 fi
 
 if ! cat SIZE | grep -qi 'llpart' ; then
-if [ $CMTPRT -ne 0 ]; then
+if [ $LPM -ne 0 ]; then
     echo >>SIZE
     echo 'c automatically added by makenek' >>SIZE
     echo '      integer llpart' >> SIZE

@@ -533,8 +533,8 @@ c-----------------------------------------------------------------------
                call NEKASGN(i,j,k,e)
                call userf(i,j,k,eg)
                rdum4 = 0.
-#ifdef CMTPART
-               call userf_particles(I,J,K,e,rdum1,rdum2,rdum3,rdum4)
+#ifdef LPM
+               call lpm_userf(I,J,K,e,rdum1,rdum2,rdum3,rdum4)
                FFX  = FFX + rdum1
                FFY  = FFY + rdum2
                FFZ  = FFZ + rdum3

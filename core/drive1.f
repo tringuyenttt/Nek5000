@@ -127,10 +127,10 @@ c      ifsync = .true.
          if (ifneknek) call bcopy
          if (ifneknek) call chk_outflow
          call userchk
-#ifdef CMTPART
+#ifdef LPM
 #ifdef CMTNEK
 #else
-         call stokes_particles
+         call lpm_stokes_particles_solver
 #endif
 #endif
          if(nio.eq.0) write(6,'(A,/)') ' done :: userchk' 
@@ -205,10 +205,10 @@ c-----------------------------------------------------------------------
          call check_ioinfo  
          call set_outfld
          call userchk
-#ifdef CMTPART
+#ifdef LPM
 #ifdef CMTNEK
 #else
-         call stokes_particles
+         call lpm_stokes_particles_solver
 #endif
 #endif
          call prepost (ifoutfld,'his')

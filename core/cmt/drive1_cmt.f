@@ -58,8 +58,8 @@ c particle equations of motion are solved (also includes forcing)
 c In future this subroutine may compute the back effect of particles
 c on the fluid and suitably modify the residue computed by 
 c compute_rhs_dt for the 5 conserved variables
-#ifdef CMTPART
-         call usr_particles_solver
+#ifdef LPM
+         call lpm_usr_particles_solver
 #endif
 
 ! JH111815 soon....
@@ -97,8 +97,8 @@ c-----------------------------------------------------------------------
          call out_fld_nek
          call mass_balance(if3d)
 c dump out particle information. 
-#ifdef CMTPART
-         call usr_particles_io(istep)
+#ifdef LPM
+         call lpm_usr_particles_io(istep)
 #endif
       end if
 

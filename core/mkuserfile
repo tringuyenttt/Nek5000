@@ -11,11 +11,6 @@ if echo $PPS | grep -q 'CMT' ; then
 else
    CMT=0
 fi
-if echo $PPS | grep -q 'CMTPART' ; then
-   CMTPRT=1
-else
-   CMTPRT=0
-fi
 
 rm -f $CASENAME.f
 cp -pv $CASENAME.usr $CASENAME.f
@@ -113,27 +108,6 @@ c automatically added by makenek
       include 'NEKUSE'
       include 'CMTDATA'
 
-      return
-      end
-_ACEOF
-fi
-fi
-
-if [ $CMTPRT -ne 0 ]; then
-if ! cat $CASENAME.f | grep -qi "subroutine.*usr_particles_f_user" ; then
-cat >> $CASENAME.f << _ACEOF
-
-c automatically added by makenek
-      subroutine usr_particles_f_user(i) 
-      include 'SIZE'
-      include 'TOTAL'
-      include 'CMTPART'
-      parameter(rgrav = 9.8)
-c     USER SET BODY FORCES 
-      f_part(0) = 0.0
-c     f_part(1) = -rgrav*rpart(jvol,i)*(rpart(jrhop,i)-rpart(jrho,i))
-      f_part(1) = 0.0
-      f_part(2) = 0.0
       return
       end
 _ACEOF

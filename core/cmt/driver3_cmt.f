@@ -183,8 +183,8 @@ c-----------------------------------------------------------------------
       call rzero(vtrans,ltott*ldimt1)
       call rzero(vdiff ,ltott*ldimt1)
       call rzero(u,ntotcv)
-#ifdef CMTPART
-      call usr_particles_init(1)
+#ifdef LPM
+      call lpm_init(1)
 #endif
       call cmtuic
       if(ifrestart) call my_full_restart !  Check restart files. soon...

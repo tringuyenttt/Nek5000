@@ -207,8 +207,8 @@ c     - mhd support
       INCLUDE 'PARALLEL'
       INCLUDE 'CTIMER'
       INCLUDE 'ZPER'
-#ifdef CMTPART
-      INCLUDE 'CMTPART'
+#ifdef LPM
+      INCLUDE 'LPM'
 #endif
 
       character*132 c_out,txt, txt2
@@ -772,8 +772,8 @@ c set restart options
       enddo
 
 c set particle options
-#ifdef CMTPART
-      call particle_input_defaults
+#ifdef LPM
+      call lpm_input_defaults
 
       call finiparser_getDbl(d_out,'particle:npart',ifnd)
       if(ifnd .eq. 1) then
@@ -949,8 +949,8 @@ C
       INCLUDE 'ZPER'
       INCLUDE 'ADJOINT'
       INCLUDE 'CVODE'
-#ifdef CMTPART
-      INCLUDE 'CMTPART'
+#ifdef LPM
+      INCLUDE 'LPM'
 #endif
 
       call bcast(loglevel, isize)
@@ -1000,7 +1000,7 @@ C
       call bcast(ifpsco, ldimt1*lsize)
 
       call bcast(initc, 15*132*csize) 
-#ifdef CMTPART
+#ifdef LPM
       call bcast(rxbo , 6*wdsize)
       call bcast(rxco , 9*wdsize)
       call bcast(dp , 2*wdsize)
