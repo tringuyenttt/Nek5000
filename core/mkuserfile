@@ -12,6 +12,12 @@ else
    CMT=0
 fi
 
+if echo $PPS | grep -q 'LPM' ; then
+   LPM=1
+else
+   LPM=0
+fi
+
 rm -f $CASENAME.f
 cp -pv $CASENAME.usr $CASENAME.f
 
@@ -108,6 +114,30 @@ c automatically added by makenek
       include 'NEKUSE'
       include 'CMTDATA'
 
+      return
+      end
+_ACEOF
+fi
+fi
+
+if [ $LPM -ne 0 ]; then
+if ! cat $CASENAME.f | grep -qi "subroutine.*lpm_usr_f" ; then
+cat >> $CASENAME.f << _ACEOF
+
+c automatically added by makenek
+      subroutine lpm_usr_f
+      include 'SIZE'
+      include 'TOTAL'
+      include 'LPM'
+      parameter(rgrav = 9.8) ! gravitational acceleration
+      lpmforce(1) = 0.0  ! only acting on particles
+      lpmforce(2) = 0.0
+      lpmforce(3) = 0.0
+      lpmforcec(1) = 0.0 ! coupled back to fluid
+      lpmforcec(2) = 0.0
+      lpmforcec(3) = 0.0
+c     i.e., below is gravity + buoyancy in -y direction
+c     lpmforce(2) = -rgrav*lpmvol_p*(lpmdens_p - lpmdens_f)
       return
       end
 _ACEOF

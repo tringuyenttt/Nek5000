@@ -226,7 +226,6 @@ c           set global particle id (3 part tag)
             ipart(jpid1,n) = nid 
             ipart(jpid2,n) = i_pt_part
             ipart(jpid3,n) = icalld
-
          enddo
 
       else
@@ -943,11 +942,6 @@ c
       common /PARTRK3/ kv_stage_p
       real kv_stage_p(llpart,7)
 
-      real MixtPerf_C_GRT_part
-      external MixtPerf_C_GRT_part
-
-      pi  = 4.0d+0*atan(1.0d+0)
-
       if ((part_force(2) .ne. 0) .or. (part_force(3) .ne. 0))
      >   call calc_substantial_derivative
 
@@ -963,60 +957,120 @@ c        setup values ------------------------------------------------
          pmassf= rpart(jvol,i)*rpart(jrho,i)
          if(part_force(3).ne.0) pmass = pmass + rpart(jcmiu,i)*pmassf ! am
 
-         vel_diff = sqrt((rpart(ju0  ,i)-rpart(jv0  ,i))**2+
-     >                   (rpart(ju0+1,i)-rpart(jv0+1,i))**2+
-     >                   (rpart(ju0+2,i)-rpart(jv0+2,i))**2)
-         ! must do this fix so that Re is finite and non-zero singular
-         rth = 1E-6
-         if (abs(vel_diff) .lt. rth) vel_diff=rth
+         call get_part_use_block(i)
 
-         rpart(ja,i)  = MixtPerf_C_GRT_part(gmaref,rgasref,
-     >                           rpart(jtempf,i),icmtp)
-         rpart(ja,i)  = vel_diff/rpart(ja,i) ! relative mach number
-         rpart(jre,i) = rpart(jrho,i)*rpart(jdp,i)*vel_diff/mu_0 ! Re
 
 c        momentum rhs ------------------------------------------------
-
          call usr_particles_f_col(i)     ! colision force all at once
 
-         call lpm_usr_f_user(i)    ! user/body force
-            rpart(jfusr+0,i) = f_part(0)
-            rpart(jfusr+1,i) = f_part(1)
-            rpart(jfusr+2,i) = f_part(2)
+         lpmforce(1) = 0
+         lpmforce(2) = 0
+         lpmforce(3) = 0
+         lpmforcec(1) = 0 ! coupled to fluid
+         lpmforcec(2) = 0 ! coupled to fluid
+         lpmforcec(3) = 0 ! coupled to fluid
+         call lpm_usr_f  ! user/body force
+            rpart(jfusr+0,i) = lpmforce(1) + lpmforcec(1)
+            rpart(jfusr+1,i) = lpmforce(2) + lpmforcec(2)
+            rpart(jfusr+2,i) = lpmforce(3) + lpmforcec(3)
+         
+         if (time_integ .gt. 0) then
+            call lpm_f_qs
+               rpart(jfqs+0,i) = lpmforce(1)
+               rpart(jfqs+1,i) = lpmforce(2)
+               rpart(jfqs+2,i) = lpmforce(3)
+            call lpm_f_un
+               rpart(jfun+0,i) = lpmforce(1)
+               rpart(jfun+1,i) = lpmforce(2)
+               rpart(jfun+2,i) = lpmforce(3)
+            call lpm_f_iu
+               rpart(jfiu+0,i) = lpmforce(1)
+               rpart(jfiu+1,i) = lpmforce(2)
+               rpart(jfiu+2,i) = lpmforce(3)
+         endif
 
-         do j=0,ndim-1
-            if (time_integ .gt. 0) then
-               call lpm_usr_f_qs(i,j)
-               call lpm_usr_f_un(i,j)
-               call lpm_usr_f_iu(i,j)
-            endif
+         rfx = rpart(jfusr+0,i) + 
+     >         rpart(jfqs +0,i) +
+     >         rpart(jfun +0,i) +
+     >         rpart(jfiu +0,i) +
+     >         rpart(jfcol+0,i)
+         rfy = rpart(jfusr+1,i) + 
+     >         rpart(jfqs +1,i) +
+     >         rpart(jfun +1,i) +
+     >         rpart(jfiu +1,i) +
+     >         rpart(jfcol+1,i)
+         if (if3d)
+     >   rfz = rpart(jfusr+2,i) + 
+     >         rpart(jfqs +2,i) +
+     >         rpart(jfun +2,i) +
+     >         rpart(jfiu +2,i) +
+     >         rpart(jfcol+2,i)
 
-            rdum = 0.
-            if (time_integ .gt. 0) then
-               rdum = rdum + rpart(jfqs+j,i)
-               rdum = rdum + rpart(jfun+j,i)
-               rdum = rdum + rpart(jfiu+j,i)
-            endif
-            rdum = rdum + rpart(jfcol+j,i)
-            rdum = rdum + rpart(jfusr+j,i)
-
-            rpart(jf0+j,i) = rdum/pmass ! mass weighted force
-         enddo
+         ! mass weighted total force
+         rpart(jf0+0,i) = rfx/pmass
+         rpart(jf0+1,i) = rfy/pmass
+         rpart(jf0+2,i) = rfz/pmass
 
 c        energy rhs --------------------------------------------------
+         lpmheat = 0
          if (time_integ .gt. 0) then
-            call lpm_usr_q_uu(i)
-            call lpm_usr_q_qs(i)
+            call lpm_q_uu
+               rpart(jquu,i) = lpmheat
+            call lpm_q_qs
+               rpart(jqqs,i) = lpmheat
 
-            rdum = 0. 
-            rdum = rdum + rpart(jquu,i)
-            rdum = rdum + rpart(jqqs,i)
-            
+            rqq = rpart(jquu,i) +
+     >            rpart(jqqs,i)
+
             pmass = rpart(jvol,i)*rpart(jrhop,i)
-            rpart(jq0,i) = rdum/(pmass*cp_p)
-          endif
-
+            rpart(jq0,i) = rqq/(pmass*cp_p)
+         endif
       enddo
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine get_part_use_block(i)
+c
+c     set common block for particle-user use
+c
+      include 'SIZE'
+      include 'TOTAL'
+      include 'LPM'
+
+      real MixtPerf_C_GRT_part
+      external MixtPerf_C_GRT_part
+
+      lpmvol_p     = rpart(jvol,i)
+      lpmvolfrac_p = rpart(jvol1,i)
+      lpmvolfrac_f = 1.0 - lpmvolfrac_p
+      lpmtau_p     = rpart(jtaup,i)
+      lpmv_p(1)    = rpart(jv0+0,i)
+      lpmv_p(2)    = rpart(jv0+1,i)
+      lpmv_p(3)    = rpart(jv0+2,i)
+      lpmv_f(1)    = rpart(ju0+0,i)
+      lpmv_f(2)    = rpart(ju0+1,i)
+      lpmv_f(3)    = rpart(ju0+2,i)
+      lpmvisc_f    = mu_0
+      lpmdiam_p    = rpart(jdp,i)
+      lpmdens_p    = rpart(jrhop,i)
+      lpmdens_f    = rpart(jrho,i)
+      lpmtemp_p    = rpart(jtemp,i)
+      lpmtemp_f    = rpart(jtempf,i)
+      lpmDuDt(1)   = rpart(jDuDt+0,i)
+      lpmDuDt(2)   = rpart(jDuDt+1,i)
+      lpmDuDt(3)   = rpart(jDuDt+2,i)
+      lpmkappa_f   = abs(param(8))
+      lpmvdiff_pf  = sqrt((rpart(ju0  ,i)-rpart(jv0  ,i))**2+
+     >                    (rpart(ju0+1,i)-rpart(jv0+1,i))**2+
+     >                    (rpart(ju0+2,i)-rpart(jv0+2,i))**2)
+      if (abs(lpmvdiff_pf) .lt. 1E-6) lpmvdiff_pf=1E-6
+
+      lpmmach_p    = MixtPerf_C_GRT_part(gmaref,rgasref,
+     >                                   rpart(jtempf,i),icmtp)
+      lpmmach_p    = lpmvdiff_pf/lpmmach_p
+      lpmre_p      = rpart(jrho,i)*rpart(jdp,i)*lpmvdiff_pf/mu_0 ! Re
+      lpmi         = i
 
       return
       end
@@ -1043,6 +1097,14 @@ c
          pmassf= rpart(jvol,i)*rpart(jrho,i)
          if (part_force(3).ne.0) pmass =pmass + rpart(jcmiu,i)*pmassf
 
+         call get_part_use_block(i)
+
+         ! get user coupled to fluid forcing
+         lpmforcec(1) = 0 ! coupled to fluid
+         lpmforcec(2) = 0 ! coupled to fluid
+         lpmforcec(3) = 0 ! coupled to fluid
+         call lpm_usr_f   ! user/body force
+
 c        momentum forcing to fluid
          do j=0,ndim-1
             rdum = 0.
@@ -1052,8 +1114,9 @@ c        momentum forcing to fluid
             rpart(jfiu+j,i) = rpart(jfiu+j,i) - ram_s
 
 c           note that no coupled f_un in this formulation
-            rdum = rdum + rpart(jfiu+j,i)
+            rdum = rdum + lpmforcec(j+1)
             rdum = rdum + rpart(jfqs+j,i)
+            rdum = rdum + rpart(jfiu+j,i)
 
             rpart(jf0+j,i) = rdum ! now the force to couple with gas
          enddo
@@ -2757,6 +2820,7 @@ c----------------------------------------------------------------------
          if (part_force(4) .ne. 0 .and. part_force(5) .ne. 0)
      >      call vtu_write_dataarray(vtu1,"TemperatureP",1,0,0)
          call vtu_write_dataarray(vtu1,"TemperatureF",1,0,0)
+         call vtu_write_dataarray(vtu1,"DensityF    ",1,0,0)
          if (two_way .ge. 2)
      >      call vtu_write_dataarray(vtu1,"ParticleVF  ",1,0,0)
          call vtu_write_dataarray(vtu1,"RadiusCG    ",1,0,0)
@@ -2907,6 +2971,8 @@ c----------------------------------------------------------------------
       endif
       iint = iint + idum*wdsize*n + isize
       call vtu_write_dataarray(vtu,"TemperatureF",1,iint,1)
+      iint = iint + 1*wdsize*n + isize
+      call vtu_write_dataarray(vtu,"DensityF    ",1,iint,1)
       if (two_way .ge. 2) then
          iint = iint + 1*wdsize*n + isize
          call vtu_write_dataarray(vtu,"ParticleVF  ",1,iint,1)
@@ -3048,6 +3114,11 @@ c----------------------------------------------------------------------
       write(vtu) iint
       do i=1,n
          write(vtu) rpart(jtempf,i)
+      enddo
+      iint=1*wdsize*n
+      write(vtu) iint
+      do i=1,n
+         write(vtu) rpart(jrho,i)
       enddo
       if (two_way .ge. 2) then
          iint=1*wdsize*n
@@ -4569,4 +4640,210 @@ c-----------------------------------------------------------------------
       endif
 
       END
+c-----------------------------------------------------------------------
+c     Force models below
+c-----------------------------------------------------------------------
+      subroutine lpm_f_qs
+c
+c     quasi-steady force
+c
+      include 'SIZE'
+      include 'TOTAL'
+      include 'LPM'
+
+      if (abs(part_force(1)).eq.1) then
+
+         rdum = lpmvol_p*lpmdens_p/lpmtau_p
+
+         if (part_force(1) .lt. 0) then
+            rphip = min(0.3,lpmvolfrac_p)
+            rdum  = rdum*(1. - 2.*rphip)/(1. - rphip)**3
+         endif
+
+         lpmforce(1) = rdum*(lpmv_f(1) - lpmv_p(1))
+         lpmforce(2) = rdum*(lpmv_f(2) - lpmv_p(2))
+         lpmforce(3) = rdum*(lpmv_f(3) - lpmv_p(3))
+
+      elseif (abs(part_force(1)).eq.2) then
+         rdum = lpmvol_p*lpmdens_p/lpmtau_p
+
+         rrep = rpart(jre,i)
+         rrma = rpart(ja,i)
+         rmacr= 0.6
+         rcd_std = 1.+0.15*lpmre_p**(0.687) + 
+     >               0.42*(1.+42500./lpmre_p**(1.16))**(-1)
+         rcd_mcr = 1.+0.15*lpmre_p**(0.684) + 
+     >               0.513*(1. + 483./lpmre_p**(0.669))**(-1)
+         rcd1 = rcd_std + (rcd_mcr - rcd_std)*lpmmach_p/rmacr
+         
+         rdum = rdum*rcd1
+
+         if (part_force(1) .lt. 0) then
+            rphip = min(0.3,lpmvolfrac_p)
+            rdum  = rdum*(1. - 2.*rphip)/(1. - rphip)**3
+         endif
+
+         lpmforce(1) = rdum*(lpmv_f(1) - lpmv_p(1))
+         lpmforce(2) = rdum*(lpmv_f(2) - lpmv_p(2))
+         lpmforce(3) = rdum*(lpmv_f(3) - lpmv_p(3))
+
+      elseif (abs(part_force(1)).eq.3) then
+         rdum = lpmvol_p*lpmdens_p/lpmtau_p
+
+         rcd_std = 1.+0.15*lpmre_p**(0.687) + 
+     >               0.42*(1.+42500./lpmre_p**(1.16))**(-1)
+         rdum = rdum*rcd_std
+
+         if (part_force(1) .lt. 0) then
+            rphip = min(0.3,lpmvolfrac_p)
+            rdum  = rdum*(1. - 2.*rphip)/(1. - rphip)**3
+         endif
+
+         lpmforce(1) = rdum*(lpmv_f(1) - lpmv_p(1))
+         lpmforce(2) = rdum*(lpmv_f(2) - lpmv_p(2))
+         lpmforce(3) = rdum*(lpmv_f(3) - lpmv_p(3))
+
+      elseif (abs(part_force(1)).eq.4) then
+         ! ergun
+         rbeta1 = 150.*lpmvolfrac_p*lpmvolfrac_p*lpmvisc_f/lpmvolfrac_f/
+     >            lpmdiam_p**2 + 1.75*lpmvolfrac_p*lpmdens_f*
+     >            lpmvdiff_pf/lpmdiam_p
+
+         ! wen-yu
+         rrep = lpmvolfrac_f*lpmre_p
+         if (rrep .lt. 1000) then
+            rcd = 24./rrep*(1. + 0.15*rrep**(0.687))
+         else
+            rcd = 0.44
+         endif
+
+         rbeta2 = 0.75*rcd*lpmvolfrac_f**(-2.65)*
+     >        lpmvolfrac_p*lpmvolfrac_f*lpmdens_f*lpmvdiff_pf/lpmdiam_p
+
+         ! stiching
+         rs = 0.2
+         rpp = atan(150 * 1.75*(lpmvolfrac_p - rs))/pi + 0.5
+         rbeta = rpp*rbeta1 + (1.-rpp)*rbeta2
+
+
+         rpart(jfqs+j,i) = rpart(jvol,i)*rbeta/rphip    
+     >              *(rpart(ju0+j,i) - rpart(jv0+j,i))
+
+         rdum = lpmvol_p*rbeta/lpmvolfrac_p
+         lpmforce(1) = rdum*(lpmv_f(1) - lpmv_p(1))
+         lpmforce(2) = rdum*(lpmv_f(2) - lpmv_p(2))
+         lpmforce(3) = rdum*(lpmv_f(3) - lpmv_p(3))
+
+         if (abs(lpmvolfrac_p) .lt. 1E-12) then
+             write(6,*) 'Use different drag model w/o volume frac /0'
+             call exitt
+         endif
+
+      elseif (part_force(1).eq.0) then
+         lpmforce(1) = 0.0
+         lpmforce(2) = 0.0
+         lpmforce(3) = 0.0
+      endif
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine lpm_f_un
+c
+c     undisturbed force
+c
+      include 'SIZE'
+      include 'TOTAL'
+      include 'LPM'
+
+      if (abs(part_force(2)) .ne. 0) then
+         lpmforce(1) = -lpmvol_p*lpmDuDt(1)
+         lpmforce(2) = -lpmvol_p*lpmDuDt(2)
+         lpmforce(3) = -lpmvol_p*lpmDuDt(3)
+      elseif (part_force(2) .eq. 0) then
+         lpmforce(1) = 0.0
+         lpmforce(2) = 0.0
+         lpmforce(3) = 0.0
+      endif
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine lpm_f_iu
+c
+c     inviscid unsteady force
+c
+      include 'SIZE'
+      include 'TOTAL'
+      include 'LPM'
+
+      if (abs(part_force(3)) .gt. 0) then
+         ! shape
+         rdum = 0.5
+         ! mach
+         rdum = rdum*(1. + 1.8*lpmmach_p**2 + 7.6*lpmmach_p**4)
+
+         ! volume fraction
+         if (part_force(3) .lt. 0) then
+            rphip = min(0.3,lpmvolfrac_p)
+            rdum = rdum*(1.+2.*rphip)/(1.-rphip)
+         endif
+
+         ! set coeff for implicit dv/dt solve
+         rpart(jcmiu,lpmi) = rdum
+         
+         ! but don't add a fluid contribution for now, but should later
+         lpmforce(1) = 0.0
+         lpmforce(2) = 0.0
+         lpmforce(3) = 0.0
+
+      elseif (part_force(3) .eq. 0) then
+
+         lpmforce(1) = 0.0
+         lpmforce(2) = 0.0
+         lpmforce(3) = 0.0
+
+      endif
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine lpm_q_qs
+c
+c     quasi-steady heat transfer
+c
+      include 'SIZE'
+      include 'TOTAL'
+      include 'LPM'
+
+      real nu_g,rdum,rpra,kappa_g
+
+      nu_g    = lpmvisc_f/lpmdens_f ! kinematic viscosity
+      rpra    = nu_g/lpmkappa_f
+      rdum    = 2.*pi*lpmkappa_f*lpmdiam_p
+
+      if (abs(part_force(4)) .gt. 0) then
+         rdum    = rdum*(1. + 0.3*sqrt(lpmre_p)*rpra**(2./3.)) !re < 500
+         lpmheat = rdum*(lpmtemp_f - lpmtemp_p)
+      elseif (part_force(4) .eq. 0) then
+         lpmheat = 0.0
+      endif
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine lpm_q_uu
+c
+c     undisturbed heat transfer
+c
+      include 'SIZE'
+      include 'TOTAL'
+      include 'LPM'
+
+      if (part_force(5) .eq. 0) then
+         lpmheat = 0.0 ! nothing for now
+      endif
+
+      return
+      end
 c-----------------------------------------------------------------------

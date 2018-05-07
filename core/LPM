@@ -52,9 +52,21 @@ c -------------------
 c USER AND OTHER DATA
 c -------------------
       parameter (iptlen=11)
-      common /lpm_other/ pttime,ptdum,f_part,xdrange,d2chk
-      real   pttime(iptlen),ptdum(iptlen),f_part(0:2),xdrange(2,3)
-     >      ,d2chk(3)
+      real   pttime(iptlen),ptdum(iptlen),xdrange(2,3),d2chk(3)
+      common /lpm_other/ pttime,ptdum,xdrange,d2chk
+      real   lpmvol_p,lpmvolfrac_p,lpmvolfrac_f,
+     >       lpmtau_p,lpmv_p(3),lpmv_f(3),lpmre_p,lpmmach_p,lpmvisc_f,
+     >       lpmdiam_p,lpmdens_p,lpmdens_f,lpmDuDt(3),lpmkappa_f,
+     >       lpmvdiff_pf,lpmforce(3),lpmheat,lpmtemp_p,lpmtemp_f,
+     >       lpmforcec(3)
+      common /lpm_partuser/ lpmvol_p,lpmvolfrac_p,
+     >                      lpmvolfrac_f,lpmtau_p,lpmv_p,lpmv_f,lpmre_p,
+     >                      lpmmach_p,lpmvisc_f,lpmdiam_p,lpmdens_p,
+     >                      lpmdens_f,lpmDuDt,lpmkappa_f,lpmvdiff_pf,
+     >                      lpmforce,lpmheat,lpmtemp_p,lpmtemp_f,
+     >                      lpmforcec
+      integer lpmi
+      common /lpm_partusei/ lpmi
 
 c ----------------------
 c GHOST PARTICLE MAPPING
