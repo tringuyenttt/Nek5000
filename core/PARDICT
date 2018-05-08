@@ -4,7 +4,7 @@ c     Note: Keys have to be in captial letters
 c
       integer PARDICT_NKEYS
 
-      parameter(PARDICT_NKEYS = 145)
+      parameter(PARDICT_NKEYS = 148)
 
       character*132 pardictkey(PARDICT_NKEYS)
       data
@@ -111,42 +111,45 @@ c
      &  pardictkey(104) / 'PARTICLE:INJECTIONSTEP' /
      &  pardictkey(105) / 'PARTICLE:DELAYSTEP' /
      &  pardictkey(106) / 'PARTICLE:SEED' /
-     &  pardictkey(107) / 'PARTICLE:COARSEGRAIN' /
-     &  pardictkey(108) / 'PARTICLE:FILTER' /
-     &  pardictkey(109) / 'PARTICLE:ALPHA' /
-     &  pardictkey(110) / 'PARTICLE:NWALLPLANE' /
-     &  pardictkey(111) / 'PARTICLE:NWALLCYL' /
-     &  pardictkey(112) / 'PARTICLE:RESTARTSTEP' /
-     &  pardictkey(113) / 'PARTICLE:SPRING' /
-     &  pardictkey(114) / 'PARTICLE:RESTITUTION' /
-     &  pardictkey(115) / 'PARTICLE:DISTRIBUTEBOX' /
-     &  pardictkey(116) / 'PARTICLE:DISTRIBUTECYLINDER' /
-     &  pardictkey(117) / 'PARTICLE:DISTRIBUTESPHERE' /
-     &  pardictkey(118) / 'PARTICLE:DIAMETER' /
-     &  pardictkey(119) / 'PARTICLE:DIAMETERUNIFORM' /
-     &  pardictkey(120) / 'PARTICLE:DIAMETERGAUSSIAN' /
-     &  pardictkey(121) / 'PARTICLE:TIMESTEPPER' /
-     &  pardictkey(122) / 'PARTICLE:COUPLING' /
-     &  pardictkey(123) / 'PARTICLE:INTERPOLATION' /
-     &  pardictkey(124) / 'PARTICLE:PROJECTION' /
-     &  pardictkey(125) / 'PARTICLE:PERIODICX' /
-     &  pardictkey(126) / 'PARTICLE:PERIODICY' /
-     &  pardictkey(127) / 'PARTICLE:PERIODICZ' /
-     &  pardictkey(128) / 'PARTICLE:WALLP01' /
-     &  pardictkey(129) / 'PARTICLE:WALLP02' /
-     &  pardictkey(130) / 'PARTICLE:WALLP03' /
-     &  pardictkey(131) / 'PARTICLE:WALLP04' /
-     &  pardictkey(132) / 'PARTICLE:WALLP05' /
-     &  pardictkey(133) / 'PARTICLE:WALLP06' /
-     &  pardictkey(134) / 'PARTICLE:WALLP07' /
-     &  pardictkey(135) / 'PARTICLE:WALLP08' /
-     &  pardictkey(136) / 'PARTICLE:WALLP09' /
-     &  pardictkey(137) / 'PARTICLE:WALLC01' /
-     &  pardictkey(138) / 'PARTICLE:WALLC02' /
-     &  pardictkey(139) / 'PARTICLE:WALLC03' /
-     &  pardictkey(140) / 'PARTICLE:WALLC04' /
-     &  pardictkey(141) / 'PARTICLE:WALLC05' /
-     &  pardictkey(142) / 'PARTICLE:WALLC06' /
-     &  pardictkey(143) / 'PARTICLE:WALLC07' /
-     &  pardictkey(144) / 'PARTICLE:WALLC08' /
-     &  pardictkey(145) / 'PARTICLE:WALLC09' /
+     &  pardictkey(107) / 'PARTICLE:BIGENDIAN' /
+     &  pardictkey(108) / 'PARTICLE:COARSEGRAIN' /
+     &  pardictkey(109) / 'PARTICLE:FILTER' /
+     &  pardictkey(110) / 'PARTICLE:ALPHA' /
+     &  pardictkey(111) / 'PARTICLE:NWALLPLANE' /
+     &  pardictkey(112) / 'PARTICLE:NWALLCYL' /
+     &  pardictkey(113) / 'PARTICLE:RESTARTSTEP' /
+     &  pardictkey(114) / 'PARTICLE:SPRING' /
+     &  pardictkey(115) / 'PARTICLE:SPRINGWALL' /
+     &  pardictkey(116) / 'PARTICLE:RESTITUTION' /
+     &  pardictkey(117) / 'PARTICLE:RESTITUTIONWALL' /
+     &  pardictkey(118) / 'PARTICLE:DISTRIBUTEBOX' /
+     &  pardictkey(119) / 'PARTICLE:DISTRIBUTECYLINDER' /
+     &  pardictkey(120) / 'PARTICLE:DISTRIBUTESPHERE' /
+     &  pardictkey(121) / 'PARTICLE:DIAMETER' /
+     &  pardictkey(122) / 'PARTICLE:DIAMETERUNIFORM' /
+     &  pardictkey(123) / 'PARTICLE:DIAMETERGAUSSIAN' /
+     &  pardictkey(124) / 'PARTICLE:TIMESTEPPER' /
+     &  pardictkey(125) / 'PARTICLE:COUPLING' /
+     &  pardictkey(126) / 'PARTICLE:INTERPOLATION' /
+     &  pardictkey(127) / 'PARTICLE:PROJECTION' /
+     &  pardictkey(128) / 'PARTICLE:PERIODICX' /
+     &  pardictkey(129) / 'PARTICLE:PERIODICY' /
+     &  pardictkey(130) / 'PARTICLE:PERIODICZ' /
+     &  pardictkey(131) / 'PARTICLE:WALLP01' /
+     &  pardictkey(132) / 'PARTICLE:WALLP02' /
+     &  pardictkey(133) / 'PARTICLE:WALLP03' /
+     &  pardictkey(134) / 'PARTICLE:WALLP04' /
+     &  pardictkey(135) / 'PARTICLE:WALLP05' /
+     &  pardictkey(136) / 'PARTICLE:WALLP06' /
+     &  pardictkey(137) / 'PARTICLE:WALLP07' /
+     &  pardictkey(138) / 'PARTICLE:WALLP08' /
+     &  pardictkey(139) / 'PARTICLE:WALLP09' /
+     &  pardictkey(140) / 'PARTICLE:WALLC01' /
+     &  pardictkey(141) / 'PARTICLE:WALLC02' /
+     &  pardictkey(142) / 'PARTICLE:WALLC03' /
+     &  pardictkey(143) / 'PARTICLE:WALLC04' /
+     &  pardictkey(144) / 'PARTICLE:WALLC05' /
+     &  pardictkey(145) / 'PARTICLE:WALLC06' /
+     &  pardictkey(146) / 'PARTICLE:WALLC07' /
+     &  pardictkey(147) / 'PARTICLE:WALLC08' /
+     &  pardictkey(148) / 'PARTICLE:WALLC09' /

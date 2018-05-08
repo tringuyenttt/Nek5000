@@ -812,9 +812,19 @@ c set particle options
       call finiparser_getDbl(d_out,'particle:restartstep',ifnd)
       if(ifnd .eq. 1) ipart_restartr = int(d_out)
       call finiparser_getDbl(d_out,'particle:spring',ifnd)
-      if(ifnd .eq. 1) ksp = d_out
+      if(ifnd .eq. 1) then
+         ksp      = d_out
+         ksp_wall = d_out
+      endif
+      call finiparser_getDbl(d_out,'particle:springwall',ifnd)
+      if(ifnd .eq. 1) ksp_wall = d_out
       call finiparser_getDbl(d_out,'particle:restitution',ifnd)
-      if(ifnd .eq. 1) e_rest = d_out
+      if(ifnd .eq. 1) then
+         e_rest      = d_out
+         e_rest_wall = d_out
+      endif
+      call finiparser_getDbl(d_out,'particle:restitutionwall',ifnd)
+      if(ifnd .eq. 1) e_rest_wall = d_out
       call finiparser_getDbl(d_out,'particle:nwallplane',ifnd)
       if(ifnd .eq. 1) np_walls = int(d_out)
       call finiparser_getDbl(d_out,'particle:nwallcyl',ifnd)
@@ -878,6 +888,10 @@ c set particle options
       call finiparser_getBool(i_out,'particle:projection',ifnd)
       if(ifnd .eq. 1) then
         if(i_out .eq. 1) npro_method = 1
+      endif
+      call finiparser_getBool(i_out,'particle:bigendian',ifnd)
+      if(ifnd .eq. 1) then
+        if(i_out .eq. 1) lpm_endian = 1
       endif
 
       call finiparser_getBool(i_out,'particle:periodicx',ifnd)
@@ -1012,9 +1026,11 @@ C
       call bcast(dfilt , wdsize)
       call bcast(ralphdecay , wdsize)
       call bcast(ksp, wdsize)
+      call bcast(ksp_wall, wdsize)
       call bcast(e_rest, wdsize)
+      call bcast(e_rest_wall, wdsize)
       call bcast(plane_wall_coords, 6*n_walls*wdsize)
-      call bcast(cyl_wall_coords, 6*n_walls*wdsize)
+      call bcast(cyl_wall_coords, 7*n_walls*wdsize)
 
       call bcast(nw, isize)
       call bcast(part_force , 5*isize)
@@ -1025,6 +1041,7 @@ C
       call bcast(inject_rate, isize)
       call bcast(time_delay, isize)
       call bcast(nrandseed, isize)
+      call bcast(lpm_endian, isize)
       call bcast(npro_method, isize)
       call bcast(bc_part, 6*isize)
       call bcast(ipart_restartr, isize)

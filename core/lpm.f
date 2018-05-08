@@ -959,7 +959,6 @@ c        setup values ------------------------------------------------
 
          call get_part_use_block(i)
 
-
 c        momentum rhs ------------------------------------------------
          call usr_particles_f_col(i)     ! colision force all at once
 
@@ -1301,7 +1300,7 @@ c
       include 'TOTAL'
       include 'LPM'
 
-      real mcfac, rdum, rdum3(3)
+      real mcfac,mcfac_wall, rdum, rdum3(3)
 
       real rrp1,rrp2,rvol1,rvol2,rrho1,rrho2,rx1(3),rx2(3),rv1(3),rv2(3)
       real rpx1(3), rpx2(3), rpx0(3),r1(3),r2(3),r3(3)
@@ -1309,7 +1308,10 @@ c
 
       ptdum(11) = dnekclock()
 
-      mcfac  = 2.*sqrt(ksp)*log(e_rest)/sqrt(log(e_rest)**2+pi**2)
+      mcfac       = 2.*sqrt(ksp)*log(e_rest)/
+     >              sqrt(log(e_rest)**2+pi**2)
+      mcfac_wall  = 2.*sqrt(ksp_wall)*log(e_rest_wall)/
+     >              sqrt(log(e_rest_wall)**2+pi**2)
 
       if (two_way .gt. 2) then
 
@@ -1427,7 +1429,7 @@ c        search list of ghost particles
             rv2(3) = 0.
 
             idum = 0
-            call compute_collide(mcfac,rrp2,rvol2,rrho2,rx2,rv2,
+            call compute_collide(mcfac_wall,rrp2,rvol2,rrho2,rx2,rv2,
      >                           rpart(jfcol,i),rdum3,idum)
          enddo
 
@@ -1471,7 +1473,7 @@ c        search list of ghost particles
             rv2(3) = 0.
 
             idum = 0
-            call compute_collide(mcfac,rrp2,rvol2,rrho2,rx2,rv2,
+            call compute_collide(mcfac_wall,rrp2,rvol2,rrho2,rx2,rv2,
      >                           rpart(jfcol,i),rdum3,idum)
          enddo
 
@@ -1521,6 +1523,16 @@ c
       rm1   = rrho1*rvol1
       rm2   = rrho2*rvol2
 
+      ! wall
+      if (rm2 .gt. 1E7) then
+         rksp_use = ksp_wall
+         re_rest_use = e_rest_wall
+      ! other particles
+      else
+         rksp_use = ksp
+         re_rest_use = e_rest
+      endif
+
       rmult = 1./sqrt(1./rm1 + 1./rm2)
       eta  = mcfac*rmult
 
@@ -1538,7 +1550,7 @@ c
 
       rv12_mage = rv12_mag*eta
 
-      rksp_max = ksp*rdelta12
+      rksp_max = rksp_use*rdelta12
 
       rnmag = -rksp_max - rv12_mage
 
@@ -2566,7 +2578,6 @@ c     > if bc_part = -1,1 then particles are killed (outflow)
       do i=1,n
          in_part(i) = 0
          do j=0,ndim-1
-            if (ipart(jrc,i) .ne. 0) then
             if (rpart(jx0+j,i).lt.xdrange(1,j+1))then
                if (((bc_part(1).eq.0) .and. (j.eq.0)) .or.   ! periodic
      >             ((bc_part(3).eq.0) .and. (j.eq.1)) .or.     
@@ -2597,11 +2608,11 @@ c     > if bc_part = -1,1 then particles are killed (outflow)
                   goto 1512
                 endif
             endif
-            in_part(i) = -1 ! only if periodic check fails it will get here
+            if (ipart(jrc,i) .eq. 2) then
+               in_part(i) = -1 ! only if periodic check fails it will get here
             endif
  1512 continue
          enddo
- 1511 continue
       enddo
 
       ic = 0
@@ -2670,8 +2681,16 @@ c-----------------------------------------------------------------------
      &                                   ipart(je0,1)     ,ni,
      &                                   rpart(jr,1)      ,nr,n,
      &                                   ptw(1,1,1,1,4))
-      endif
 
+      ! check if values outside reasonable bounds
+      rvfmax = 0.7405
+      rvfmin = 0.0
+      do i=1,n
+         if (rpart(jvol1,i) .lt. rvfmin) rpart(jvol1,i) = rvfmin
+         if (rpart(jvol1,i) .gt. rvfmax) rpart(jvol1,i) = rvfmax
+      enddo
+
+      endif
 
       return
       end
@@ -2792,7 +2811,12 @@ c----------------------------------------------------------------------
 
          write(vtu1) '<VTKFile '
          write(vtu1) 'type="PUnstructuredGrid" '
-         write(vtu1) 'version="1.0"> '
+         write(vtu1) 'version="1.0" '
+         if (lpm_endian .eq. 0) then
+            write(vtu1) 'byte_order="LittleEndian"> '
+         elseif (lpm_endian .eq. 1) then
+            write(vtu1) 'byte_order="BigEndian"> '
+         endif
          
          write(vtu1) '<PUnstructuredGrid GhostLevel="0">'
 
@@ -2880,7 +2904,12 @@ c----------------------------------------------------------------------
 ! ------------
       write(vtu) '<VTKFile '
       write(vtu) 'type="UnstructuredGrid" '
-      write(vtu) 'version="1.0"> '
+      write(vtu) 'version="1.0" '
+      if (lpm_endian .eq. 0) then
+         write(vtu) 'byte_order="LittleEndian"> '
+      elseif (lpm_endian .eq. 1) then
+         write(vtu) 'byte_order="BigEndian"> '
+      endif
 
       write(vtu) '<UnstructuredGrid> '
 
@@ -3219,6 +3248,7 @@ c----------------------------------------------------------------------
       include 'LPM'
 
       common /myparth/ i_fp_hndl, i_cr_hndl
+      common /nekmpi/ mid,mp,nekcomm,nekgroup,nekreal
 
       integer icalld
       save    icalld
@@ -3228,7 +3258,7 @@ c----------------------------------------------------------------------
 
       logical partl         ! This is a dummy placeholder, used in cr()
 
-      integer vtu,vtu1,prevs(2,np)
+      integer vtu,vtu1,prevs(3,mp)
       integer*4 iint
       integer stride_len
 
@@ -3242,15 +3272,19 @@ c----------------------------------------------------------------------
 ! ----------------------------------------
       icalld = icalld+1
       write(filename,'(A5,I5.5)') 'rpart', icalld
+      pth = 174
 
+      if (nid.eq.0) then
+         open(unit=pth,iostat=istat,file=filename,status='old')
+         if (stat .eq. 0) close(pth, status='delete')
+      endif
       nptot = iglsum(n,1)
       rnptot = real(nptot)
-      pth = 174
 
       disp   = 0
       icount = 0
       if (nid .eq. 0) icount = 1
-      iorank = 0
+      iorank = -1
       call byte_open_mpi(filename,pth,.false.,ierr)
       call byte_set_view(disp,pth)
       call byte_write_mpi(rnptot,icount,iorank,pth,ierr)
@@ -3259,33 +3293,34 @@ c----------------------------------------------------------------------
 ! --------------------------------------------------
 ! FIRST GET HOW MANY PARTICLES WERE BEFORE THIS RANK
 ! --------------------------------------------------
-      do i=1,np
+      do i=1,mp
          prevs(1,i) = i-1
-         prevs(2,i) = n
+         prevs(2,i) = nid
+         prevs(3,i) = n
       enddo
 
       nps   = 1 ! index of new proc for doing stuff
-      nglob = 1 ! unique key to sort by
+      nglob = 2 ! unique key to sort by
       nkey  = 1 ! number of keys (just 1 here)
-      ndum = 2
+      ndum  = 3
       call fgslib_crystal_ituple_transfer(i_cr_hndl,prevs,
-     >                 ndum,np,np,nps)
+     >                 ndum,mp,mp,nps)
       call fgslib_crystal_ituple_sort(i_cr_hndl,prevs,
-     >                 ndum,np,nglob,nkey)
+     >                 ndum,mp,nglob,nkey)
 
       stride_len = 0
       if (nid .ne. 0) then
       do i=1,nid
-         stride_len = stride_len + prevs(2,i)
+         stride_len = stride_len + prevs(3,i)
       enddo
       endif
 
 ! -----------------------------------------------------
 ! SEND PARTICLES TO A SMALLER NUMBER OF RANKS TO OUTPUT
 ! -----------------------------------------------------
-      do i = 1,n
+      do i = 0,n-1
          idum = int((stride_len + i)/llpart)
-         ipart(jps,i) = idum
+         ipart(jps,i+1) = idum
       enddo
       nl = 0
       call fgslib_crystal_tuple_transfer(i_cr_hndl,n,llpart
@@ -3294,9 +3329,9 @@ c----------------------------------------------------------------------
 ! ----------------------------------------
 ! Calculate how many processors to be used
 ! ----------------------------------------
-      npmax_set = int(nptot/llpart) + 1 ! use as few procs as possible
-      npmax = np
-      if (npmax .gt. npmax_set) npmax = npmax_set
+      npmax = min(nptot/llpart+1,mp)
+      stride_len = 0
+      if (nid .le. npmax-1 .and. nid. ne. 0) stride_len = nid*llpart
 
 ! ----------------------
 ! COPY DATA FOR EASY I/O
@@ -3354,7 +3389,7 @@ c----------------------------------------------------------------------
 ! -------------------------------
       disp   = isize + stride_len*lrf*isize ! is there real*4 var?
       icount = n*lrf
-      iorank = 0
+      iorank = -1
       call byte_open_mpi(filename,pth,.false.,ierr)
       call byte_set_view(disp,pth)
       call byte_write_mpi(rfpts,icount,iorank,pth,ierr)
@@ -3380,12 +3415,13 @@ c----------------------------------------------------------------------
       include 'LPM'
 
       common /myparth/ i_fp_hndl, i_cr_hndl
+      common /nekmpi/ mid,mp,nekcomm,nekgroup,nekreal
 
       character*10 filename
 
       logical partl         ! This is a dummy placeholder, used in cr()
 
-      integer vtu,vtu1,prevs(2,np)
+      integer vtu,vtu1,prevs(2,mp)
       integer*4 iint
       integer stride_len
 
@@ -3406,7 +3442,7 @@ c----------------------------------------------------------------------
       disp = 0
       icount = 0
       if (nid .eq. 0) icount = 1
-      iorank = 0
+      iorank = -1
       call byte_open_mpi(filename,pth,.true.,ierr)
       call byte_set_view(disp,pth)
       call byte_read_mpi(rnptot,icount,iorank,pth,ierr)
@@ -3418,9 +3454,7 @@ c----------------------------------------------------------------------
 ! --------------------------------------------------
 ! FIRST GET HOW MANY PARTICLES WERE BEFORE THIS RANK
 ! --------------------------------------------------
-      npmax_set = int(nptot/llpart) + 1 ! use as few procs as possible
-      npmax = np
-      if (npmax .gt. npmax_set) npmax = npmax_set
+      npmax = min(nptot/llpart+1,mp)
 
       nread = llpart
       if (nid .gt. npmax-1) nread = 0
@@ -3431,7 +3465,7 @@ c----------------------------------------------------------------------
       endif
 
       stride_len = 0
-      if (nid .le. npmax-1) stride_len = nid*llpart
+      if (nid .le. npmax-1 .and. nid. ne. 0) stride_len = nid*llpart
 
 
 ! -------------------------
@@ -3621,6 +3655,7 @@ c----------------------------------------------------------------------
       inject_rate = 0
       time_delay  = 0
       nrandseed   = 1
+      lpm_endian  = 0
       npro_method = 1
       rspl        = 1.
       dfilt       = 2.
@@ -3631,6 +3666,8 @@ c----------------------------------------------------------------------
       ipart_restartr = 0
       ksp            = 10.
       e_rest         = 0.9
+      ksp_wall       = ksp
+      e_rest_wall    = e_rest
 
       np_walls = 0
       nc_walls = 0
@@ -3952,8 +3989,11 @@ c----------------------------------------------------------------------
          if (abs(rdum1) .lt. abs(rdum2)) rvels(i) = rdum2
       enddo
 
+      nptot = iglsum(n,1)
+
       if (nid .eq. 0) then
       write(6,*)'----- START PARTICLE DIAGNOSTICS: -----'
+      write(6,*)'NPART TOTAL      :',nptot
       write(6,*)'XMIN,XMAX        :',rdiags_part(1,1),rdiags_part(1,2)
       write(6,*)'YMIN,YMAX        :',rdiags_part(2,1),rdiags_part(2,2)
       write(6,*)'ZMIN,ZMAX        :',rdiags_part(3,1),rdiags_part(3,2)
@@ -4397,6 +4437,8 @@ c
 
       integer              stage,nstage
       common /tstepstage/ stage,nstage
+      real                  tcoef(3,3),dt_cmt,time_cmt
+      common /timestepcoef/ tcoef,dt_cmt,time_cmt
 
       nmax_step = nsteps  ! number of pre-iteration steps
       ninj_step = 3000
@@ -4424,9 +4466,10 @@ c
             if (stage .eq. 1) then
                rdt_part = abs(param(12))
                call lpm_set_dt(rdt_part)
-               dt_cmt = rdt_part
-               dt     = dt_cmt
-               time   = time + dt_cmt
+               dt_cmt     = rdt_part
+               dt         = dt_cmt
+               time       = time + dt_cmt
+               time_cmt   = time_cmt + dt_cmt
                if (abs(time_integ).eq.1)
      >            call set_tstep_coef_part(rdt_part)
 
