@@ -233,8 +233,6 @@ c           set global particle id (3 part tag)
          nread_part = 1
          do j=1,nread_part
             call read_parallel_restart_part
-            call update_particle_location   ! move outlier particles
-            call move_particles_inproc
          enddo
 
       endif
@@ -548,6 +546,9 @@ c
       include 'TOTAL'
       include 'LPM'
 
+      integer              stage,nstage
+      common /tstepstage/ stage,nstage
+
       logical ifinject
       integer icalld
       save    icalld
@@ -658,7 +659,7 @@ c
       call rzero(ptw,nlxyze*8)
 
       ! do nothing
-      if (abs(npro_method) .eq. 0) then
+      if (npro_method .eq. 0) then
 
       ! gaussian spreading
       elseif (abs(npro_method) .eq. 1) then
@@ -957,11 +958,9 @@ c        setup values ------------------------------------------------
          pmassf= rpart(jvol,i)*rpart(jrho,i)
          if(part_force(3).ne.0) pmass = pmass + rpart(jcmiu,i)*pmassf ! am
 
-         call get_part_use_block(i)
+         call get_part_use_block(i,0)
 
 c        momentum rhs ------------------------------------------------
-         call usr_particles_f_col(i)     ! colision force all at once
-
          lpmforce(1) = 0
          lpmforce(2) = 0
          lpmforce(3) = 0
@@ -972,7 +971,7 @@ c        momentum rhs ------------------------------------------------
             rpart(jfusr+0,i) = lpmforce(1) + lpmforcec(1)
             rpart(jfusr+1,i) = lpmforce(2) + lpmforcec(2)
             rpart(jfusr+2,i) = lpmforce(3) + lpmforcec(3)
-         
+
          if (time_integ .gt. 0) then
             call lpm_f_qs
                rpart(jfqs+0,i) = lpmforce(1)
@@ -987,6 +986,8 @@ c        momentum rhs ------------------------------------------------
                rpart(jfiu+1,i) = lpmforce(2)
                rpart(jfiu+2,i) = lpmforce(3)
          endif
+
+         call usr_particles_f_col(i)     ! colision force 
 
          rfx = rpart(jfusr+0,i) + 
      >         rpart(jfqs +0,i) +
@@ -1029,17 +1030,24 @@ c        energy rhs --------------------------------------------------
       return
       end
 c-----------------------------------------------------------------------
-      subroutine get_part_use_block(i)
+      subroutine get_part_use_block(i,ipre)
 c
 c     set common block for particle-user use
 c
       include 'SIZE'
       include 'TOTAL'
       include 'LPM'
+#ifdef CMTNEK
+      include 'CMTDATA'
+#endif
 
       real MixtPerf_C_GRT_part
       external MixtPerf_C_GRT_part
 
+      if (ipre .eq. 0) then
+      lpmx_p(1)    = rpart(jx,i)
+      lpmx_p(2)    = rpart(jy,i)
+      lpmx_p(3)    = rpart(jz,i)
       lpmvol_p     = rpart(jvol,i)
       lpmvolfrac_p = rpart(jvol1,i)
       lpmvolfrac_f = 1.0 - lpmvolfrac_p
@@ -1070,6 +1078,41 @@ c
       lpmmach_p    = lpmvdiff_pf/lpmmach_p
       lpmre_p      = rpart(jrho,i)*rpart(jdp,i)*lpmvdiff_pf/mu_0 ! Re
       lpmi         = i
+      elseif (ipre .eq. 1) then
+
+      rpart(jx,i)        =  lpmx_p(1)    
+      rpart(jy,i)        =  lpmx_p(2)    
+      rpart(jz,i)        =  lpmx_p(3)    
+      rpart(jvol,i)      =  lpmvol_p     
+      rpart(jvol1,i)     =  lpmvolfrac_p 
+      lpmvolfrac_f       =  1.0 - lpmvolfrac_p
+      rpart(jtaup,i)     =  lpmtau_p     
+      rpart(jv0+0,i)     =  lpmv_p(1)    
+      rpart(jv0+1,i)     =  lpmv_p(2)    
+      rpart(jv0+2,i)     =  lpmv_p(3)    
+      rpart(ju0+0,i)     =  lpmv_f(1)    
+      rpart(ju0+1,i)     =  lpmv_f(2)    
+      rpart(ju0+2,i)     =  lpmv_f(3)    
+      rpart(jdp,i)       =  lpmdiam_p    
+      rpart(jrhop,i)     =  lpmdens_p    
+      rpart(jrho,i)      =  lpmdens_f    
+      rpart(jtemp,i)     =  lpmtemp_p    
+      rpart(jtempf,i)    =  lpmtemp_f    
+      rpart(jDuDt+0,i)   =  lpmDuDt(1)   
+      rpart(jDuDt+1,i)   =  lpmDuDt(2)   
+      rpart(jDuDt+2,i)   =  lpmDuDt(3)   
+
+      lpmvdiff_pf  = sqrt((rpart(ju0  ,i)-rpart(jv0  ,i))**2+
+     >                    (rpart(ju0+1,i)-rpart(jv0+1,i))**2+
+     >                    (rpart(ju0+2,i)-rpart(jv0+2,i))**2)
+      if (abs(lpmvdiff_pf) .lt. 1E-6) lpmvdiff_pf=1E-6
+
+      lpmmach_p    = MixtPerf_C_GRT_part(gmaref,rgasref,
+     >                                   rpart(jtempf,i),icmtp)
+      lpmmach_p    = lpmvdiff_pf/lpmmach_p
+      lpmre_p      = rpart(jrho,i)*rpart(jdp,i)*lpmvdiff_pf/mu_0 ! Re
+
+      endif
 
       return
       end
@@ -1096,7 +1139,7 @@ c
          pmassf= rpart(jvol,i)*rpart(jrho,i)
          if (part_force(3).ne.0) pmass =pmass + rpart(jcmiu,i)*pmassf
 
-         call get_part_use_block(i)
+         call get_part_use_block(i,0)
 
          ! get user coupled to fluid forcing
          lpmforcec(1) = 0 ! coupled to fluid
@@ -1644,17 +1687,6 @@ c
       real xdlen,ydlen,zdlen,rxdrng(3),rxnew(3)
       integer iadd(3),ntypesl(7)
 
-      do i=1,nliste
-         ngp_valse(2,i) = -1
-         ngp_valse(3,i) = -1
-         ngp_valse(4,i) = -1
-         ngp_valse(5,i) = -1
-         ngp_valse(6,i) = -1
-         ngp_valse(7,i) = -1
-         ngp_valse(8,i) = -1
-         ngp_valse(9,i) = -1
-      enddo
-
 ! ------------------------
 c CREATING GHOST PARTICLES
 ! ------------------------
@@ -2120,6 +2152,19 @@ c Connect boxes to 1D processor map they should be arranged on
          rzval = 0.
          if(if3d) rzval = zm1(i,j,k,ie)
 
+         if (rxval .gt. rxbo(2,1) .or. 
+     >       rxval .lt. rxbo(1,1) .or. 
+     >       ryval .gt. rxbo(2,2) .or. 
+     >       ryval .lt. rxbo(1,2) ) then
+             goto 1234
+         endif
+         if (if3d) then
+         if (rzval .gt. rxbo(2,3) .or. 
+     >       rzval .lt. rxbo(1,3) ) then
+             goto 1234
+         endif
+         endif
+
          ii    = floor((rxval-xdrange(1,1))/rdxgp) 
          jj    = floor((ryval-xdrange(1,2))/rdygp) 
          kk    = floor((rzval-xdrange(1,3))/rdzgp) 
@@ -2391,56 +2436,6 @@ c SEND BACK TO ALL PROCESSORS WITH ADDITIONS NOW
       call fgslib_crystal_ituple_sort(i_cr_hndl,ngp_valsp,
      >                 ngpvc,nlist,nglob,nkey)
 
-! --------------------------------------------
-c ORGANIZE MAP OF REMOTE PROCESSORS TO SEND TO
-! --------------------------------------------
-      nliste=0
-      do i=1,nlist
-         if (i .eq. 1) then
-            nliste = nliste + 1
-            ngp_valse(1,nliste) = nid
-            ngp_valse(2,nliste) = -1
-            ngp_valse(3,nliste) = -1
-            ngp_valse(4,nliste) = -1
-            ngp_valse(5,nliste) = -1
-            ngp_valse(6,nliste) = -1
-            ngp_valse(7,nliste) = -1
-            ngp_valse(8,nliste) = -1
-            ngp_valse(9,nliste) = -1
-         else
-
-            iflg = 0
-            do j=1,nliste
-               if (ngp_valse(1,j) .eq. ngp_valsp(1,i)) then
-                   ii1 = ngp_valsp(3,i)
-                   jj1 = ngp_valsp(4,i)
-                   kk1 = ngp_valsp(5,i)
-                   if (ii1.ge.0.or.ii1.le.ndxgp-1) then
-                   if (jj1.ge.0.or.jj1.le.ndygp-1) then
-                   if (kk1.ge.0.or.kk1.le.ndzgp-1) then
-                      iflg = 1
-                      goto 1511
-                   endif 
-                   endif 
-                   endif 
-               endif
-            enddo
- 1511 continue
-            if (iflg .eq. 0) then
-               nliste = nliste + 1
-               ngp_valse(1,nliste) = ngp_valsp(1,i)
-               ngp_valse(2,nliste) = -1
-               ngp_valse(3,nliste) = -1
-               ngp_valse(4,nliste) = -1
-               ngp_valse(5,nliste) = -1
-               ngp_valse(6,nliste) = -1
-               ngp_valse(7,nliste) = -1
-               ngp_valse(8,nliste) = -1
-               ngp_valse(9,nliste) = -1
-            endif
-         endif
-      enddo
-
       return
       end
 c-----------------------------------------------------------------------
@@ -2608,9 +2603,9 @@ c     > if bc_part = -1,1 then particles are killed (outflow)
                   goto 1512
                 endif
             endif
-            if (ipart(jrc,i) .eq. 2) then
-               in_part(i) = -1 ! only if periodic check fails it will get here
-            endif
+c           if (ipart(jrc,i) .eq. 2) then
+c              in_part(i) = -1 ! only if periodic check fails it will get here
+c           endif
  1512 continue
          enddo
       enddo
@@ -3455,25 +3450,21 @@ c----------------------------------------------------------------------
 ! FIRST GET HOW MANY PARTICLES WERE BEFORE THIS RANK
 ! --------------------------------------------------
       npmax = min(nptot/llpart+1,mp)
+      stride_len = 0
+      if (nid .le. npmax-1 .and. nid. ne. 0) stride_len = nid*llpart
 
       nread = llpart
       if (nid .gt. npmax-1) nread = 0
 
       ndiff = nptot - (npmax-1)*llpart
-      if (ndiff .gt. 0) then
-         if (nid .eq. npmax-1) nread = ndiff
-      endif
-
-      stride_len = 0
-      if (nid .le. npmax-1 .and. nid. ne. 0) stride_len = nid*llpart
-
+      if (nid .eq. npmax-1) nread = ndiff
 
 ! -------------------------
 ! Parallel MPI file read in
 ! -------------------------
       disp   = isize + stride_len*lrf*isize ! is there real*4 var?
       icount = nread*lrf
-      iorank = 0
+      iorank = -1
       call byte_open_mpi(filename,pth,.true.,ierr)
       call byte_set_view(disp,pth)
       call byte_read_mpi(rfpts,icount,iorank,pth,ierr)
@@ -3537,8 +3528,15 @@ c----------------------------------------------------------------------
          rpart(jvol,i) = rpart(jspl,i)*rpi*rpart(jdp,i)**3/6.d+0! particle volume
          rpart(jgam,i)  = 1.          ! initial integration correction
          rpart(jrpe,i) = rpart(jspl,i)**(1./3.)*rpart(jdp,i)/2.
+
+c        call get_part_use_block(i,0)
+c        call lpm_usr_f  ! can overwrite particle properties at init
+c        call get_part_use_block(i,1)
       enddo
       n = i
+
+      call update_particle_location   
+      call move_particles_inproc
 
       return
       end
@@ -4011,6 +4009,8 @@ c----------------------------------------------------------------------
       include 'PARALLEL'
       include 'LPM'
 
+      common /nekmpi/ mid,mp,nekcomm,nekgroup,nekreal
+
       rftime_t = 0.
       rptime_t = 0.
 
@@ -4021,7 +4021,7 @@ c----------------------------------------------------------------------
       do i = 1,iptlen
          rdum  = pttime(i)/istep
          dtime = glsum(rdum,1)
-         rtime = dtime/np
+         rtime = dtime/mp
          if(nid.eq.0)  write(6,*) 'TIMER #:',i,rtime
 
          ! fluid and particle total time: note i == iptlen is f_col
@@ -4710,8 +4710,6 @@ c
       elseif (abs(part_force(1)).eq.2) then
          rdum = lpmvol_p*lpmdens_p/lpmtau_p
 
-         rrep = rpart(jre,i)
-         rrma = rpart(ja,i)
          rmacr= 0.6
          rcd_std = 1.+0.15*lpmre_p**(0.687) + 
      >               0.42*(1.+42500./lpmre_p**(1.16))**(-1)

@@ -883,15 +883,27 @@ c set particle options
 
       call finiparser_getBool(i_out,'particle:interpolation',ifnd)
       if(ifnd .eq. 1) then
-        if(i_out .eq. 1) red_interp = 1
+        if(i_out .eq. 1) then
+           red_interp = 1
+        elseif(i_out .eq. 0) then 
+           red_interp = 0
+        endif
       endif
       call finiparser_getBool(i_out,'particle:projection',ifnd)
       if(ifnd .eq. 1) then
-        if(i_out .eq. 1) npro_method = 1
+        if(i_out .eq. 1) then
+           npro_method = 1
+        elseif(i_out .eq. 0) then 
+           npro_method = 0
+        endif
       endif
       call finiparser_getBool(i_out,'particle:bigendian',ifnd)
       if(ifnd .eq. 1) then
-        if(i_out .eq. 1) lpm_endian = 1
+        if(i_out .eq. 1) then
+           lpm_endian = 1
+        elseif(i_out .eq. 0) then 
+           lpm_endian = 0
+        endif
       endif
 
       call finiparser_getBool(i_out,'particle:periodicx',ifnd)

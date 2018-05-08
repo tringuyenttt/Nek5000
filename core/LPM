@@ -55,12 +55,12 @@ c -------------------
       parameter (iptlen=11)
       real   pttime(iptlen),ptdum(iptlen),xdrange(2,3),d2chk(3)
       common /lpm_other/ pttime,ptdum,xdrange,d2chk
-      real   lpmvol_p,lpmvolfrac_p,lpmvolfrac_f,
+      real   lpmx_p(3),lpmvol_p,lpmvolfrac_p,lpmvolfrac_f,
      >       lpmtau_p,lpmv_p(3),lpmv_f(3),lpmre_p,lpmmach_p,lpmvisc_f,
      >       lpmdiam_p,lpmdens_p,lpmdens_f,lpmDuDt(3),lpmkappa_f,
      >       lpmvdiff_pf,lpmforce(3),lpmheat,lpmtemp_p,lpmtemp_f,
      >       lpmforcec(3)
-      common /lpm_partuser/ lpmvol_p,lpmvolfrac_p,
+      common /lpm_partuser/ lpmx_p,lpmvol_p,lpmvolfrac_p,
      >                      lpmvolfrac_f,lpmtau_p,lpmv_p,lpmv_f,lpmre_p,
      >                      lpmmach_p,lpmvisc_f,lpmdiam_p,lpmdens_p,
      >                      lpmdens_f,lpmDuDt,lpmkappa_f,lpmvdiff_pf,
@@ -78,12 +78,10 @@ c ----------------------
      >                            nfacegp, nedgegp, ncornergp
 
       parameter (ngpvc  = 6)
-      parameter (nbox_gp=10000*lelt)
-      integer nlist, ngp_valsp(ngpvc,nbox_gp),ngp_valse(9,nbox_gp),
-     >        ndxgp,ndygp,ndzgp, nliste,
-     >        mod_gp_grid(lx1,ly1,lz1,lelt,4)
-      common /new_gpi/ nlist,ndxgp,ndygp,ndzgp,ngp_valsp,ngp_valse
-     >                ,nliste,mod_gp_grid 
+      parameter (nbox_gp=10*llpart_gp)
+      integer nlist, ngp_valsp(ngpvc,nbox_gp),
+     >        ndxgp,ndygp,ndzgp, mod_gp_grid(lx1,ly1,lz1,lelt,4)
+      common /new_gpi/ nlist,ndxgp,ndygp,ndzgp,ngp_valsp,mod_gp_grid 
       real    rdxgp, rdygp, rdzgp 
       common /new_gpr/ rdxgp, rdygp, rdzgp
       
