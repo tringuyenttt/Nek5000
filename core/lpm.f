@@ -829,9 +829,12 @@ c
 
       endif
 
-c     wght = 0.5
-c     ncut = 1
-c     call filter_s0(ptw(1,1,1,1,4),wght,ncut,'phip') 
+
+#ifdef CMTNEK
+      wght = 1.0
+      ncut = 1
+      call filter_s0(ptw(1,1,1,1,4),wght,ncut,'phip') 
+#endif
 
       rvfmax = 0.7405
       rvfmin = 0.0
@@ -2152,18 +2155,18 @@ c Connect boxes to 1D processor map they should be arranged on
          rzval = 0.
          if(if3d) rzval = zm1(i,j,k,ie)
 
-         if (rxval .gt. rxbo(2,1) .or. 
-     >       rxval .lt. rxbo(1,1) .or. 
-     >       ryval .gt. rxbo(2,2) .or. 
-     >       ryval .lt. rxbo(1,2) ) then
-             goto 1234
-         endif
-         if (if3d) then
-         if (rzval .gt. rxbo(2,3) .or. 
-     >       rzval .lt. rxbo(1,3) ) then
-             goto 1234
-         endif
-         endif
+c        if (rxval .gt. rxbo(2,1) .or. 
+c    >       rxval .lt. rxbo(1,1) .or. 
+c    >       ryval .gt. rxbo(2,2) .or. 
+c    >       ryval .lt. rxbo(1,2) ) then
+c            goto 1234
+c        endif
+c        if (if3d) then
+c        if (rzval .gt. rxbo(2,3) .or. 
+c    >       rzval .lt. rxbo(1,3) ) then
+c            goto 1234
+c        endif
+c        endif
 
          ii    = floor((rxval-xdrange(1,1))/rdxgp) 
          jj    = floor((ryval-xdrange(1,2))/rdygp) 
