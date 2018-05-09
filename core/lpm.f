@@ -1077,7 +1077,11 @@ c
 
       lpmmach_p    = MixtPerf_C_GRT_part(gmaref,rgasref,
      >                                   rpart(jtempf,i),icmtp)
-      lpmmach_p    = lpmvdiff_pf/lpmmach_p
+      if (icmtp .eq. 0) then
+         lpmach_p  = 0.0
+      elseif (icmtp .eq. 1) 
+         lpmmach_p = lpmvdiff_pf/lpmmach_p
+      endif
       lpmre_p      = rpart(jrho,i)*rpart(jdp,i)*lpmvdiff_pf/mu_0 ! Re
       lpmi         = i
       elseif (ipre .eq. 1) then
@@ -4835,7 +4839,25 @@ c
       include 'TOTAL'
       include 'LPM'
 
-      if (abs(part_force(3)) .gt. 0) then
+      if (abs(part_force(3)) .eq. 1) then
+         ! shape
+         rdum = 0.5
+
+         ! volume fraction
+         if (part_force(3) .lt. 0) then
+            rphip = min(0.3,lpmvolfrac_p)
+            rdum = rdum*(1.+2.*rphip)/(1.-rphip)
+         endif
+
+         ! set coeff for implicit dv/dt solve
+         rpart(jcmiu,lpmi) = rdum
+         
+         ! but don't add a fluid contribution for now, but should later
+         lpmforce(1) = 0.0
+         lpmforce(2) = 0.0
+         lpmforce(3) = 0.0
+
+      elseif (abs(part_force(3)) .eq. 2) then
          ! shape
          rdum = 0.5
          ! mach
