@@ -830,11 +830,10 @@ c
       endif
 
 
-#ifdef CMTNEK
+      ! filtering makes velocity field smoother
       wght = 1.0
       ncut = 1
       call filter_s0(ptw(1,1,1,1,4),wght,ncut,'phip') 
-#endif
 
       rvfmax = 0.7405
       rvfmin = 0.0
@@ -2480,7 +2479,11 @@ c
          rnx = cyl_wall_coords(1,j)
          rny = cyl_wall_coords(2,j)
          rnz = cyl_wall_coords(3,j)
-         rrad = cyl_wall_coords(4,j)
+         rpx = cyl_wall_coords(4,j)
+         rpy = cyl_wall_coords(5,j)
+         rpz = 1.0
+         if (if3d) rpz = cyl_wall_coords(6,j)
+         rrad = cyl_wall_coords(7,j)
 
          rx22(1) = rx2(1)
          rx22(2) = rx2(2)
@@ -2489,16 +2492,16 @@ c
          ! origin
          if (rnz .gt. 0.5) then
             rtheta = atan2(rx22(2),rx22(1))
-            rx22(1) = rrad*cos(rtheta)
-            rx22(2) = rrad*sin(rtheta)
+            rx22(1) = rpx + rrad*cos(rtheta)
+            rx22(2) = rpy + rrad*sin(rtheta)
          elseif (rnx .gt. 0.5) then
             rtheta = atan2(rx22(3),rx22(2))
-            rx22(2) = rrad*cos(rtheta)
-            rx22(3) = rrad*sin(rtheta)
+            rx22(2) = rpy + rrad*cos(rtheta)
+            rx22(3) = rpz + rrad*sin(rtheta)
          elseif (rny .gt. 0.5) then
             rtheta = atan2(rx22(1),rx22(3))
-            rx22(3) = rrad*cos(rtheta)
-            rx22(1) = rrad*sin(rtheta)
+            rx22(3) = rpz + rrad*cos(rtheta)
+            rx22(1) = rpx + rrad*sin(rtheta)
          endif
 
          rx2d = rx22(1) - rx2(1)
@@ -2606,9 +2609,9 @@ c     > if bc_part = -1,1 then particles are killed (outflow)
                   goto 1512
                 endif
             endif
-c           if (ipart(jrc,i) .eq. 2) then
-c              in_part(i) = -1 ! only if periodic check fails it will get here
-c           endif
+            if (ipart(jrc,i) .eq. 2) then
+               in_part(i) = -1 ! only if periodic check fails it will get here
+            endif
  1512 continue
          enddo
       enddo
@@ -3573,10 +3576,19 @@ c     fluid momentum
       msum_tot(3,1) = glsc3(bm1,vtrans,vz,nx1*ny1*nz1*nelv)
 c     particle volume fraction
       vf_part_e     = glsc2(bm1,ptw(1,1,1,1,4),nx1*ny1*nz1*nelt)
+                                                 ! in z of mono-particle
+                                                 ! Dp
 c     particle forces on fluid
       rfpfluid(1)   = glsc2(bm1,ptw(1,1,1,1,1),nx1*ny1*nz1*nelt)
       rfpfluid(2)   = glsc2(bm1,ptw(1,1,1,1,2),nx1*ny1*nz1*nelt)
       rfpfluid(3)   = glsc2(bm1,ptw(1,1,1,1,3),nx1*ny1*nz1*nelt)
+
+      if (.not.if3d) vf_part_e   = vf_part_e*dp(1)   ! Here:
+      if (.not.if3d) rfpfluid(1) = rfpfluid(1)*dp(1) ! for 2d, assume
+      if (.not.if3d) rfpfluid(2) = rfpfluid(2)*dp(1) ! z thicknes of 
+      if (.not.if3d) rfpfluid(3) = rfpfluid(3)*dp(1) ! monodisperse Dp
+
+
 c     lagrangian integrations ---------------------------------------
 c     particle momentum
       do ieq=0,2
@@ -3597,24 +3609,26 @@ c     particle volume fraction
       enddo
       vf_part_l = glsum(msum,1)
 
+      vf_rel_error = abs(vf_part_l - vf_part_e)/vf_part_l*100.0
+
 c     print to files ------------------------------------------------
 c     print properties to logfile
-      if (nid.eq.0) write(6,500) "--- Eulerian Properties ------"
-      if (nid.eq.0) write(6,500) "Fluid Momentum :              ", 
-     >                  msum_tot(1,1),msum_tot(2,1),msum_tot(3,1)
-      if (nid.eq.0) write(6,500) "Particle forces:              ", 
-     >                  rfpfluid(1),rfpfluid(2),rfpfluid(3)         
-      if (nid.eq.0) write(6,500) "Particle Volume:              ", 
-     >                  vf_part_e
-      if (nid.eq.0) write(6,500) "--- Lagrangian Properties --- "
-      if (nid.eq.0) write(6,500) "Particle Momentum :           ", 
-     >                  msum_tot(1,2),msum_tot(2,2),msum_tot(3,2)
-      if (nid.eq.0) write(6,500) "Particle forces:              ", 
-     >                  rfpfluidl(1),rfpfluidl(2),rfpfluidl(3)         
-      if (nid.eq.0) write(6,500) "Particle Volume:              ", 
-     >                  vf_part_l
+      if (nid.eq.0) write(6,500) "E Fluid Momentum :              ", 
+     >                  istep, msum_tot(1,1),msum_tot(2,1),msum_tot(3,1)
+      if (nid.eq.0) write(6,500) "E Particle forces:              ", 
+     >                  istep, rfpfluid(1),rfpfluid(2),rfpfluid(3)
+      if (nid.eq.0) write(6,500) "E Particle Volume:              ", 
+     >                  istep, vf_part_e
+      if (nid.eq.0) write(6,500) "L Particle Momentum :           ", 
+     >                  istep, msum_tot(1,2),msum_tot(2,2),msum_tot(3,2)
+      if (nid.eq.0) write(6,500) "L Particle forces:              ", 
+     >                  istep, rfpfluidl(1),rfpfluidl(2),rfpfluidl(3)
+      if (nid.eq.0) write(6,500) "L Particle Volume:              ", 
+     >                  istep, vf_part_l
+      if (nid.eq.0) write(6,500) "VF Relative Error %              ", 
+     >                  istep, vf_rel_error
 
-  500 FORMAT(A30,9ES20.10)
+  500 FORMAT(A30,I20,3ES20.10)
 
       return
       end
