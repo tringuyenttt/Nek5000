@@ -829,7 +829,6 @@ c
 
       endif
 
-
       ! filtering makes velocity field smoother
       wght = 1.0
       ncut = 1
@@ -1079,7 +1078,7 @@ c
      >                                   rpart(jtempf,i),icmtp)
       if (icmtp .eq. 0) then
          lpmach_p  = 0.0
-      elseif (icmtp .eq. 1) 
+      elseif (icmtp .eq. 1) then
          lpmmach_p = lpmvdiff_pf/lpmmach_p
       endif
       lpmre_p      = rpart(jrho,i)*rpart(jdp,i)*lpmvdiff_pf/mu_0 ! Re
@@ -2637,6 +2636,41 @@ c     > if bc_part = -1,1 then particles are killed (outflow)
 c-----------------------------------------------------------------------
 c     interpolation routines
 c-----------------------------------------------------------------------
+      subroutine tri_interp(ii,jj,kk,x,y,z,rset,xx,yy,zz,fld)
+      include 'SIZE'
+      include 'INPUT'
+      include 'SOLN'
+      include 'LPM'
+      include 'GEOM'
+
+      real xx(lx1,ly1,lz1),yy(lx1,ly1,lz1),zz(lx1,ly1,lz1)
+     >    ,fld(lx1,ly1,lz1)
+
+      iip = ii +1
+      jjp = jj +1
+      kkp = kk
+      if (if3d) kkp = kk +1
+
+      xd = (x - xx(ii,jj,kk))/(xx(iip,jj,kk)-xx(ii,jj,kk))
+      yd = (y - yy(ii,jj,kk))/(yy(ii,jjp,kk)-yy(ii,jj,kk))
+      zd = 0.0
+      if(if3d) zd = (z - zz(ii,jj,kk))/(zz(ii,jj,kkp)-zz(ii,jj,kk))
+
+      c00=fld(ii,jj,kk)*(1.-xd)+fld(iip,jj,kk)*xd
+      c10=fld(ii,jjp,kk)*(1.-xd)+fld(iip,jjp,kk)*xd
+
+      if (if3d) then
+      c01=fld(ii,jj,kkp)*(1.-xd)+fld(iip,jj,kkp)*xd
+      c11=fld(ii,jjp,kkp)*(1.-xd)+fld(iip,jjp,kkp)*xd
+      c1_1 = c01*(1.-yd) + c11*yd
+      rset = c1_0*(1.-zd) + c1_1*zd
+      else
+      rset = c00*(1.-yd) + c10*yd
+      endif
+
+      return
+      end
+c-----------------------------------------------------------------------
       subroutine interp_props_part_location
       include 'SIZE'
       include 'INPUT'
@@ -2658,7 +2692,8 @@ c-----------------------------------------------------------------------
      &                                   ipart(je0,1)  ,ni,
      &                                   rpart(jr,1)   ,nr,n,
      &                                   vy)
-      call fgslib_findpts_eval_local(i_fp_hndl,rpart(ju0+2,1),nr,
+      if (if3d)
+     &call fgslib_findpts_eval_local(i_fp_hndl,rpart(ju0+2,1),nr,
      &                                   ipart(je0,1)  ,ni,
      &                                   rpart(jr,1)   ,nr,n,
      &                                   vz)
@@ -2678,7 +2713,8 @@ c-----------------------------------------------------------------------
      &                                   ipart(je0,1)     ,ni,
      &                                   rpart(jr,1)      ,nr,n,
      &                                   rhs_fluidp(1,1,1,1,2))
-      call fgslib_findpts_eval_local(i_fp_hndl,rpart(jDuDt+2,1) ,nr,
+      if (if3d)
+     &call fgslib_findpts_eval_local(i_fp_hndl,rpart(jDuDt+2,1) ,nr,
      &                                   ipart(je0,1)     ,ni,
      &                                   rpart(jr,1)      ,nr,n,
      &                                   rhs_fluidp(1,1,1,1,3))
@@ -2686,6 +2722,52 @@ c-----------------------------------------------------------------------
      &                                   ipart(je0,1)     ,ni,
      &                                   rpart(jr,1)      ,nr,n,
      &                                   ptw(1,1,1,1,4))
+
+      ! trilinear interpolation below
+c     do ip=1,n
+c        ie = ipart(je0,ip) + 1
+c        ii = 1
+c        jj = 1
+c        kk = 1
+c        do k=1,nz1
+c        do j=1,ny1
+c        do i=1,nx1
+c           if (xm1(i,j,k,ie) .lt. rpart(jx,ip)) ii = i
+c           if (ym1(i,j,k,ie) .lt. rpart(jy,ip)) jj = j
+c           if (zm1(i,j,k,ie) .lt. rpart(jz,ip)) zz = k
+c        enddo
+c        enddo
+c        enddo
+c        call tri_interp(ii,jj,kk,rpart(jx,ip),rpart(jy,ip),
+c    >       rpart(jz,ip),rpart(ju0+0,ip),xm1(1,1,1,ie),ym1(1,1,1,ie),
+c    >       zm1(1,1,1,ie),vx(1,1,1,ie))
+c        call tri_interp(ii,jj,kk,rpart(jx,ip),rpart(jy,ip),
+c    >       rpart(jz,ip),rpart(ju0+1,ip),xm1(1,1,1,ie),ym1(1,1,1,ie),
+c    >       zm1(1,1,1,ie),vy(1,1,1,ie))
+c        if (if3d)
+c    >   call tri_interp(ii,jj,kk,rpart(jx,ip),rpart(jy,ip),
+c    >       rpart(jz,ip),rpart(ju0+2,ip),xm1(1,1,1,ie),ym1(1,1,1,ie),
+c    >       zm1(1,1,1,ie),vz(1,1,1,ie))
+c        call tri_interp(ii,jj,kk,rpart(jx,ip),rpart(jy,ip),
+c    >       rpart(jz,ip),rpart(jtempf,ip),xm1(1,1,1,ie),ym1(1,1,1,ie),
+c    >       zm1(1,1,1,ie),t(1,1,1,ie,1))
+c        call tri_interp(ii,jj,kk,rpart(jx,ip),rpart(jy,ip),
+c    >       rpart(jz,ip),rpart(jrho,ip),xm1(1,1,1,ie),ym1(1,1,1,ie),
+c    >       zm1(1,1,1,ie),vtrans(1,1,1,ie,1))
+c        call tri_interp(ii,jj,kk,rpart(jx,ip),rpart(jy,ip),
+c    >       rpart(jz,ip),rpart(jDuDt+0,ip),xm1(1,1,1,ie),ym1(1,1,1,ie),
+c    >       zm1(1,1,1,ie),rhs_fluidp(1,1,1,ie,1))
+c        call tri_interp(ii,jj,kk,rpart(jx,ip),rpart(jy,ip),
+c    >       rpart(jz,ip),rpart(jDuDt+1,ip),xm1(1,1,1,ie),ym1(1,1,1,ie),
+c    >       zm1(1,1,1,ie),rhs_fluidp(1,1,1,ie,2))
+c        if (if3d)
+c    >   call tri_interp(ii,jj,kk,rpart(jx,ip),rpart(jy,ip),
+c    >       rpart(jz,ip),rpart(jDuDt+2,ip),xm1(1,1,1,ie),ym1(1,1,1,ie),
+c    >       zm1(1,1,1,ie),rhs_fluidp(1,1,1,ie,3))
+c        call tri_interp(ii,jj,kk,rpart(jx,ip),rpart(jy,ip),
+c    >       rpart(jz,ip),rpart(jvol1,ip),xm1(1,1,1,ie),ym1(1,1,1,ie),
+c    >       zm1(1,1,1,ie),ptw(1,1,1,ie,4))
+c     enddo
 
       ! check if values outside reasonable bounds
       rvfmax = 0.7405
@@ -3539,9 +3621,9 @@ c----------------------------------------------------------------------
          rpart(jgam,i)  = 1.          ! initial integration correction
          rpart(jrpe,i) = rpart(jspl,i)**(1./3.)*rpart(jdp,i)/2.
 
-c        call get_part_use_block(i,0)
-c        call lpm_usr_f  ! can overwrite particle properties at init
-c        call get_part_use_block(i,1)
+         call get_part_use_block(i,0)
+         call lpm_usr_f  ! can overwrite particle properties at init
+         call get_part_use_block(i,1)
       enddo
       n = i
 
@@ -3678,7 +3760,7 @@ c----------------------------------------------------------------------
       npro_method = 1
       rspl        = 1.
       dfilt       = 2.
-      ralphdecay  = 1E-2
+      ralphdecay  = 1E-3
       do i=1,6
          bc_part(i) = 1
       enddo
@@ -4443,6 +4525,11 @@ c
       enddo
       enddo
       enddo
+
+      ! filtering makes velocity field smoother
+      wght = 1.0
+      ncut = 1
+      call filter_s0(div(1,1,1,1),wght,ncut,'div') 
 
       return
       end
