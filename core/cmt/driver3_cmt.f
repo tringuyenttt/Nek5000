@@ -113,6 +113,9 @@ c We have perfect gas law. Cvg is stored full field
          call nekasgn(i,j,k,e)
          call cmtasgn(i,j,k,e)
          e_internal=energy(i,j,k) !cmtasgn should do this, but can't
+! NTN Try to change the internal energy here
+!        e_internal= MixtJWL_I_ENE(rho,pres,AAref,BBref,
+!     >   R1ref,R2ref,rho0ref,OMref)    
          call cmt_userEOS(i,j,k,eg)
 ! JH020718 long-overdue sanity checks
          if (temp .lt. 0.0) then
@@ -120,7 +123,8 @@ c We have perfect gas law. Cvg is stored full field
             write(6,'(i6,a26,3i2,i8,e15.6)') ! might want to be less verbose
      >      nid,' HAS NEGATIVE TEMPERATURE ', i,j,k,eg,temp
          endif
-         vtrans(i,j,k,e,icp)= cp*rho
+!         vtrans(i,j,k,e,icp)= cp*rho
+         vtrans(i,j,k,e,icp)= e_internal 
          vtrans(i,j,k,e,icv)= cv*rho
          t(i,j,k,e,1)       = temp
          pr(i,j,k,e)        = pres
@@ -148,9 +152,12 @@ c-----------------------------------------------------------------------
       phi  = phig  (ix,iy,iz,e)
       rho  = vtrans(ix,iy,iz,e,irho)
       pres = pr    (ix,iy,iz,e)
+      temp = t  (ix,iy,iz,e,1)
+! Cv is constant 
+!     cv = 518.1121
       if (rho.ne.0) then
          cv   = vtrans(ix,iy,iz,e,icv)/rho
-         cp   = vtrans(ix,iy,iz,e,icp)/rho
+!         cp   = vtrans(ix,iy,iz,e,icp)/rho
       endif
       asnd = csound(ix,iy,iz,e)
       mu     = vdiff(ix,iy,iz,e,imu)
@@ -272,7 +279,14 @@ c     ! save velocity on fine mesh for dealiasing
             u(i,j,k,irpu,e)= phi*rho*ux
             u(i,j,k,irpv,e)= phi*rho*uy
             u(i,j,k,irpw,e)= phi*rho*uz
-            u(i,j,k,iret,e)= phi*rho*(cv*temp+0.5*(ux**2+uy**2+uz**2))
+! please 
+            u(i,j,k,iret,e)= phi*rho*e_internal
+! and put
+            e_internal= ((pres-(AAref*(1.-OMref/(R1ref
+     >     *rho0ref/rho))*exp(-R1ref*rho0ref/rho)
+     >     +BBref*(1.-OMref/(R2ref*rho0ref/rho))*exp(R2ref*
+     >     *rho0ref/rho)))/(OMref*rho)+0.5*(ux**2+uy**2+uz**2))     
+! in MixtJWL.f and/ or useric , NOT EVER IN THIS PART OPF THE SOURCE CODE!!!
             vdiff(i,j,k,e,imu) = mu
             vdiff(i,j,k,e,iknd)= udiff
             vdiff(i,j,k,e,ilam)= lambda
