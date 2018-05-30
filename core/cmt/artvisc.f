@@ -21,7 +21,7 @@
       ntol=1.0e-10
 
       if (icalld .eq. 0) then
-         if (nio .eq. 0) write(6,*) 'zeroing out entropy stack',istep
+         write(6,*) 'zeroing out entropy stack',istep
          icalld=1
          call rzero(s,ntot)
          call rzero(s(1,1,2),ntot) ! s_{n-1}
@@ -30,10 +30,11 @@
 
 ! compute the current entropy. This actually needs to go back in the
 ! usr file because it's EOS-dependent
-      rgam=rgasref/(gmaref-1.0)
+!      rgam=rgasref/(gmaref-1.0)
       do i=1,ntot
          rho=max(vtrans(i,1,1,1,irho),ntol)
-         s(i,1,1)=rgam*rho*log(pr(i,1,1,1)/(rho**gmaref))
+!NTN Change entropy S of JWL EOS
+       s(i,2,1)=rho*cvgref*log(t(i,1,1,1,1)/rho**OMref)
       enddo
 
       if (stage .eq. 1) then

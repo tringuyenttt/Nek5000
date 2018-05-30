@@ -9,7 +9,9 @@
      $     ,MixtPerf_R_CpG,MixtPerf_R_M,MixtPerf_T_CGR
      $     ,MixtPerf_T_CpHoVm2,MixtPerf_T_CvEoVm2,MixtPerf_T_DPR
      $     ,MixtPerf_HM_T_DGMP,MixtPerf_T_GMaTo,MixtPerf_To_CpTUVW
-     $     ,MixtPerf_Vm_C2Co2G
+     $     ,MixtPerf_Vm_C2Co2G,MixtJWL_SO
+     $     ,MixtJWL_PR,MixtJWL_TE,MixtJWL_I_ENE,MixtJWL_Enthalpy
+
       external  MixtPerf_C_Co2GUVW,MixtPerf_C_DGP,MixtPerf_C_GHoVm2
      $     ,MixtPerf_C_GRT,MixtPerf_C2_GRT,MixtPerf_Co2_CGUVW
      $     ,MixtPerf_Cv_CpR,MixtPerf_Cp_CvR,MixtPerf_D_CGP
@@ -21,4 +23,6 @@
      $     ,MixtPerf_R_CpG,MixtPerf_R_M,MixtPerf_T_CGR
      $     ,MixtPerf_T_CpHoVm2,MixtPerf_T_CvEoVm2,MixtPerf_T_DPR
      $     ,MixtPerf_HM_T_DGMP,MixtPerf_T_GMaTo,MixtPerf_To_CpTUVW
-     $     ,MixtPerf_Vm_C2Co2G
+     $     ,MixtPerf_Vm_C2Co2G,MixtJWL_SO
+     $     ,MixtJWL_PR,MixtJWL_TE,MixtJWL_I_ENE,MixtJWL_Enthalpy
+
