@@ -44,14 +44,14 @@ C> \ingroup isurf
 C> @{
 C> Computes inviscid numerical surface flux from AUSM+ Riemann solver
       SUBROUTINE AUSM_FluxFunction(ntot,nx,ny,nz,nm,fs,rl,ul,vl,wl,pl,
-     >                         al,tl,rr,ur,vr,wr,pr,ar,tr,flx,cpl,cpr)
+     >                         al,tl,rr,ur,vr,wr,pr,ar,tr,flx,el,er)
 
 !     IMPLICIT NONE ! HAHAHHAHHAHA
 ! ******************************************************************************
 ! Definitions and declarations
 ! ******************************************************************************
-      real MixtPerf_Ho_CpTUVW
-      external MixtPerf_Ho_CpTUVW
+      real     MixtJWL_Enthalpy 
+      external MixtJWL_Enthalpy 
 
 ! ==============================================================================
 ! Arguments
@@ -60,7 +60,7 @@ C> Computes inviscid numerical surface flux from AUSM+ Riemann solver
       REAL al(ntot),ar(ntot),fs(ntot),nm(ntot),nx(ntot),ny(ntot),
      >     nz(ntot),pl(ntot),pr(ntot),rl(ntot),rr(ntot),ul(ntot),
      >     ur(ntot),vl(ntot),vr(ntot),wl(ntot),wr(ntot),cpl(ntot),
-     >     cpr(ntot),tl(ntot),tr(ntot)! INTENT(IN) ::
+     >     cpr(ntot),tl(ntot),tr(ntot),el(ntot),er(ntot)! INTENT(IN) ::
       REAL flx(ntot,5)!,vf(3) ! INTENT(OUT) ::
 
 ! ==============================================================================
@@ -77,8 +77,10 @@ C> Computes inviscid numerical surface flux from AUSM+ Riemann solver
       call invcol2(cpr,rr,ntot)
 
       do i=1,ntot
-         Hl = MixtPerf_Ho_CpTUVW(cpl(i),tl(i),ul(i),vl(i),wl(i))
-         Hr = MixtPerf_Ho_CpTUVW(cpr(i),tr(i),ur(i),vr(i),wr(i))
+!         Hl = MixtPerf_Ho_CpTUVW(cpl(i),tl(i),ul(i),vl(i),wl(i))
+!         Hr = MixtPerf_Ho_CpTUVW(cpr(i),tr(i),ur(i),vr(i),wr(i))
+         Hl = MixtJWL_Enthalpy(rl(i),pl(i),ul(i),vl(i),wl(i),el(i))
+         Hr = MixtJWL_Enthalpy(rr(i),pr(i),ur(i),vr(i),wr(i),er(i))   
 
          ql = ul(i)*nx(i) + vl(i)*ny(i) + wl(i)*nz(i) - fs(i)
          qr = ur(i)*nx(i) + vr(i)*ny(i) + wr(i)*nz(i) - fs(i)
