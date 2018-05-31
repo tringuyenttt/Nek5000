@@ -46,8 +46,8 @@ c---------------------------------------------------------------------
       real                csound(lx1,ly1,lz1,lelt)
       common /cmtgasprop/ csound
 
-      real                cvgref,cpgref,gmaref,rgasref,molmass
-      common /cmtgasref/  cvgref,cpgref,gmaref,rgasref,molmass
+      real                cvgref
+      common /cmtgasref/  cvgref
 
       real                  cip(2*ldim,lelt)
       common /cmttransprop/ cip

@@ -1,4 +1,4 @@
-C> @file driver3_cmt.f routines for primitive variables, usr-file interfaces
+C> @file driver3_cmt.f routines for primitivg variables, usr-file interfaces
 C> and properties
 
 C> Compute primitive variables (velocity, thermodynamic state) from 
@@ -6,7 +6,6 @@ C> conserved unknowns U
       subroutine compute_primitive_vars
       include 'SIZE'
       include 'INPUT'
-      include 'PARALLEL'
       include 'GEOM'
       include 'CMTDATA'
       include 'SOLN'
@@ -15,22 +14,11 @@ C> conserved unknowns U
       parameter (lxyz=lx1*ly1*lz1)
       common /ctmp1/ energy(lx1,ly1,lz1),scr(lx1,ly1,lz1)
       integer e, eq
-      common /posflags/ ifailr,ifaile,ifailt
-      integer ifailr,ifaile,ifailt
 
       nxyz= lx1*ly1*lz1
       ntot=nxyz*nelt
-      ifailr=-1
-      ifaile=-1
-      ifailt=-1
 
       do e=1,nelt
-! JH020918 long-overdue sanity checks
-         dmin=vlmin(u(1,1,1,irg,e),nxyz)
-         if (dmin .lt. 0.0) then
-            ifailr=lglel(e)
-            write(6,*) nid,'***NEGATIVE DENSITY***',dmin,lglel(e)
-         endif
          call invcol3(vx(1,1,1,e),u(1,1,1,irpu,e),u(1,1,1,irg,e),nxyz)
          call invcol3(vy(1,1,1,e),u(1,1,1,irpv,e),u(1,1,1,irg,e),nxyz)
 !        if (if3d)
@@ -53,18 +41,8 @@ C> conserved unknowns U
 ! don't forget to get density where it belongs
          call invcol3(vtrans(1,1,1,e,irho),u(1,1,1,irg,e),phig(1,1,1,e),
      >                nxyz)
-! JH020718 long-overdue sanity checks
-         emin=vlmin(energy,nxyz)
-         if (emin .lt. 0.0) then
-            ifaile=lglel(e)
-            write(6,*) nid, ' HAS NEGATIVE ENERGY ',emin,lglel(e)
-         endif
-         call tdstate(e,energy) ! compute state, fill ifailt
+         call tdstate(e,energy)
       enddo
-
-      call poscheck(ifailr,'density    ')
-      call poscheck(ifaile,'energy     ')
-      call poscheck(ifailt,'temperature')
 
 ! setup_convect has the desired effect
 ! if IFPART=F
@@ -87,7 +65,6 @@ C> conserved unknowns U
 
       return
       end
-
 !-----------------------------------------------------------------------
 
 C> Compute thermodynamic state for element e from internal energy.
@@ -103,28 +80,15 @@ c We have perfect gas law. Cvg is stored full field
       integer   e,eg
       real energy(lx1,ly1,lz1)
 
-      common /posflags/ ifailr,ifaile,ifailt
-      integer ifailr,ifaile,ifailt
-
       eg = lglel(e)
       do k=1,lz1
       do j=1,ly1
       do i=1,lx1
          call nekasgn(i,j,k,e)
          call cmtasgn(i,j,k,e)
-         e_internal=energy(i,j,k) !cmtasgn should do this, but can't
-! NTN Try to change the internal energy here
-!        e_internal= MixtJWL_I_ENE(rho,pres,AAref,BBref,
-!     >   R1ref,R2ref,rho0ref,OMref)    
+         e_internal=energy(i,j,k) !nekasgn should do this, but can't
          call cmt_userEOS(i,j,k,eg)
-! JH020718 long-overdue sanity checks
-         if (temp .lt. 0.0) then
-            ifailt=eg
-            write(6,'(i6,a26,3i2,i8,e15.6)') ! might want to be less verbose
-     >      nid,' HAS NEGATIVE TEMPERATURE ', i,j,k,eg,temp
-         endif
-!         vtrans(i,j,k,e,icp)= cp*rho
-         vtrans(i,j,k,e,icp)= e_internal 
+         vtrans(i,j,k,e,icp)= energy(i,j,k) !  e_internal
          vtrans(i,j,k,e,icv)= cv*rho
          t(i,j,k,e,1)       = temp
          pr(i,j,k,e)        = pres
@@ -152,9 +116,7 @@ c-----------------------------------------------------------------------
       phi  = phig  (ix,iy,iz,e)
       rho  = vtrans(ix,iy,iz,e,irho)
       pres = pr    (ix,iy,iz,e)
-      temp = t  (ix,iy,iz,e,1)
-! Cv is constant 
-!     cv = 518.1121
+!      cv   = cvgref           
       if (rho.ne.0) then
          cv   = vtrans(ix,iy,iz,e,icv)/rho
 !         cp   = vtrans(ix,iy,iz,e,icp)/rho
@@ -190,7 +152,6 @@ c-----------------------------------------------------------------------
       call rzero(vtrans,ltott*ldimt1)
       call rzero(vdiff ,ltott*ldimt1)
       call rzero(u,ntotcv)
-      call usr_particles_init
       call cmtuic
       if(ifrestart) call my_full_restart !  Check restart files. soon...
 
@@ -279,14 +240,12 @@ c     ! save velocity on fine mesh for dealiasing
             u(i,j,k,irpu,e)= phi*rho*ux
             u(i,j,k,irpv,e)= phi*rho*uy
             u(i,j,k,irpw,e)= phi*rho*uz
-! please 
-            u(i,j,k,iret,e)= phi*rho*e_internal
-! and put
-            e_internal= ((pres-(AAref*(1.-OMref/(R1ref
+            u(i,j,k,iret,e)= phi*rho*e_internal 
+            e_internal= (pres-(AAref*(1.-OMref/(R1ref
      >     *rho0ref/rho))*exp(-R1ref*rho0ref/rho)
      >     +BBref*(1.-OMref/(R2ref*rho0ref/rho))*exp(R2ref*
-     >     *rho0ref/rho)))/(OMref*rho)+0.5*(ux**2+uy**2+uz**2))     
-! in MixtJWL.f and/ or useric , NOT EVER IN THIS PART OPF THE SOURCE CODE!!!
+     >     *rho0ref/rho)))/(OMref*rho)
+  
             vdiff(i,j,k,e,imu) = mu
             vdiff(i,j,k,e,iknd)= udiff
             vdiff(i,j,k,e,ilam)= lambda
@@ -295,28 +254,5 @@ c     ! save velocity on fine mesh for dealiasing
          enddo
          enddo
       enddo
-      return
-      end
-
-!-----------------------------------------------------------------------
-
-      subroutine poscheck(ifail,what)
-      include 'SIZE'
-      include 'PARALLEL'
-      include 'INPUT'
-!JH020918 handles reporting, I/O and exit from failed positivity checks
-!         in compute_primitive_variables
-      character*11 what
-
-      ifail0=iglmax(ifail,1)
-      if(ifail0 .ne. -1) then
-         if (nio .eq. 0)
-     >   write(6,*) 'dumping solution after negative ',what,'@ eg=',
-     >             ifail0
-         ifxyo=.true.
-         call out_fld_nek
-         call exitt
-      endif
-
       return
       end
