@@ -100,15 +100,15 @@
 !      IMPLICIT NONE
 !      REAL cv,DE,pres,AA,BB,R1,R2,rho0,OM  
 !      REAL MixtJWL_TE 
-!      MixtJWL_TE=(pres-AA*exp(-R1*rho0/DE)-BB*exp(-R2*rho0/DE))*
-!     > 1./OM/cv/DE
+!      MixtJWL_TE=1./OM/cv/DE*(pres-AA*exp(-R1*rho0/DE)-
+!     >           BB*exp(-R2*rho0/DE))
 !      END
-      FUNCTION MixtJWL_Enthalpy(DEN,PRES,VEL1,VEL2,VEL3,EN)
+      FUNCTION MixtJWL_Enthalpy(DE,PRES,VEL1,VEL2,VEL3,EN)
       IMPLICIT NONE
-      REAL DEN,PRES,VEL1,VEL2,VEL3,EN
+      REAL DE,PRES,VEL1,VEL2,VEL3,EN
       REAL MixtJWL_Enthalpy
       MixtJWL_Enthalpy = 0.5*(VEL1*VEL1+VEL2*VEL2+VEL3*VEL3)
-     >                  + EN+PRES/DEN
+     >                  + EN+PRES/DE
       END
       FUNCTION MixtJWL_I_ENE(DE,PRES,AA,BB,R1,R2,rho0,OM)
       IMPLICIT NONE
@@ -116,7 +116,7 @@
       REAL  MixtJWL_I_ENE
       MixtJWL_I_ENE =(pres-(AA*(1.-OM/(R1*rho0/DE))
      > *exp(-R1*rho0/DE)+BB*(1.-OM/(R2*rho0/DE))
-     > *exp(R2*rho0/DE)))/(OM*DE)
+     > *exp(-R2*rho0/DE)))/(OM*DE)
       END
 
 !******************************************************************************

@@ -161,6 +161,9 @@ c                                     !     ux,uy,uz
 
             pres  = facew(l,f,e,ipr) ! extrapolated, overwritten
             temp = pres/rho/(cp-cv) ! definitely too perfect!
+!change temperature here
+!            temp=(pres-AAref*exp(-R1ref*rho0ref/rho)-BBref*
+!     >      exp(-R2ref*rho0ref/rho))*1./OMref/cvref/rho 
             wbc(l,f,e,ipr)  = pres
             wbc(l,f,e,isnd) = sqrt(cp/cv*pres/rho) ! too perfect?
             wbc(l,f,e,ithm) = temp      ! definitely too perfect!

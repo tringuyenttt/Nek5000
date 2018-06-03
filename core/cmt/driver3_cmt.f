@@ -88,7 +88,7 @@ c We have perfect gas law. Cvg is stored full field
          call cmtasgn(i,j,k,e)
          e_internal=energy(i,j,k) !nekasgn should do this, but can't
          call cmt_userEOS(i,j,k,eg)
-         vtrans(i,j,k,e,icp)= energy(i,j,k) !  e_internal
+         vtrans(i,j,k,e,icp)= e_internal 
          vtrans(i,j,k,e,icv)= cv*rho
          t(i,j,k,e,1)       = temp
          pr(i,j,k,e)        = pres
@@ -233,18 +233,18 @@ c     ! save velocity on fine mesh for dealiasing
             vz(i,j,k,e) = uz
             vtrans(i,j,k,e,irho)  = rho
             vtrans(i,j,k,e,icv)= rho*cv
-            vtrans(i,j,k,e,icp)= rho*cp
+            vtrans(i,j,k,e,icp)= e_internal 
             phig(i,j,k,e)  = phi
             pr(i,j,k,e)    = pres
             u(i,j,k,irg,e) = phi*rho
             u(i,j,k,irpu,e)= phi*rho*ux
             u(i,j,k,irpv,e)= phi*rho*uy
             u(i,j,k,irpw,e)= phi*rho*uz
-            u(i,j,k,iret,e)= phi*rho*e_internal 
             e_internal= (pres-(AAref*(1.-OMref/(R1ref
      >     *rho0ref/rho))*exp(-R1ref*rho0ref/rho)
-     >     +BBref*(1.-OMref/(R2ref*rho0ref/rho))*exp(R2ref*
+     >     +BBref*(1.-OMref/(R2ref*rho0ref/rho))*exp(-R2ref*
      >     *rho0ref/rho)))/(OMref*rho)
+            u(i,j,k,iret,e)= phi*rho*e_internal 
   
             vdiff(i,j,k,e,imu) = mu
             vdiff(i,j,k,e,iknd)= udiff
