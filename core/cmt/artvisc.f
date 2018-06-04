@@ -38,7 +38,7 @@
 !        s(i,1,1)=rgam*rho*log(pr(i,1,1,1)/(rho**gmaref)) 
       enddo
 
-      if (stage .eq. 1) then
+      if (stage .eq. 1) then  !NOTE FOR STAGE
 ! push the stack
          call copy(s(1,1,2),s(1,2,1),ntot) ! s_{n-1}=s_n
          call copy(s(1,2,1),s(1,1,1),ntot) ! fill s_n
@@ -78,11 +78,11 @@
 !        if (nio .eq. 0) write (6,*) 'max(s-<s>)=',maxdiff, meshh(1)
       endif
 !*************
-      call entropy_residual(tlag) ! fill res2
+!      call entropy_residual(tlag) ! fill res2
       call copy(res2(1,1,1,1,2),res2,ntot) ! raw residual in res2
       call wavevisc(t(1,1,1,1,3))
 !NTN comment here
-!      call resvisc(res2) ! overwrite res2
+      call resvisc(res2) ! overwrite res2
       call evmsmooth(res2,t(1,1,1,1,3),.true.) ! endpoints=.false.
 !NTN                                            ! is intended to
                                                ! preserve face states,

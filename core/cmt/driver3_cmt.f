@@ -109,7 +109,6 @@ c-----------------------------------------------------------------------
       include 'NEKUSE'
 
       integer e,eqnum
-
       do eqnum=1,toteq
          varsic(eqnum)=u(ix,iy,iz,eqnum,e)  
       enddo
@@ -120,6 +119,7 @@ c-----------------------------------------------------------------------
       if (rho.ne.0) then
          cv   = vtrans(ix,iy,iz,e,icv)/rho
 !         cp   = vtrans(ix,iy,iz,e,icp)/rho
+         e_internal = vtrans(ix,iy,iz,e,icp) 
       endif
       asnd = csound(ix,iy,iz,e)
       mu     = vdiff(ix,iy,iz,e,imu)
@@ -233,7 +233,7 @@ c     ! save velocity on fine mesh for dealiasing
             vz(i,j,k,e) = uz
             vtrans(i,j,k,e,irho)  = rho
             vtrans(i,j,k,e,icv)= rho*cv
-            vtrans(i,j,k,e,icp)= e_internal 
+            vtrans(i,j,k,e,icp)= 0.*e_internal 
             phig(i,j,k,e)  = phi
             pr(i,j,k,e)    = pres
             u(i,j,k,irg,e) = phi*rho
