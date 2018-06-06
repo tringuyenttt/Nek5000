@@ -86,7 +86,7 @@ c We have perfect gas law. Cvg is stored full field
       do i=1,lx1
          call nekasgn(i,j,k,e)
          call cmtasgn(i,j,k,e)
-         e_internal=energy(i,j,k) !nekasgn should do this, but can't
+         e_internal=energy(i,j,k)!nekasgn should do this, but can't
          call cmt_userEOS(i,j,k,eg)
          vtrans(i,j,k,e,icp)= e_internal 
          vtrans(i,j,k,e,icv)= cv*rho
@@ -115,11 +115,10 @@ c-----------------------------------------------------------------------
       phi  = phig  (ix,iy,iz,e)
       rho  = vtrans(ix,iy,iz,e,irho)
       pres = pr    (ix,iy,iz,e)
-!      cv   = cvgref           
       if (rho.ne.0) then
          cv   = vtrans(ix,iy,iz,e,icv)/rho
 !         cp   = vtrans(ix,iy,iz,e,icp)/rho
-         e_internal = vtrans(ix,iy,iz,e,icp) 
+      e_internal = vtrans(ix,iy,iz,e,icp) 
       endif
       asnd = csound(ix,iy,iz,e)
       mu     = vdiff(ix,iy,iz,e,imu)
@@ -233,18 +232,20 @@ c     ! save velocity on fine mesh for dealiasing
             vz(i,j,k,e) = uz
             vtrans(i,j,k,e,irho)  = rho
             vtrans(i,j,k,e,icv)= rho*cv
-            vtrans(i,j,k,e,icp)= 0.*e_internal 
+            vtrans(i,j,k,e,icp)= e_internal 
             phig(i,j,k,e)  = phi
             pr(i,j,k,e)    = pres
             u(i,j,k,irg,e) = phi*rho
             u(i,j,k,irpu,e)= phi*rho*ux
             u(i,j,k,irpv,e)= phi*rho*uy
             u(i,j,k,irpw,e)= phi*rho*uz
-            e_internal= (pres-(AAref*(1.-OMref/(R1ref
-     >     *rho0ref/rho))*exp(-R1ref*rho0ref/rho)
-     >     +BBref*(1.-OMref/(R2ref*rho0ref/rho))*exp(-R2ref*
-     >     *rho0ref/rho)))/(OMref*rho)
-            u(i,j,k,iret,e)= phi*rho*e_internal 
+!            e_internal= (pres-(AAref*(1.-OMref/(R1ref
+!     >     *rho0ref/rho))*exp(-R1ref*rho0ref/rho)
+!     >     +BBref*(1.-OMref/(R2ref*rho0ref/rho))*exp(-R2ref*
+!     >     *rho0ref/rho)))/(OMref*rho)
+            
+            u(i,j,k,iret,e)= phi*rho*(e_internal+0.5*(ux**2+uy**2
+     >                       +uz**2)) 
   
             vdiff(i,j,k,e,imu) = mu
             vdiff(i,j,k,e,iknd)= udiff

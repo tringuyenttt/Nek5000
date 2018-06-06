@@ -34,7 +34,7 @@
       do i=1,ntot
          rho=max(vtrans(i,1,1,1,irho),ntol)
 !NTN Change entropy S of JWL EOS
-         s(i,2,1)=rho*cvgref*log(t(i,1,1,1,1)/rho**OMref)
+         s(i,2,1)=rho*cvgref*log(t(i,1,1,1,1)/(rho**OMref))
 !        s(i,1,1)=rgam*rho*log(pr(i,1,1,1)/(rho**gmaref)) 
       enddo
 
@@ -70,19 +70,19 @@
       savg    = -savg/volvm1
       call cadd2(scrent,tlag,savg,ntot)
 !NTN change here
-      maxdiff =     glamax(scrent,ntot)
-      if (maxdiff.le.0.0) then
-         write(deathmessage,*) 'zero maxdiff usually means NAN$'
-         call exittr(deathmessage,maxdiff,istep)
-!     else
-!        if (nio .eq. 0) write (6,*) 'max(s-<s>)=',maxdiff, meshh(1)
-      endif
+!      maxdiff =     glamax(scrent,ntot)
+!      if (maxdiff.le.0.0) then
+!         write(deathmessage,*) 'zero maxdiff usually means NAN$'
+!         call exittr(deathmessage,maxdiff,istep)
+!!     else
+!!        if (nio .eq. 0) write (6,*) 'max(s-<s>)=',maxdiff, meshh(1)
+!      endif
 !*************
-!      call entropy_residual(tlag) ! fill res2
+      call entropy_residual(tlag) ! fill res2
       call copy(res2(1,1,1,1,2),res2,ntot) ! raw residual in res2
       call wavevisc(t(1,1,1,1,3))
 !NTN comment here
-      call resvisc(res2) ! overwrite res2
+!      call resvisc(res2) ! overwrite res2
       call evmsmooth(res2,t(1,1,1,1,3),.true.) ! endpoints=.false.
 !NTN                                            ! is intended to
                                                ! preserve face states,
