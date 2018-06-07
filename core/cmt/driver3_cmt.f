@@ -6,6 +6,7 @@ C> conserved unknowns U
       subroutine compute_primitive_vars
       include 'SIZE'
       include 'INPUT'
+      include 'PARALLEL'
       include 'GEOM'
       include 'CMTDATA'
       include 'SOLN'
