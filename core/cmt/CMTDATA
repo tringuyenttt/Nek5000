@@ -39,15 +39,15 @@ c In near future we relax the constraint to thermally perfect gas.
 c------------------------------------------------- -------------------
 c NOTE --- CVG need not be stored on full field... removed in future.
 c       THis because, Temp will be stored fullfield and we expect Cv to
-c       have explicit temp dependence. At the begining of the time step
+c       have explicit
 c       a scratch space will be use to iteratively compute Cv and T from 
 c       internal energy.
 c--------------------------------------------------------------------- 
       real                csound(lx1,ly1,lz1,lelt)
       common /cmtgasprop/ csound
 
-      real                cvgref
-      common /cmtgasref/  cvgref
+      real                cvgref,cvjref,gmaref,rgasref,molmass
+      common /cmtgasref/  cvgref,cvjref,gmaref,rgasref,molmass
 
       real                  cip(2*ldim,lelt)
       common /cmttransprop/ cip
@@ -85,8 +85,10 @@ c---------------------------------------------------------------------
 
       real              varsic(10),rho,phi,pres,cv,e_internal
      $                 ,t0in,p0in,asnd,rgas,cp,mu,lambda,molarmass
+     $    AA,BB,OM,MAref,MBref,CAref,CBref   ! NTN for mixed model
       common /nekuscmt/ varsic    ,rho,phi,pres,cv,e_internal
      $                 ,t0in,p0in,asnd,rgas,cp,mu,lambda,molarmass
+     $    AA,BB,OM,MAref,MBref,CAref,CBref   ! NTN for mixed model
 ! let kond=udiff
 
 ! index for gas density in vtrans, Q+-
@@ -135,10 +137,9 @@ c---------------------------------------------------------------------
 
       real rhoidref,rho0ref,EN_IDref,EN_Oref,
      $    MWref,CWref,MCref,CCref,
-     $    MAref,CAref,MBref,CBref,AAref,
+     $    AAref,
      $    BBref,R1ref,R2ref,OMref
       COMMON /CONST/ rhoidref,rho0ref,EN_IDref,
      $ EN_Oref,MWref,CWref,
-     $ MCref,CCref,MAref,CAref,MBref,
-     $ CBref,AAref,BBref,R1ref,R2ref,OMref
-
+     $ MCref,CCref,
+     $ AAref,BBref,R1ref,R2ref,OMref
