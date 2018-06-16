@@ -162,17 +162,17 @@ c                                     !     ux,uy,uz
             pres  = facew(l,f,e,ipr) ! extrapolated, overwritten
 !            temp = pres/rho/(cp-cv) ! definitely too perfect!
 !change temperature here
-            temp=(pres-AAref*exp(-R1ref*rho0ref/rho)-BBref*
-     >      exp(-R2ref*rho0ref/rho))*1./OMref/cvref/rho 
+            temp=(pres-AA*exp(-R1ref*rho0ref/rho)-BB*
+     >      exp(-R2ref*rho0ref/rho))*1./OM/cvref/rho 
             wbc(l,f,e,ipr)  = pres
 !NTN change formula of the sound spped here
-            wbc(l,f,e,isnd) =SQRT((AAref*(R1ref*(rho0ref/rho)/rho-OMref/
-     >      rho-OMref/(R1ref*rho0ref)-MWref/(R1ref*rho0ref/rho))+
-     >      MAref*pres/(rho*rho)*(1.-OMref/(R1ref*rho0ref/rho)))*
-     >      exp(-R1ref*rho0ref/rho)+(BBref*(R2ref*(rho0ref/rho)/rho-
-     >      OMref/rho-OMref/(R2ref*rho0ref)-MWref/(R2ref*rho0ref/rho))+
-     >      MBref*pres/(rho*rho)*(1.-OMref/(R2ref*rho0ref/rho)))*
-     >      exp(-R2ref*rho0ref/rho)+OMref*(e_internal+pres/rho)+
+            wbc(l,f,e,isnd) =SQRT((AA*(R1ref*(rho0ref/rho)/rho-OM/
+     >      rho-OM/(R1ref*rho0ref)-MWref/(R1ref*rho0ref/rho))+
+     >      MAref*pres/(rho*rho)*(1.-OM/(R1ref*rho0ref/rho)))*
+     >      exp(-R1ref*rho0ref/rho)+(BB*(R2ref*(rho0ref/rho)/rho-
+     >      OM/rho-OM/(R2ref*rho0ref)-MWref/(R2ref*rho0ref/rho))+
+     >      MBref*pres/(rho*rho)*(1.-OM/(R2ref*rho0ref/rho)))*
+     >      exp(-R2ref*rho0ref/rho)+OM*(e_internal+pres/rho)+
      >      MWref*rho*e_internal)
 
 

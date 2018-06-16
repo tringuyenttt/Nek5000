@@ -37,10 +37,13 @@ c     call setup_cmt_param
       INCLUDE 'CMTBCDATA'
 
       real     MixtJWL_TE,MixtJWL_SO,MixtJWL_PR 
-     >         MixtJWL_I_ENE,MixtJWL_Enthalpy      
+     >         MixtJWL_I_ENE,MixtJWL_Enthalpy 
+     >         MixtPerf_R_M,MixtPerf_T_DPR   ! Perfect gas
+     >         MixtPerf_Cp_CvR,MixtPerf_G_CpR     
       external MixtJWL_TE,MixtJWL_SO,MixtJWL_PR 
      >         MixtJWL_I_ENE,MixtJWL_Enthalpy        
-
+     >         MixtPerf_R_M,MixtPerf_T_DPR   ! Prefect gas
+     >         MixtPerf_Cp_CvR,MixtPerf_G_CpR
       cip_adhoc=10.0
       cvgref     = param(104)
 c     gmaref     = param(105)
@@ -51,7 +54,9 @@ c     gmaref     = param(105)
       reftemp    = param(110)
       prlam      = param(111)
       pinfty     = param(112)
-!      rgasref    = MixtPerf_R_M(molmass,dum)
+      cpgref     = MixtPerf_Cp_CvR(cvgref,rgasref)
+      gmaref     = MixtPerf_G_CpR(cpgref,rgasref)
+      rgasref    = MixtPerf_R_M(molmass,dum)
 ! put these in rea file someday
       ifsip = .false.
       return
