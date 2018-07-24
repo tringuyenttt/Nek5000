@@ -44,8 +44,11 @@ C> conserved unknowns U
      >                nxyz)
          call tdstate(e,energy)
       enddo
+         call poscheck(ifailr,'density')
+         call poscheck(ifailr,'energy')
+         call poscheck(ifailr,'temperature')
 
-! setup_convect has the desired effect
+! setup_convecg has the desired effect
 ! if IFPART=F
 ! if IFCHAR=F
 ! if IFCONS=T
@@ -256,5 +259,28 @@ c     ! save velocity on fine mesh for dealiasing
          enddo
          enddo
       enddo
+      return
+      end
+
+!-----------------------------------------------------------------------
+
+      subroutine poscheck(ifail,what)
+      include 'SIZE'
+      include 'PARALLEL'
+      include 'INPUT'
+!JH020918 handles reporting, I/O and exit from failed positivity checks
+!         in compute_primitive_variables
+      character*11 what
+
+      ifail0=iglmax(ifail,1)
+      if(ifail0 .ne. -1) then
+         if (nio .eq. 0)
+     >   write(6,*) 'dumping solution after negative ',what,'@ eg=',
+     >             ifail0
+         ifxyo=.true.
+         call out_fld_nek
+         call exitt
+      endif
+
       return
       end
