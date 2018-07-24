@@ -94,7 +94,7 @@ c We have perfect gas law. Cvg is stored full field
          call cmt_userEOS(i,j,k,eg)
          vtrans(i,j,k,e,icp)= e_internal 
          vtrans(i,j,k,e,icv)= cv*rho
-!         t(i,j,k,e,1)       = temp
+         t(i,j,k,e,1)       = temp
          pr(i,j,k,e)        = pres
          csound(i,j,k,e)    = asnd
       enddo
