@@ -44,9 +44,9 @@ C> conserved unknowns U
      >                nxyz)
          call tdstate(e,energy)
       enddo
-         call poscheck(ifailr,'density')
-         call poscheck(ifailr,'energy')
-         call poscheck(ifailr,'temperature')
+!         call poscheck(ifailr,'density')
+!         call poscheck(ifailr,'energy')
+!         call poscheck(ifailr,'temperature')
 
 ! setup_convecg has the desired effect
 ! if IFPART=F

@@ -49,14 +49,14 @@ c---------------------------------------------------------------------
       real            cpgref,cvgref,cvjref,gmaref,rgasref,molmass,
      $   AA,BB,OM,MAref,MBref,CAref,CBref,   ! NTN for mixed model
      $    rhoidref,rho0ref,EN_IDref,EN_Oref,
-     $    MWref,CWref,MCref,CCref,
+     $    MWref,CWref,MCref,CCref,CC,CW
      $    AAref,
      $    BBref,R1ref,R2ref,OMref
 
       common /cmtgasref/cpgref,cvgref,cvjref,gmaref,rgasref,molmass,
      $    AA,BB,OM,MAref,MBref,CAref,CBref,   ! NTN for mixed model
      $    rhoidref,rho0ref,EN_IDref,EN_Oref,
-     $    MWref,CWref,MCref,CCref,
+     $    MWref,CWref,MCref,CCref,CC,CW
      $    AAref,
      $    BBref,R1ref,R2ref,OMref
 
