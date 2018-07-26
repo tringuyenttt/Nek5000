@@ -34,7 +34,7 @@
       do i=1,ntot
          rho=max(vtrans(i,1,1,1,irho),ntol)
 !NTN Change entropy S of JWL EOS
-         s(i,2,1)=rho*cvgref*log(t(i,1,1,1,1)/(rho**OMref))
+         s(i,1,1)=rho*cvgref*log(t(i,1,1,1,1)/(rho**OMref))
 !        s(i,1,1)=rgam*rho*log(pr(i,1,1,1)/(rho**gmaref)) 
       enddo
 

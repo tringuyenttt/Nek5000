@@ -67,18 +67,30 @@
 !
 !******************************************************************************
 !NTN-----------JWL
-
-      FUNCTION MixtJWL_SO(DE,EN,pres,AA,BB,R1,R2,MW,MA,MB,OM,rho0)
+! Sound speed for mixed model
+!      FUNCTION MixtJWL_SO(DE,EN,pres,AA,BB,R1,R2,MW,MA,MB,OM,rho0)
+!      IMPLICIT NONE
+!      REAL DE,EN,pres,AA,BB,R1,R2,MW,MA,MB,OM,rho0
+!      REAL MixtJWL_SO
+!      MixtJWL_SO =SQRT((AA*(R1*(rho0/DE)/DE-OM/DE-OM/(R1*rho0)-
+!     >                MW/(R1*rho0/DE))+
+!     >        MA*pres/(DE*DE)*(1.-OM/(R1*rho0/DE)))*exp(-R1*rho0/DE)+
+!     >        (BB*(R2*(rho0/DE)/DE-OM/DE-OM/(R2*rho0)-MW/(R2*rho0/DE))+
+!     >        MB*pres/(DE*DE)*(1.-OM/(R2*rho0/DE)))*exp(-R2*rho0/DE)+
+!     >        OM*(EN+pres/DE)+MW*DE*EN)
+!      END
+!Sound speed for JWL
+      FUNCTION MixtJWL_SO(DE,EN,AA,BB,R1,R2,OM,rho0)
       IMPLICIT NONE
-      REAL DE,EN,pres,AA,BB,R1,R2,MW,MA,MB,OM,rho0
+      REAL DE,EN,AA,BB,R1,R2,OM,rho0
       REAL MixtJWL_SO
-      MixtJWL_SO =SQRT((AA*(R1*(rho0/DE)/DE-OM/DE-OM/(R1*rho0)-
-     >                MW/(R1*rho0/DE))+
-     >        MA*pres/(DE*DE)*(1.-OM/(R1*rho0/DE)))*exp(-R1*rho0/DE)+
-     >        (BB*(R2*(rho0/DE)/DE-OM/DE-OM/(R2*rho0)-MW/(R2*rho0/DE))+
-     >        MB*pres/(DE*DE)*(1.-OM/(R2*rho0/DE)))*exp(-R2*rho0/DE)+
-     >        OM*(EN+pres/DE)+MW*DE*EN)
+      MixtJWL_SO=SQRT(AA*exp(-R1*rho0/DE)*(R1*rho0/DE-OM*
+     >                                 (1.+OM)/(R1*rho0))+
+     > BB*exp(-R2*rho0/DE)*(R2*rho0/DE-OM*
+     >                                 (1.+OM)/(R2*rho0))+
+     > OM*(1.+OM)*EN)
       END
+     >
 
       FUNCTION MixtJWL_PR(DE,EN,AA,BB,R1,R2,OM,rho0)
       IMPLICIT NONE
