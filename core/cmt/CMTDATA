@@ -47,18 +47,21 @@ c---------------------------------------------------------------------
       common /cmtgasprop/ csound
 
       real            cpgref,cvgref,cvjref,gmaref,rgasref,molmass,
-     $   AA,BB,OM,MAref,MBref,CAref,CBref,   ! NTN for mixed model
+     $   MAref,MBref,CAref,CBref,   ! NTN for mixed model
      $    rhoidref,rho0ref,EN_IDref,EN_Oref,
-     $    MWref,CWref,MCref,CCref,CC,CW
+     $    MWref,CWref,MCref,CCref,
      $    AAref,
-     $    BBref,R1ref,R2ref,OMref
+     $    BBref,R1ref,R2ref,OMref,
+     $    AA,BB,OM,CC,CW
 
       common /cmtgasref/cpgref,cvgref,cvjref,gmaref,rgasref,molmass,
-     $    AA,BB,OM,MAref,MBref,CAref,CBref,   ! NTN for mixed model
+     $    MAref,MBref,CAref,CBref,   ! NTN for mixed model
      $    rhoidref,rho0ref,EN_IDref,EN_Oref,
-     $    MWref,CWref,MCref,CCref,CC,CW
+     $    MWref,CWref,MCref,CCref,
      $    AAref,
-     $    BBref,R1ref,R2ref,OMref
+     $    BBref,R1ref,R2ref,OMref,
+     $    AA,BB,OM,CC,CW
+
 
       real                  cip(2*ldim,lelt)
       common /cmttransprop/ cip
