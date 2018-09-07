@@ -52,7 +52,7 @@ C> Computes inviscid numerical surface flux from AUSM+ Riemann solver
 ! ******************************************************************************
       real     MixtJWL_Enthalpy
       external MixtJWL_Enthalpy
- 
+
 ! ==============================================================================
 ! Arguments
 ! ==============================================================================
@@ -73,14 +73,12 @@ C> Computes inviscid numerical surface flux from AUSM+ Riemann solver
 ! ******************************************************************************
 ! Start, compute face state
 ! ******************************************************************************
-!      call invcol2(el,rl,ntot)
-!      call invcol2(er,rr,ntot)
 
       do i=1,ntot
 !        Change the Enthalpy 
          Hl = MixtJWL_Enthalpy(rl(i),pl(i),ul(i),vl(i),wl(i),el(i))
          Hr = MixtJWL_Enthalpy(rr(i),pr(i),ur(i),vr(i),wr(i),er(i))
- 
+
          ql = ul(i)*nx(i) + vl(i)*ny(i) + wl(i)*nz(i) - fs(i)
          qr = ur(i)*nx(i) + vr(i)*ny(i) + wr(i)*nz(i) - fs(i)
 

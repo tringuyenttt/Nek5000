@@ -31,9 +31,9 @@ C> @file step.f time stepping and mesh spacing routines
 
       NTOT   = lx1*ly1*lz1*NELV
       do i=1,ntot
-         utmp(i,1,1,1) = abs(vx(i,1,1,1)) +csound(i,1,1,1) !NTN
-         vtmp(i,1,1,1) = abs(vy(i,1,1,1)) +csound(i,1,1,1)
-         wtmp(i,1,1,1) = abs(vz(i,1,1,1)) +csound(i,1,1,1)
+         utmp(i,1,1,1) = abs(vx(i,1,1,1))+csound(i,1,1,1)
+         vtmp(i,1,1,1) = abs(vy(i,1,1,1))+csound(i,1,1,1)
+         wtmp(i,1,1,1) = abs(vz(i,1,1,1))+csound(i,1,1,1)
       enddo
       if (ctarg .gt.0.0) then
          call compute_cfl (umax,utmp,vtmp,wtmp,1.0)
@@ -48,7 +48,8 @@ C> @file step.f time stepping and mesh spacing routines
             call exitt
          endif
       else
-         dt_cmt=dt
+!        dt_cmt=dt
+         dt_cmt=param(12)
       endif
       if (timeio .gt. 0.0) then ! adjust dt for timeio. 
          zetime1=time_cmt

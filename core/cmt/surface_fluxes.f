@@ -201,14 +201,14 @@ C> @}
 ! tl       : temperature
 ! al       : sound speed
 ! pl       : pressure, then phi
-! cpl      : rho*cp
+! el      : rho*cp
 ! State on the exterior (+, "right") side of the face
 ! rr       : density
 ! ur,vr,wr : velocity
 ! tr       : temperature
 ! ar       : sound speed
 ! pr       : pressure
-! cpr      : rho*cp
+! er      : rho*cp
 
       COMMON /SCRNS/ nx(lfd), ny(lfd), nz(lfd), rl(lfd), ul(lfd),
      >               vl(lfd), wl(lfd), pl(lfd), tl(lfd), al(lfd),
