@@ -136,9 +136,9 @@ c---------------------------------------------------------------------
       real rhoidref,rho0ref,EN_IDref,EN_Oref,
      $    MWref,CWref,MCref,CCref,
      $    MAref,CAref,MBref,CBref,AAref,
-     $    BBref,R1ref,R2ref,OMref,CC,CW
-      COMMON /CONST/ rhoidref,rho0ref,EN_IDref,
-     $ EN_Oref,MWref,CWref,CC,CW
+     $    BBref,R1ref,R2ref,OMref
+      COMMON /CONST/ rhoidref,rho0ref,
+     $ EN_IDref,EN_Oref,MWref,CWref,
      $ MCref,CCref,MAref,CAref,MBref,
      $ CBref,AAref,BBref,R1ref,R2ref,OMref
 
