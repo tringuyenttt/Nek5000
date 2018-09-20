@@ -42,26 +42,18 @@ c     Solve the Euler equations
          endif
          call cmt_flow_ics
          call init_cmt_timers
-         dt=abs(param(12))
+         dt_cmt=param(12)
          call cmtchk ! need more ifdefs to use userchk
 ! JH080918 IC better be positive
          call compute_primitive_vars(1) ! get good mu
-!! JH090518 Shock detector is not ready for prime time. Lean on EVM for
-!!          sane default 
-!!        call perssonperaire(t(1,1,1,1,5),vtrans(1,1,1,1,irho),scrent)
          call limiter
-!!        call wavevisc(t(1,1,1,1,3))
-!! JH082718 mask viscosity in t(:,3)
-!!        call col2(t(1,1,1,1,3),t(1,1,1,1,5),nxyz*nelt)
-!!        call max_to_trilin(t(1,1,1,1,3))
          call entropy_viscosity         ! for high diffno
 !        call piecewiseAV(AVeverywhere)
-         call compute_transport_props   ! at t=0
-
+         call compute_transport_props   ! a
 #ifdef LPM
-      call spread_props_grid
+        call spread_props_grid
 #endif
-      endif      
+        endif 
       call rzero(t,nxyz1*nelt*ldimt)
 
       nstage = 3
@@ -186,10 +178,6 @@ C> Store it in res1
 ! JH113015                ! now called from compute_primitive_variables
 
       call compute_primitive_vars(0)
-!! JH090518 Shock detector is not ready for prime time. Lean on EVM for
-!!          sane default 
-!!     if (stage.eq.1)
-!!    >call shock_detector(t(1,1,1,1,5),vtrans(1,1,1,1,irho),scrent)
       call limiter
       call compute_primitive_vars(1)
 
@@ -208,6 +196,8 @@ C> Store it in res1
 !          RK loop at the END of the time step, but I lose custody
 !          of commons in SOLN between cmt_nek_advance and the rest of
 !          the time loop.
+         call setdtcmt
+         call set_tstep_coef
          call copy(t(1,1,1,1,2),vtrans(1,1,1,1,irho),nxyz*nelt)
          call cmtchk
 
@@ -225,8 +215,6 @@ C> Store it in res1
             call lpm_usr_particles_io(istep)
 #endif
          end if
-         call setdtcmt
-         call set_tstep_coef
       endif
 
       ntot = lx1*ly1*lz1*lelt*toteq
@@ -332,19 +320,19 @@ C> res1+=\f$\int_{\Gamma} \{\{\mathbf{A}\nabla \mathbf{U}\}\} \cdot \left[v\righ
 !-----------------------------------------------------------------------
 C> Compute coefficients for Runge-Kutta stages \cite{TVDRK}
       subroutine set_tstep_coef
-      include 'SIZE'
-      include 'TSTEP'
-      include 'CMTDATA'
+
+      real tcoef(3,3),dt_cmt,time_cmt
+      COMMON /TIMESTEPCOEF/ tcoef,dt_cmt,time_cmt
 
       tcoef(1,1) = 0.0
       tcoef(2,1) = 1.0 
-      tcoef(3,1) = dt
+      tcoef(3,1) = dt_cmt
       tcoef(1,2) = 3.0/4.0
       tcoef(2,2) = 1.0/4.0 
-      tcoef(3,2) = dt/4.0 
+      tcoef(3,2) = dt_cmt/4.0 
       tcoef(1,3) = 1.0/3.0
       tcoef(2,3) = 2.0/3.0 
-      tcoef(3,3) = dt*2.0/3.0 
+      tcoef(3,3) = dt_cmt*2.0/3.0 
 
       return
       end

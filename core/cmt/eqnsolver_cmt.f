@@ -88,11 +88,11 @@ C> \f$G^T U\f$
       nfaces = 2*ldim
       nf     = nxz*nfaces ! 1 element's face points
       nfq    = nf*nelt ! all points in a pile of faces
-!     if (ifsip) then
-!        const=-1.0 ! SIP
-!     else
+!      if (ifsip) then
+!         const=-1.0 ! SIP
+!      else
          const=1.0 ! Baumann-Oden
-!     endif
+!      endif
 
 ! compute (U-{{U}})_i * n_k
 ! OK FOLKS GIANT BUG UMMCU IS BAD AT INFLOW
@@ -456,27 +456,28 @@ C> @}
 
         if (eq_num.eq.4.and.ldim.eq.2)then
 
-#ifdef LPM
-c          call subcol3(res1(1,1,1,e,eq_num),phigvdum(1,1,1,e)
-c    >                  ,bm1(1,1,1,e),nxyz)
-#endif
+!#ifdef LPM
+!          call subcol3(res1(1,1,1,e,eq_num),phigvdum(1,1,1,e)
+!    >                  ,bm1(1,1,1,e),nxyz)
+!#endif
 
-        else
+!        else
 #ifdef LPM
            call subcol3(res1(1,1,1,e,eq_num),phigdum(1,1,1,e,eq_num-1)
      >                  ,bm1(1,1,1,e),nxyz)
 #endif
-           call subcol3(res1(1,1,1,e,eq_num),usrf(1,1,1,eq_num)
-     $                  ,bm1(1,1,1,e),nxyz) 
-        endif
+!           call subcol3(res1(1,1,1,e,eq_num),usrf(1,1,1,eq_num)
+!     $                  ,bm1(1,1,1,e),nxyz) 
+!        endif
       elseif(eq_num.eq.5)then
-
-#ifdef LPM
-c          call subcol3(res1(1,1,1,e,eq_num),phigvdum(1,1,1,e)
-c    >                  ,bm1(1,1,1,e),nxyz)
-#endif
-c          call subcol3(res1(1,1,1,e,eq_num),usrf(1,1,1,eq_num)
-c    $                  ,bm1(1,1,1,e),nxyz) 
+!
+!#ifdef LPM
+!          call subcol3(res1(1,1,1,e,eq_num),phigvdum(1,1,1,e)
+!     >                  ,bm1(1,1,1,e),nxyz)
+!#endif
+          call subcol3(res1(1,1,1,e,eq_num),usrf(1,1,1,eq_num)
+     $                  ,bm1(1,1,1,e),nxyz) 
+      endif
 
       endif
       return
@@ -513,7 +514,7 @@ c-----------------------------------------------------------------------
                usrf(i,j,k,2) = FFX*u(i,j,k,1,e)*phig(i,j,k,e)
                usrf(i,j,k,3) = FFY*u(i,j,k,1,e)*phig(i,j,k,e)
                usrf(i,j,k,4) = FFZ*u(i,j,k,1,e)*phig(i,j,k,e)
-               usrf(i,j,k,5) = 0.0
+               usrf(i,j,k,5) = rdum4 
 c              usrf(i,j,k,5) = (U(i,j,k,2,e)*FFX + U(i,j,k,3,e)*FFY
 c    &                       +  U(i,j,k,4,e)*FFZ)/ U(i,j,k,1,e)
             enddo

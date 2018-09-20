@@ -15,9 +15,6 @@ c-----------------------------------------------------------------------
          ifheat = .true. ! almost certainly incorrect
       endif
       call setup_cmt_commo
-
-      iostep2=iostep
-      iostep=9999999
       
 c     call setup_cmt_param
       return
@@ -71,8 +68,8 @@ c------------------------------------------------------------------------
       include 'CMTDATA'
       include 'NEKUSE'
       parameter (lxyz=lx1*ly1*lz1)
-      common /scrns/ scr(lxyz),avstate(toteq)
-      real scr,avstate
+      common /scrns/ scratch(lxyz),avstate(toteq)
+      real scratch,avstate
       integer e,eg
 
       nxyz=lx1*ly1*lz1
@@ -84,23 +81,23 @@ c------------------------------------------------------------------------
       rgam=rgasref/(gmaref-1.0)
 !      do i=1,ntot
 !         rho=max(vtrans(i,1,1,1,irho),1.0e-10)
-!!        scr(i,1)=rgam*log(pr(i,1,1,1)/(rho**gmaref))
-!         scr(i,1)=log(pr(i,1,1,1)/(rho**gmaref))
+!!        scratch(i,1)=rgam*log(pr(i,1,1,1)/(rho**gmaref))
+!         scratch(i,1)=log(pr(i,1,1,1)/(rho**gmaref))
 !      enddo
-!!     call dsop(scr,'MIN',lx1,ly1,lz1)
-!      call copy(t(1,1,1,1,4),scr,ntot)
+!!     call dsop(scratch,'MIN',lx1,ly1,lz1)
+!      call copy(t(1,1,1,1,4),scratch,ntot)
 !! elemental entropy minimum
 !!     do e=1,nelt
-!!        se0(e)=vlmin(scr(1,e),nxyz)
+!!        se0(e)=vlmin(scratch(1,e),nxyz)
 !!     enddo
 
       do e=1,nelt
 
 !        rhomin=vlmin(vtrans(1,1,1,e,irho),nxyz)
          rhomin=vlmin(u(1,1,1,1,e),nxyz)
-
-! positivity-preserving limiter of Zhang and Shu: density
+      
          rho=vlsc2(bm1(1,1,1,e),u(1,1,1,1,e),nxyz)/volel(e)
+! positivity-presering limiter of Zhang and Shu
          if (abs(rho-rhomin) .gt. epslon) then
             theta=min((rho-epslon)/(rho-rhomin+epslon),1.0)
             do i=1,nxyz
@@ -117,9 +114,6 @@ c------------------------------------------------------------------------
 !         enddo
 !         rho=avstate(1)
 !! Entropy-bounded limiter of Lv and Ihme
-!-----------------------------------------------------------------------
-! JH091118 This isn't ready for non-ideal state equations or volume fraction
-!-----------------------------------------------------------------------
 !         e_internal=avstate(5)-
 !     >              0.5*(avstate(2)**2+avstate(3)**2+avstate(4)**2)/
 !     >                   rho
@@ -127,17 +121,17 @@ c------------------------------------------------------------------------
 !         eg=gllel(e)
 !         call cmt_userEOS(1,1,1,eg) ! assigns elm avg to  pres and temp
 !         do i=1,nxyz
-!            scr(i)=pr(i,1,1,e)-exp(se0const)*
+!            scratch(i)=pr(i,1,1,e)-exp(se0const)*
 !     >                         (u(i,1,1,1,e)**gmaref)
 !         enddo
-!         tau=vlmin(scr,nxyz)
+!         tau=vlmin(scratch,nxyz)
 !         tau=min(tau,0.0)
 !         epsebdg(e)=tau/
 !     >          (tau-(pres-exp(se0const)*rho**gmaref))
 !         epsebdg(e)=min(epsebdg(e),1.0)
 !         epsebdg(e)=max(epsebdg(e),0.0)
 !! diagnostic
-!         call cfill(t(1,1,1,e,5),epsebdg(e),nxyz)
+!         call cfill(t(1,1,1,e,4),epsebdg(e),nxyz)
 !
 !         do m=1,toteq
 !            do i=1,nxyz
@@ -145,7 +139,6 @@ c------------------------------------------------------------------------
 !               u(i,1,1,m,e)=uold+epsebdg(e)*(avstate(m)-uold)
 !            enddo
 !         enddo
-!-----------------------------------------------------------------------
 
       enddo
       

@@ -72,6 +72,8 @@
          write(6,*) 'zero maxdiff usually means NAN$'
 !        write(deathmessage,*) 'zero maxdiff usually means NAN$'
 !        call exittr(deathmessage,maxdiff,istep)
+      else
+         if (nio .eq. 0) write (6,*) 'max(s-<s>)=',maxdiff, meshh(1)
       endif
       call entropy_residual(tlag) ! fill res2
       call copy(res2(1,1,1,1,2),res2,ntot) ! raw residual in res2
@@ -442,8 +444,8 @@ c-----------------------------------------------------------------------
      >      sqrt(vx(i,1,1,e)**2+vy(i,1,1,e)**2+vz(i,1,1,e)**2)
          enddo
          maxeig=vlamax(wavespeed,nxyz)
-! Zingan (2015) only. not long for this world
-!        rhomax(e)=vlamax(vtrans(1,1,1,e,irho),nxyz)
+! Zingan (2015) only. not long for this world 
+c        rhomax(e)=vlamax(vtrans(1,1,1,e,irho),nxyz)
          do i=1,nxyz
             numax(i,e)=c_max*maxeig*meshh(e)
          enddo
