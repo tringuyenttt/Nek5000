@@ -46,7 +46,7 @@ c     Solve the Euler equations
          call cmtchk ! need more ifdefs to use userchk
 ! JH080918 IC better be positive
          call compute_primitive_vars(1) ! get good mu
-         call limiter
+         call limiter                   ! NTN   
          call entropy_viscosity         ! for high diffno
 !        call piecewiseAV(AVeverywhere)
          call compute_transport_props   ! a
@@ -178,7 +178,7 @@ C> Store it in res1
 ! JH113015                ! now called from compute_primitive_variables
 
       call compute_primitive_vars(0)
-      call limiter
+      call limiter    !NTN
       call compute_primitive_vars(1)
 
 !     if (1==2) then
