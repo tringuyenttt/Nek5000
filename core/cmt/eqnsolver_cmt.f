@@ -443,7 +443,6 @@ C> @}
       include  'SOLN'
       include  'CMTDATA'
       include  'DEALIAS'
-      
       integer e,eq_num
       parameter (ldd=lxd*lyd*lzd)
 
@@ -451,33 +450,33 @@ C> @}
       real phigdum(lx1,ly1,lz1,lelt,3),phigvdum(lx1,ly1,lz1,lelt)
 
       nxyz=lx1*ly1*lz1
+
       if(eq_num.ne.1.and.eq_num.ne.5)then
 
-
         if (eq_num.eq.4.and.ldim.eq.2)then
+#ifdef LPM
+          call subcol3(res1(1,1,1,e,eq_num),phigvdum(1,1,1,e)
+     >                  ,bm1(1,1,1,e),nxyz)
+#endif
+        else
 
-!#ifdef LPM
-!          call subcol3(res1(1,1,1,e,eq_num),phigvdum(1,1,1,e)
-!    >                  ,bm1(1,1,1,e),nxyz)
-!#endif
-
-!        else
 #ifdef LPM
            call subcol3(res1(1,1,1,e,eq_num),phigdum(1,1,1,e,eq_num-1)
      >                  ,bm1(1,1,1,e),nxyz)
 #endif
-!           call subcol3(res1(1,1,1,e,eq_num),usrf(1,1,1,eq_num)
-!     $                  ,bm1(1,1,1,e),nxyz) 
-!        endif
-      elseif(eq_num.eq.5)then
-!
-!#ifdef LPM
-!          call subcol3(res1(1,1,1,e,eq_num),phigvdum(1,1,1,e)
-!     >                  ,bm1(1,1,1,e),nxyz)
-!#endif
-          call subcol3(res1(1,1,1,e,eq_num),usrf(1,1,1,eq_num)
+           call subcol3(res1(1,1,1,e,eq_num),usrf(1,1,1,eq_num)
      $                  ,bm1(1,1,1,e),nxyz) 
-      endif
+        endif
+      elseif(eq_num.eq.5)then
+
+#ifdef LPM
+          call subcol3(res1(1,1,1,e,eq_num),phigvdum(1,1,1,e)
+     >                  ,bm1(1,1,1,e),nxyz)
+
+#endif
+
+!          call subcol3(res1(1,1,1,e,eq_num),usrf(1,1,1,eq_num)
+!     $                  ,bm1(1,1,1,e),nxyz) 
 
       endif
       return
@@ -497,6 +496,9 @@ c-----------------------------------------------------------------------
         call rzero(usrf,n)
       endif
       eg = lglel(e)
+      FFX = 0.
+      FFY = 0.
+      FFZ = 0. 
       do k=1,lz1
          do j=1,ly1
             do i=1,lx1
@@ -514,7 +516,7 @@ c-----------------------------------------------------------------------
                usrf(i,j,k,2) = FFX*u(i,j,k,1,e)*phig(i,j,k,e)
                usrf(i,j,k,3) = FFY*u(i,j,k,1,e)*phig(i,j,k,e)
                usrf(i,j,k,4) = FFZ*u(i,j,k,1,e)*phig(i,j,k,e)
-               usrf(i,j,k,5) = rdum4 
+               usrf(i,j,k,5) = 0.0 
 c              usrf(i,j,k,5) = (U(i,j,k,2,e)*FFX + U(i,j,k,3,e)*FFY
 c    &                       +  U(i,j,k,4,e)*FFZ)/ U(i,j,k,1,e)
             enddo
