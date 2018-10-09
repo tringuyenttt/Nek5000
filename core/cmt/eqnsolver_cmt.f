@@ -457,8 +457,8 @@ C> @}
         if (eq_num.eq.4.and.ldim.eq.2)then
 
 #ifdef LPM
-c          call subcol3(res1(1,1,1,e,eq_num),phigvdum(1,1,1,e)
-c    >                  ,bm1(1,1,1,e),nxyz)
+          call subcol3(res1(1,1,1,e,eq_num),phigvdum(1,1,1,e)
+     >                  ,bm1(1,1,1,e),nxyz)
 #endif
 
         else
@@ -472,8 +472,8 @@ c    >                  ,bm1(1,1,1,e),nxyz)
       elseif(eq_num.eq.5)then
 
 #ifdef LPM
-c          call subcol3(res1(1,1,1,e,eq_num),phigvdum(1,1,1,e)
-c    >                  ,bm1(1,1,1,e),nxyz)
+          call subcol3(res1(1,1,1,e,eq_num),phigvdum(1,1,1,e)
+     >                  ,bm1(1,1,1,e),nxyz)
 #endif
 c          call subcol3(res1(1,1,1,e,eq_num),usrf(1,1,1,eq_num)
 c    $                  ,bm1(1,1,1,e),nxyz) 
@@ -496,6 +496,9 @@ c-----------------------------------------------------------------------
         call rzero(usrf,n)
       endif
       eg = lglel(e)
+      FFX = 0.
+      FFY = 0.
+      FFZ = 0.
       do k=1,lz1
          do j=1,ly1
             do i=1,lx1
